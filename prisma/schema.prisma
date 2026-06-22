@@ -1,0 +1,735 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ATTENDEE
+  ORGANIZER
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum EventFormat {
+  EXPO
+  CONFERENCE
+  JOB_FAIR
+  CAREER_EVENT
+  UNIVERSITY_EVENT
+  TECHNOLOGY
+  HEALTHCARE
+  WORKSHOP
+  NETWORKING
+  COMMUNITY
+  OTHER
+}
+
+enum TicketTier {
+  FREE
+  PAID
+  VIP
+  GROUP
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum SponsorLevel {
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  EVENT_REMINDER
+  EVENT_UPDATE
+  PAYMENT_RECEIVED
+  REVIEW_APPROVED
+  ORGANIZER_ANNOUNCEMENT
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  CHECK_IN
+  PAYMENT
+  APPROVE
+  REJECT
+}
+
+enum ExhibitorMemberRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum ActivityKind {
+  TOUR
+  TRAVEL
+}
+
+enum TravelCategory {
+  SHUTTLE
+  FLIGHT
+  HOTEL
+  TRANSFER
+  OTHER
+}
+
+enum ItineraryItemKind {
+  CUSTOM
+  TOUR
+  TRAVEL
+}
+
+enum ExhibitorRegistrationStatus {
+  DRAFT
+  SUBMITTED
+}
+
+// ─── Auth (NextAuth) ─────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  role          UserRole  @default(ATTENDEE)
+  phone         String?
+  company       String?
+  bio           String?   @db.Text
+  location      String?
+  interests     String[]
+  isVerified    Boolean   @default(false)
+
+  accounts      Account[]
+  sessions      Session[]
+  organizedEvents Event[]       @relation("OrganizerEvents")
+  bookings      Booking[]
+  reviews       Review[]
+  favorites     Favorite[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  exhibitorProfile Exhibitor?
+  exhibitorMemberships ExhibitorMember[]
+  activityBookings ExhibitorActivityBooking[] @relation("ActivityBookedBy")
+  createdActivities EventActivity[] @relation("ActivityCreator")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Events & Categories ───────────────────────────────────────────────────
+
+model EventCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String? @db.Text
+  icon        String?
+  color       String?
+  events      Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Venue {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String   @db.Text
+  address         String
+  city            String
+  country         String   @default("Kenya")
+  latitude        Float?
+  longitude       Float?
+  capacity        Int
+  images          String[]
+  facilities      String[]
+  parkingInfo     String?  @db.Text
+  accessibility   String?  @db.Text
+  isPopular       Boolean  @default(false)
+  events          Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([isPopular])
+}
+
+model Event {
+  id              String      @id @default(cuid())
+  title           String
+  slug            String      @unique
+  description     String      @db.Text
+  shortDescription String?
+  banner          String?
+  status          EventStatus @default(DRAFT)
+  format          EventFormat @default(OTHER)
+  isFeatured      Boolean     @default(false)
+  isTrending      Boolean     @default(false)
+  startDate       DateTime
+  endDate         DateTime
+  startTime       String?
+  endTime         String?
+  capacity        Int?
+  terms           String?     @db.Text
+  viewCount       Int         @default(0)
+  tags            String[]
+
+  categoryId      String
+  category        EventCategory @relation(fields: [categoryId], references: [id])
+  venueId         String?
+  venue           Venue?        @relation(fields: [venueId], references: [id])
+  organizerId     String
+  organizer       User          @relation("OrganizerEvents", fields: [organizerId], references: [id])
+
+  ticketTypes     TicketType[]
+  bookings        Booking[]
+  reviews         Review[]
+  favorites       Favorite[]
+  gallery         GalleryImage[]
+  speakers        Speaker[]
+  agenda          AgendaItem[]
+  faqs            FAQ[]
+  sponsors        EventSponsor[]
+  exhibitors      EventExhibitor[]
+  coupons         Coupon[]
+  activities      EventActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([startDate])
+  @@index([categoryId])
+  @@index([organizerId])
+  @@index([format])
+  @@index([isFeatured])
+}
+
+model TicketType {
+  id          String     @id @default(cuid())
+  eventId     String
+  event       Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String?    @db.Text
+  tier        TicketTier @default(PAID)
+  price       Decimal    @default(0) @db.Decimal(10, 2)
+  currency    String     @default("KES")
+  quantity    Int
+  sold        Int        @default(0)
+  minPerOrder Int        @default(1)
+  maxPerOrder Int        @default(10)
+  isActive    Boolean    @default(true)
+  saleStart   DateTime?
+  saleEnd     DateTime?
+
+  bookingItems BookingItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+// ─── Bookings & Payments ─────────────────────────────────────────────────────
+
+model Booking {
+  id              String        @id @default(cuid())
+  bookingNumber   String        @unique
+  status          BookingStatus @default(PENDING)
+  totalAmount     Decimal       @default(0) @db.Decimal(10, 2)
+  discountAmount  Decimal       @default(0) @db.Decimal(10, 2)
+  currency        String        @default("KES")
+  qrCode          String        @unique
+  checkedIn       Boolean       @default(false)
+  checkedInAt     DateTime?
+  attendeeName    String
+  attendeeEmail   String
+  attendeePhone   String?
+
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id])
+  eventId         String
+  event           Event         @relation(fields: [eventId], references: [id])
+  couponId        String?
+  coupon          Coupon?       @relation(fields: [couponId], references: [id])
+
+  items           BookingItem[]
+  payment         Payment?
+  attendance      Attendance?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+  @@index([bookingNumber])
+}
+
+model BookingItem {
+  id           String     @id @default(cuid())
+  bookingId    String
+  booking      Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity     Int
+  unitPrice    Decimal    @db.Decimal(10, 2)
+  subtotal     Decimal    @db.Decimal(10, 2)
+
+  @@index([bookingId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  booking         Booking       @relation(fields: [bookingId], references: [id])
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("KES")
+  status          PaymentStatus @default(PENDING)
+  stripePaymentId String?       @unique
+  stripeSessionId String?       @unique
+  invoiceNumber   String?       @unique
+  metadata        Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  discountType  String    @default("percentage")
+  discountValue Decimal   @db.Decimal(10, 2)
+  maxUses       Int?
+  usedCount     Int       @default(0)
+  minAmount     Decimal?  @db.Decimal(10, 2)
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+
+  eventId       String?
+  event         Event?    @relation(fields: [eventId], references: [id])
+  bookings      Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Sponsors & Exhibitors ───────────────────────────────────────────────────
+
+model Sponsor {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  website     String?
+  description String?  @db.Text
+  contactName String?
+  contactEmail String?
+  contactPhone String?
+  events      EventSponsor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventSponsor {
+  id       String       @id @default(cuid())
+  eventId  String
+  event    Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  sponsorId String
+  sponsor  Sponsor      @relation(fields: [sponsorId], references: [id])
+  level    SponsorLevel @default(BRONZE)
+  order    Int          @default(0)
+
+  @@unique([eventId, sponsorId])
+}
+
+model Exhibitor {
+  id           String   @id @default(cuid())
+  userId       String?  @unique
+  user         User?    @relation(fields: [userId], references: [id])
+  companyName  String
+  slug         String   @unique
+  logo         String?
+  description  String?  @db.Text
+  website      String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  products     String[]
+  socialLinks  Json?
+  events       EventExhibitor[]
+  leads        ExhibitorLead[]
+  members      ExhibitorMember[]
+  activityBookings ExhibitorActivityBooking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventExhibitor {
+  id          String    @id @default(cuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  exhibitorId String
+  exhibitor   Exhibitor @relation(fields: [exhibitorId], references: [id])
+  boothNumber String?
+  hall        String?
+
+  itineraryItems ItineraryItem[]
+  registration   ExhibitorRegistration?
+
+  @@unique([eventId, exhibitorId])
+}
+
+model ExhibitorRegistration {
+  id               String                      @id @default(cuid())
+  eventExhibitorId String                      @unique
+  eventExhibitor   EventExhibitor              @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  status           ExhibitorRegistrationStatus @default(DRAFT)
+  formData         Json
+  submittedAt      DateTime?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+}
+
+model ExhibitorMember {
+  id          String              @id @default(cuid())
+  exhibitorId String
+  exhibitor   Exhibitor           @relation(fields: [exhibitorId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        ExhibitorMemberRole @default(STAFF)
+
+  assignedItineraryItems ItineraryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([exhibitorId, userId])
+  @@index([userId])
+}
+
+model EventActivity {
+  id          String          @id @default(cuid())
+  eventId     String
+  event       Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User            @relation("ActivityCreator", fields: [createdById], references: [id])
+  kind        ActivityKind
+  travelType  TravelCategory?
+  title       String
+  description String?         @db.Text
+  startAt     DateTime
+  endAt       DateTime?
+  location    String?
+  maxSlots    Int?
+  price       Decimal         @default(0) @db.Decimal(10, 2)
+  currency    String          @default("KES")
+  isActive    Boolean         @default(true)
+
+  bookings ExhibitorActivityBooking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([kind])
+}
+
+model ExhibitorActivityBooking {
+  id          String        @id @default(cuid())
+  activityId  String
+  activity    EventActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  exhibitorId String
+  exhibitor   Exhibitor     @relation(fields: [exhibitorId], references: [id], onDelete: Cascade)
+  bookedById  String
+  bookedBy    User          @relation("ActivityBookedBy", fields: [bookedById], references: [id])
+  notes       String?       @db.Text
+
+  itineraryItem ItineraryItem?
+
+  createdAt DateTime @default(now())
+
+  @@unique([activityId, exhibitorId])
+  @@index([exhibitorId])
+}
+
+model ItineraryItem {
+  id               String            @id @default(cuid())
+  eventExhibitorId String
+  eventExhibitor   EventExhibitor    @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?           @db.Text
+  kind             ItineraryItemKind @default(CUSTOM)
+  startAt          DateTime
+  endAt            DateTime?
+  location         String?
+  order            Int               @default(0)
+
+  assignedMemberId   String?
+  assignedMember     ExhibitorMember? @relation(fields: [assignedMemberId], references: [id], onDelete: SetNull)
+  activityBookingId  String?          @unique
+  activityBooking    ExhibitorActivityBooking? @relation(fields: [activityBookingId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventExhibitorId])
+}
+
+model ExhibitorLead {
+  id          String    @id @default(cuid())
+  exhibitorId String
+  exhibitor   Exhibitor @relation(fields: [exhibitorId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  phone       String?
+  company     String?
+  message     String?   @db.Text
+  source      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([exhibitorId])
+}
+
+// ─── Content ─────────────────────────────────────────────────────────────────
+
+model Speaker {
+  id        String  @id @default(cuid())
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  title     String?
+  company   String?
+  bio       String? @db.Text
+  image     String?
+  order     Int     @default(0)
+
+  @@index([eventId])
+}
+
+model AgendaItem {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  startTime   String
+  endTime     String
+  location    String?
+  speaker     String?
+  order       Int      @default(0)
+
+  @@index([eventId])
+}
+
+model GalleryImage {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  url     String
+  caption String?
+  order   Int    @default(0)
+
+  @@index([eventId])
+}
+
+model FAQ {
+  id       String @id @default(cuid())
+  eventId  String
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  question String
+  answer   String @db.Text
+  order    Int    @default(0)
+
+  @@index([eventId])
+}
+
+// ─── Engagement ──────────────────────────────────────────────────────────────
+
+model Review {
+  id       String       @id @default(cuid())
+  eventId  String
+  event    Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User         @relation(fields: [userId], references: [id])
+  rating   Int
+  comment  String?      @db.Text
+  images   String[]
+  status   ReviewStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([status])
+}
+
+model Favorite {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    NotificationType
+  title   String
+  message String           @db.Text
+  link    String?
+  isRead  Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  bookingId  String   @unique
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  checkedInAt DateTime @default(now())
+  checkedInBy String?
+  deviceInfo String?
+
+  @@index([checkedInAt])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id])
+  action     AuditAction
+  entity     String
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model Testimonial {
+  id       String  @id @default(cuid())
+  name     String
+  role     String?
+  company  String?
+  content  String  @db.Text
+  image    String?
+  rating   Int     @default(5)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model SiteContent {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+
+  updatedAt DateTime @updatedAt
+}

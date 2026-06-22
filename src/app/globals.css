@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+/* Class-based dark mode for next-themes (`attribute="class"`) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+@theme inline {
+  /* Brand palette */
+  --color-alabaster: #f9f6f0;
+  --color-espresso: #1c1a17;
+  --color-champagne: #c5a880;
+  --color-champagne-dark: #b3966e;
+  --color-champagne-light: #d9c9a8;
+  --color-cashmere: #efece6;
+
+  /* Semantic tokens */
+  --color-background: light-dark(var(--color-alabaster), #141210);
+  --color-foreground: light-dark(var(--color-espresso), var(--color-alabaster));
+  --color-primary: var(--color-champagne);
+  --color-primary-foreground: var(--color-espresso);
+  --color-secondary: var(--color-champagne-dark);
+  --color-secondary-foreground: var(--color-espresso);
+  --color-accent: var(--color-champagne);
+  --color-accent-foreground: var(--color-espresso);
+  --color-muted: light-dark(var(--color-cashmere), #252320);
+  --color-muted-foreground: light-dark(#6b6560, #a8a29e);
+  --color-border: light-dark(#e5dfd4, #3d3830);
+  --color-card: light-dark(var(--color-cashmere), #1c1a17);
+  --color-card-foreground: light-dark(var(--color-espresso), var(--color-alabaster));
+  --color-ring-offset: light-dark(var(--color-alabaster), #141210);
+  --color-input: light-dark(#e5dfd4, #3d3830);
+  --color-ring: var(--color-champagne);
+  --font-sans: var(--font-geist-sans);
+}
+
+@keyframes venue-marker-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.venue-image-marker {
+  background: transparent;
+  border: none;
+}
+
+.venue-image-marker__pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: venue-marker-bounce 2.5s ease-in-out infinite;
+}
+
+.venue-image-marker__photo {
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border: 3px solid #c5a880;
+  border-radius: 50%;
+  background: #f9f6f0;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 25%);
+}
+
+.venue-image-marker__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.venue-image-marker__pointer {
+  width: 0;
+  height: 0;
+  margin-top: -1px;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid #c5a880;
+}
+
+.venue-map-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.venue-map-popup .leaflet-popup-content {
+  margin: 0;
+  width: 240px !important;
+}
+
+.venue-map-popup__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.venue-map-popup__image {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+
+.venue-map-popup__title {
+  margin: 0;
+  padding: 10px 12px 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1c1a17;
+}
+
+.venue-map-popup__address {
+  margin: 0;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b6560;
+}
+
+.venue-map-popup__links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 12px;
+  font-size: 12px;
+}
+
+.venue-map-popup__links a {
+  color: #c5a880;
+  text-decoration: none;
+}
+
+.venue-map-popup__links a:hover {
+  text-decoration: underline;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  overflow-wrap: anywhere;
+}
+
+/* Prevent iOS zoom on focused form fields when font-size is below 16px */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+::selection {
+  background: #e5d4b8;
+  color: #1c1a17;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Launch page */
+@keyframes launch-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.launch-shimmer {
+  background-size: 200% auto;
+  animation: launch-shimmer 4s linear infinite;
+}
