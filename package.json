@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 5001",
     "build": "prisma generate && next build",
+    "build:cf": "opennextjs-cloudflare build",
     "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "start": "next start -p 5001",
