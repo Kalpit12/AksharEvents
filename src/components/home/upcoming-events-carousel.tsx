@@ -83,7 +83,10 @@ export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) 
             }`}
           >
             {page.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard
+                key={event.id}
+                event={{ ...event, startDate: new Date(event.startDate) }}
+              />
             ))}
           </motion.div>
         </AnimatePresence>

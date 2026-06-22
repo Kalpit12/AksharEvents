@@ -369,8 +369,8 @@ export default function Ferrofluid({
       };
       callIfFn(programRef.current, "remove");
       callIfFn(geometryRef.current, "remove");
-      callIfFn(meshRef.current, "remove");
-      callIfFn(rendererRef.current, "destroy");
+      callIfFn(meshRef.current as { remove?: () => void } | null, "remove");
+      callIfFn(rendererRef.current as { destroy?: () => void } | null, "destroy");
       programRef.current = null;
       geometryRef.current = null;
       meshRef.current = null;

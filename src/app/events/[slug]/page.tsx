@@ -58,8 +58,18 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
     : 0;
 
   const ticketTypes = event.ticketTypes.map((t) => ({
-    ...t,
-    price: t.price.toNumber(),
+    id: t.id,
+    name: t.name,
+    description: t.description ?? null,
+    tier: String(t.tier),
+    price:
+      typeof t.price === "object" && t.price !== null && "toNumber" in t.price
+        ? t.price.toNumber()
+        : Number(t.price),
+    quantity: t.quantity,
+    sold: t.sold,
+    maxPerOrder: t.maxPerOrder,
+    minPerOrder: t.minPerOrder,
   }));
 
   const jsonLd = {
@@ -77,7 +87,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             "@type": "PostalAddress",
             streetAddress: event.venue.address,
             addressLocality: event.venue.city,
-            addressCountry: event.venue.country,
+            addressCountry: "country" in event.venue ? event.venue.country : "Kenya",
           },
         }
       : undefined,
@@ -120,7 +130,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
               {event.venue && (
                 <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-primary" />{event.venue.name}, {event.venue.city}</span>
               )}
-              {event.capacity && (
+              {"capacity" in event && event.capacity != null && event.capacity > 0 && (
                 <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{event.capacity.toLocaleString()} capacity</span>
               )}
               {avgRating > 0 && (
