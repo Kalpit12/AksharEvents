@@ -21,7 +21,6 @@ import {
   BOOTH_SIZE_OPTIONS,
   AV_OPTIONS,
   MEMBER_ROLES,
-  MEAL_STYLE_OPTIONS,
   ROLE_BADGE,
   SHUTTLE_OPTIONS,
   TRANSPORT_OPTIONS,
@@ -686,13 +685,25 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             </Panel>
           </div>
 
+          {props.canManageMembers && (
+            <BulkUploadMembersPanel
+              bulkUploading={bulkUploading}
+              bulkResults={bulkResults}
+              csvInputRef={csvInputRef}
+              onUpload={handleBulkUpload}
+              onDownloadSample={downloadSampleCsv}
+            />
+          )}
+
           <Panel
             title="Team overview"
             icon={Users}
             action={
-              <Button size="sm" className="gap-1" onClick={() => setModalOpen(true)}>
-                <Plus className="h-4 w-4" /> Add member
-              </Button>
+              <div className="flex shrink-0 flex-nowrap items-center gap-2">
+                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
+                  <Plus className="h-4 w-4" /> Add member
+                </Button>
+              </div>
             }
           >
             {members.length === 0 ? (
@@ -809,6 +820,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 </Field>
                 <Field label="Vehicle preference">
                   <Select value={form.vehicle} onChange={(v) => setForm({ ...form, vehicle: v })} options={[...VEHICLE_OPTIONS]} placeholder="Select…" />
+                  <p className="mt-1.5 text-xs text-muted-foreground">Ride will be provided based on availability.</p>
                 </Field>
               </FormRow>
               <NavButtons onBack={() => goStep(3)} onNext={() => goStep(5)} nextLabel="Next: Food outings" />
@@ -823,11 +835,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               <Field label="Optional vegetarian dining experiences — select all of interest">
                 <CheckGroup options={[...VEG_DINING_EXPERIENCES]} selected={selectedFoodExp} onToggle={(k) => toggleSet(selectedFoodExp, k, setSelectedFoodExp)} />
               </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-1">
                 <Field label="Allergies to note (veg menu)"><Input value={form.allergy} onChange={(e) => setForm({ ...form, allergy: e.target.value })} placeholder="e.g. nuts, dairy, gluten…" /></Field>
-                <Field label="Preferred meal style">
-                  <Select value={form.mealstyle} onChange={(v) => setForm({ ...form, mealstyle: v })} options={[...MEAL_STYLE_OPTIONS]} placeholder="Select…" />
-                </Field>
               </div>
               <Field label="Any special food requests or notes for the organiser?">
                 <Textarea value={form.foodnotes} onChange={(e) => setForm({ ...form, foodnotes: e.target.value })} rows={2} />
@@ -904,66 +913,31 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       {tab === "members" && (
         <div className="space-y-4">
           {props.canManageMembers && (
-            <Panel title="Bulk upload members" icon={Upload}>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Upload a CSV with columns <strong>name</strong>, <strong>email</strong>, and <strong>phone</strong>.
-                Each member receives a welcome email with exhibitor portal login credentials.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  ref={csvInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void handleBulkUpload(file);
-                  }}
-                />
-                <Button
-                  size="sm"
-                  className="gap-1"
-                  disabled={bulkUploading}
-                  onClick={() => csvInputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4" />
-                  {bulkUploading ? "Uploading…" : "Upload CSV"}
-                </Button>
-                <Button size="sm" variant="outline" onClick={downloadSampleCsv}>
-                  Download sample CSV
-                </Button>
-              </div>
-              {bulkResults && (
-                <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
-                  <p className="font-medium">
-                    {bulkResults.summary.added} added · {bulkResults.summary.skipped} skipped · {bulkResults.summary.failed} failed
-                  </p>
-                  {(bulkResults.skipped.length > 0 || bulkResults.failed.length > 0) && (
-                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      {[...bulkResults.failed, ...bulkResults.skipped].slice(0, 8).map((row) => (
-                        <li key={`${row.email}-${row.reason}`}>
-                          {row.email}: {row.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </Panel>
+            <BulkUploadMembersPanel
+              bulkUploading={bulkUploading}
+              bulkResults={bulkResults}
+              csvInputRef={csvInputRef}
+              onUpload={handleBulkUpload}
+              onDownloadSample={downloadSampleCsv}
+            />
           )}
           <Panel
             title="Team members"
             icon={Users}
             action={
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex shrink-0 flex-nowrap items-center gap-2">
                 <CustomSelect
                   size="sm"
+                  className="w-[9.5rem]"
+                  triggerClassName="w-[9.5rem]"
                   value={toAllValue(memberFilter)}
                   onChange={(v) => setMemberFilter(fromAllValue(v))}
                   options={toSelectOptionsWithAll([...MEMBER_ROLES], "All roles")}
                   placeholder="All roles"
                 />
-                <Button size="sm" className="gap-1" onClick={() => setModalOpen(true)}><Plus className="h-4 w-4" /> Add member</Button>
+                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
+                  <Plus className="h-4 w-4" /> Add member
+                </Button>
               </div>
             }
           >
@@ -1062,7 +1036,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   <SelectionRow key={exp} title={exp} detail="Optional experience" />
                 ))}
                 {form.allergy && <SelectionRow title="Allergies noted" detail={form.allergy} />}
-                {form.mealstyle && <SelectionRow title="Preferred meal style" detail={form.mealstyle} />}
                 {form.foodnotes && <SelectionRow title="Special notes" detail={form.foodnotes} />}
               </div>
             )}
@@ -1143,6 +1116,73 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function BulkUploadMembersPanel({
+  bulkUploading,
+  bulkResults,
+  csvInputRef,
+  onUpload,
+  onDownloadSample,
+}: {
+  bulkUploading: boolean;
+  bulkResults: {
+    summary: { total: number; added: number; skipped: number; failed: number };
+    skipped: { email: string; reason: string }[];
+    failed: { email: string; reason: string }[];
+  } | null;
+  csvInputRef: React.RefObject<HTMLInputElement | null>;
+  onUpload: (file: File) => void | Promise<void>;
+  onDownloadSample: () => void;
+}) {
+  return (
+    <Panel title="Bulk upload members" icon={Upload}>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Upload a CSV with columns <strong>name</strong>, <strong>email</strong>, and <strong>phone</strong>.
+        Each member receives a welcome email with exhibitor portal login credentials.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void onUpload(file);
+          }}
+        />
+        <Button
+          size="sm"
+          className="gap-1"
+          disabled={bulkUploading}
+          onClick={() => csvInputRef.current?.click()}
+        >
+          <Upload className="h-4 w-4" />
+          {bulkUploading ? "Uploading…" : "Upload CSV"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={onDownloadSample}>
+          Download sample CSV
+        </Button>
+      </div>
+      {bulkResults && (
+        <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
+          <p className="font-medium">
+            {bulkResults.summary.added} added · {bulkResults.summary.skipped} skipped · {bulkResults.summary.failed} failed
+          </p>
+          {(bulkResults.skipped.length > 0 || bulkResults.failed.length > 0) && (
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+              {[...bulkResults.failed, ...bulkResults.skipped].slice(0, 8).map((row) => (
+                <li key={`${row.email}-${row.reason}`}>
+                  {row.email}: {row.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Panel>
   );
 }
 

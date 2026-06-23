@@ -140,7 +140,6 @@ export function foodFormFields(data: SavedRegistrationData): [string, string][] 
     ["Team meals selected", data.selectedMeals.length > 0 ? data.selectedMeals.join("; ") : "None"],
     ["Dining experiences", data.selectedFoodExp.length > 0 ? data.selectedFoodExp.join("; ") : "None"],
     ["Allergies", form.allergy || "None"],
-    ["Preferred meal style", form.mealstyle || "—"],
     ["Special food notes", form.foodnotes || "—"],
   ];
 }

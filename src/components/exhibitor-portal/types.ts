@@ -45,7 +45,7 @@ export const BOOTH_SIZE_OPTIONS = ["3×3 m", "3×2 m", "2×3 m"] as const;
 
 export const AV_OPTIONS = ["No", "Yes — projector & screen", "Yes — TV display", "Yes — full AV setup"] as const;
 
-export const VEHICLE_OPTIONS = ["Standard minibus", "Safari van", "Private car", "No preference"] as const;
+export const VEHICLE_OPTIONS = ["Mini bus"] as const;
 
 export const TRANSPORT_OPTIONS = ["Daily shuttle", "Bus A (airport)", "Safari van", "Own transport"] as const;
 
