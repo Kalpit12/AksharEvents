@@ -64,7 +64,7 @@ export default function AdminEventsPanel({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
-      <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <section id="create-event" className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Create event</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Published expos and events appear in the exhibitor signup form.

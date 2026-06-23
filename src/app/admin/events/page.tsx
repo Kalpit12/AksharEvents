@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AdminEventsPanel from "@/components/admin/admin-events-panel";
+import { EventMasterPageHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +21,13 @@ export default async function AdminEventsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Event Master</p>
-          <h1 className="text-2xl font-bold">Events</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create and publish expos. Exhibitors choose an event when they sign up.
-          </p>
-        </div>
-        <Link href="/admin" className="text-sm font-medium text-primary hover:underline">
-          ← Back to dashboard
-        </Link>
-      </div>
+      <EventMasterPageHero
+        title="Events"
+        subtitle="Create and publish expos. Published events appear in the exhibitor signup form."
+        createHref="#create-event"
+      />
+
+      <EventMasterQuickNav active="events" />
 
       <AdminEventsPanel
         categories={categories}

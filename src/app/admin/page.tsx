@@ -6,6 +6,7 @@ import type { EventActivityOption } from "@/lib/event-activity-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
+import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +45,20 @@ export default async function AdminEventMasterPage() {
   if (!event) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <EventMasterPageHero
+          title="No published events yet"
+          subtitle="Create and publish an expo so exhibitors can sign up and you can manage registrations from this dashboard."
+          showCreateAction
+        />
         <div className="rounded-2xl border border-border bg-card p-10 text-center">
-          <h1 className="text-xl font-semibold">Event Master</h1>
-          <p className="mt-2 text-sm text-muted-foreground">No published events yet.</p>
-          <a href="/admin/events" className="mt-4 inline-block text-sm font-medium text-primary hover:underline">
-            Create your first event →
+          <p className="text-sm text-muted-foreground">
+            Once you publish an event, exhibitor registrations, transport, hotels, and food data will appear here.
+          </p>
+          <a
+            href="/admin/events"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-champagne-dark"
+          >
+            Go to Create event →
           </a>
         </div>
       </div>
@@ -92,6 +102,7 @@ export default async function AdminEventMasterPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <EventMasterDashboard
+        eventId={event.id}
         eventTitle={event.title}
         eventLocation={location}
         startDate={event.startDate.toISOString()}

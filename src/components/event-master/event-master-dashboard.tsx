@@ -8,6 +8,7 @@ import {
   type EventMasterTab,
 } from "@/components/event-master/types";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
+import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import {
   aggregateDietary,
@@ -27,7 +28,6 @@ import {
   Briefcase,
   Building2,
   Bus,
-  Calendar,
   CalendarDays,
   Clock,
   Coffee,
@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 
 type Props = {
+  eventId: string;
   eventTitle: string;
   eventLocation: string;
   startDate: string;
@@ -72,6 +73,7 @@ function initialsFromName(fn: string, ln: string) {
 }
 
 export default function EventMasterDashboard({
+  eventId,
   eventTitle,
   eventLocation,
   startDate,
@@ -130,19 +132,20 @@ export default function EventMasterDashboard({
   const dateRange = `${formatDate(startDate, "MMM d")}–${formatDate(endDate, "d")}`;
 
   return (
-    <div className="relative rounded-2xl bg-muted/40 p-4 sm:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-lg font-semibold text-foreground sm:text-xl">
-            <Calendar className="h-5 w-5 shrink-0 text-primary" />
-            Event Master
-          </div>
-          <p className="mt-0.5 break-words text-xs text-muted-foreground">
-            {eventTitle} · {eventLocation} · {dateRange}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <EventMasterHero
+        eventId={eventId}
+        eventTitle={eventTitle}
+        eventLocation={eventLocation}
+        dateRange={dateRange}
+        exhibitorCount={exhibitors.length}
+        memberCount={memberCount}
+        expoDays={expoDays}
+      />
 
+      <EventMasterQuickNav active="dashboard" eventId={eventId} />
+
+      <div className="relative rounded-2xl bg-muted/40 p-4 sm:p-6">
       <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
         {[
           { label: "Exhibitors", value: exhibitors.length, icon: Store },
@@ -441,6 +444,7 @@ export default function EventMasterDashboard({
           )}
         </Panel>
       )}
+      </div>
     </div>
   );
 }
