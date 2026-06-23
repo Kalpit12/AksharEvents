@@ -1,11 +1,18 @@
-import { Resend } from "resend";
+import { ServerClient } from "postmark";
 import { BRAND } from "./utils";
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+function getPostmarkClient() {
+  const apiKey = process.env.POSTMARK_API_KEY;
+  return apiKey ? new ServerClient(apiKey) : null;
+}
 
-const FROM = process.env.EMAIL_FROM || `${BRAND.name} <noreply@aksharevents.com>`;
+function getFromAddress() {
+  return process.env.POSTMARK_SENDER_EMAIL && process.env.POSTMARK_SENDER_NAME
+    ? `${process.env.POSTMARK_SENDER_NAME} <${process.env.POSTMARK_SENDER_EMAIL}>`
+    : process.env.EMAIL_FROM || `${BRAND.name} <noreply@aksharevents.com>`;
+}
+
+const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
 
 async function sendEmail({
   to,
@@ -16,23 +23,27 @@ async function sendEmail({
   subject: string;
   html: string;
 }) {
-  if (!resend) {
+  const postmark = getPostmarkClient();
+  if (!postmark) {
     console.log(`[Email] To: ${to} | Subject: ${subject}`);
     return { success: true, id: "dev-mode" };
   }
 
-  const { data, error } = await resend.emails.send({
-    from: FROM,
-    to,
-    subject,
-    html,
-  });
-
-  if (error) {
-    console.error(`[Email] Failed to send to ${to}:`, error.message);
-    return { success: false, error: error.message };
+  try {
+    const result = await postmark.sendEmail({
+      From: getFromAddress(),
+      To: to,
+      Subject: subject,
+      HtmlBody: html,
+      MessageStream: MESSAGE_STREAM,
+    });
+    return { success: true, id: result.MessageID };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown email error";
+    console.error(`[Email] Failed to send to ${to}:`, message);
+    return { success: false, error: message };
   }
-  return { success: true, id: data?.id };
 }
 
 export async function sendWelcomeEmail(to: string, name: string) {
