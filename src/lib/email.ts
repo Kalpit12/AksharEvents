@@ -140,6 +140,18 @@ export async function sendPaymentConfirmation({
   });
 }
 
+export async function sendExhibitorMemberWelcomeEmail({
+  to,
+  subject,
+  html,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+}) {
+  return sendEmail({ to, subject, html });
+}
+
 export async function sendBookingInquiryEmail(data: {
   eventType: string;
   startDate: string;

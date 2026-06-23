@@ -124,8 +124,16 @@ export const couponSchema = z.object({
 });
 
 export const addExhibitorMemberSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
+  phone: z.string().min(8, "Enter a valid phone number"),
   memberRole: z.enum(["ADMIN", "STAFF"]).default("STAFF"),
+});
+
+export const exhibitorMemberCsvRowSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(8, "Enter a valid phone number"),
 });
 
 export const bookActivitySchema = z.object({

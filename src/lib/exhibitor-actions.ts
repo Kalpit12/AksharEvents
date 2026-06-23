@@ -13,6 +13,11 @@ import {
   getEventExhibitorForUser,
   requireExhibitorAccess,
 } from "@/lib/exhibitor";
+import {
+  parseExhibitorMemberCsv,
+  provisionExhibitorMember,
+  type ProvisionMemberResult,
+} from "@/lib/exhibitor-member-service";
 import { getCurrentUser, requireRole } from "@/lib/auth";
 import type { ActivityKind, ExhibitorRegistrationStatus, ItineraryItemKind, Prisma } from "@prisma/client";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
@@ -135,45 +140,95 @@ export async function addExhibitorMember(formData: FormData) {
   }
 
   const parsed = addExhibitorMemberSchema.safeParse({
+    name: formData.get("name"),
     email: formData.get("email"),
-    memberRole: formData.get("memberRole"),
+    phone: formData.get("phone"),
+    memberRole: formData.get("memberRole") || "STAFF",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const invitee = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-  });
-  if (!invitee) {
-    return { error: "No account found with that email. They must register first." };
-  }
-
-  if (invitee.id === user.id) {
-    return { error: "You are already a member of this company" };
-  }
-
-  const existingOwner = access.exhibitor.userId === invitee.id;
-  const existingMember = await prisma.exhibitorMember.findUnique({
-    where: {
-      exhibitorId_userId: {
-        exhibitorId: access.exhibitor.id,
-        userId: invitee.id,
-      },
+  const result = await provisionExhibitorMember({
+    exhibitorId: access.exhibitor.id,
+    companyName: access.exhibitor.companyName,
+    invitedByName: user.name || undefined,
+    row: {
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      memberRole: parsed.data.memberRole,
     },
   });
-  if (existingOwner || existingMember) {
-    return { error: "This user is already a member" };
+
+  if (result.status === "failed") return { error: result.reason };
+  if (result.status === "skipped") return { error: result.reason };
+
+  revalidatePath("/exhibitor");
+  return {
+    success: true,
+    isNewAccount: result.isNewAccount,
+    email: result.email,
+    name: result.name,
+  };
+}
+
+export async function bulkUploadExhibitorMembers(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "You must be signed in" };
+
+  const access = await requireExhibitorAccess(user.id);
+  if (!access?.membership) return { error: "No exhibitor company found" };
+
+  if (!canManageMembers(access.membership.role)) {
+    return { error: "Only owners and admins can bulk upload members" };
   }
 
-  await prisma.exhibitorMember.create({
-    data: {
+  const csv = formData.get("csv");
+  if (typeof csv !== "string" || !csv.trim()) {
+    return { error: "Upload a CSV file with name, email, and phone columns" };
+  }
+
+  const rows = parseExhibitorMemberCsv(csv);
+  if (rows.length === 0) {
+    return { error: "No valid rows found. Use columns: name, email, phone" };
+  }
+  if (rows.length > 200) {
+    return { error: "Maximum 200 members per upload" };
+  }
+
+  const results: ProvisionMemberResult[] = [];
+  for (const row of rows) {
+    const result = await provisionExhibitorMember({
       exhibitorId: access.exhibitor.id,
-      userId: invitee.id,
-      role: parsed.data.memberRole,
-    },
-  });
+      companyName: access.exhibitor.companyName,
+      invitedByName: user.name || undefined,
+      row,
+    });
+    results.push(result);
+  }
 
-  revalidatePath("/exhibitor/members");
-  return { success: true };
+  revalidatePath("/exhibitor");
+
+  const added = results.filter((r) => r.status === "added");
+  const skipped = results.filter((r) => r.status === "skipped");
+  const failed = results.filter((r) => r.status === "failed");
+
+  return {
+    success: true,
+    summary: {
+      total: rows.length,
+      added: added.length,
+      skipped: skipped.length,
+      failed: failed.length,
+    },
+    added: added.map((r) => ({
+      email: r.email,
+      name: r.name,
+      phone: r.phone,
+      isNewAccount: r.isNewAccount,
+    })),
+    skipped: skipped.map((r) => ({ email: r.email, reason: r.reason })),
+    failed: failed.map((r) => ({ email: r.email, reason: r.reason })),
+  };
 }
 
 export async function removeExhibitorMember(memberId: string) {

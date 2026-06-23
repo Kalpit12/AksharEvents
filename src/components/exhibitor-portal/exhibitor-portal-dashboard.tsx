@@ -84,9 +84,10 @@ import {
   TrendingUp,
   UserPlus,
   Users,
+  Upload,
 } from "lucide-react";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
-import { saveExhibitorRegistration } from "@/lib/exhibitor-actions";
+import { saveExhibitorRegistration, addExhibitorMember, bulkUploadExhibitorMembers } from "@/lib/exhibitor-actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -108,6 +109,7 @@ export type ExhibitorPortalProps = {
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
+  canManageMembers?: boolean;
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -190,12 +192,21 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     ln: "",
     role: "Lead exhibitor",
     email: "",
+    phone: "",
     transport: "",
     hotel: "",
     diet: "",
     tours: "",
     notes: "",
   });
+  const [addingMember, setAddingMember] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{
+    summary: { total: number; added: number; skipped: number; failed: number };
+    skipped: { email: string; reason: string }[];
+    failed: { email: string; reason: string }[];
+  } | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const filteredMembers = useMemo(
     () => (memberFilter ? members.filter((m) => m.role === memberFilter) : members),
@@ -364,15 +375,126 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       toast.error("Please enter first and last name.");
       return;
     }
+    if (!memberForm.email.trim()) {
+      toast.error("Please enter an email address.");
+      return;
+    }
+    if (!memberForm.phone.trim() || memberForm.phone.trim().length < 8) {
+      toast.error("Please enter a valid phone number.");
+      return;
+    }
+
+    if (props.canManageMembers) {
+      setAddingMember(true);
+      try {
+        const fd = new FormData();
+        fd.set("name", `${memberForm.fn.trim()} ${memberForm.ln.trim()}`);
+        fd.set("email", memberForm.email.trim());
+        fd.set("phone", memberForm.phone.trim());
+        fd.set("memberRole", "STAFF");
+
+        const result = await addExhibitorMember(fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+      } finally {
+        setAddingMember(false);
+      }
+    }
+
     const nextMembers = [
       ...members,
-      { id: crypto.randomUUID(), ...memberForm, fn: memberForm.fn.trim(), ln: memberForm.ln.trim(), diet: memberForm.diet.trim() },
+      {
+        id: crypto.randomUUID(),
+        ...memberForm,
+        fn: memberForm.fn.trim(),
+        ln: memberForm.ln.trim(),
+        phone: memberForm.phone.trim(),
+        diet: memberForm.diet.trim(),
+        portalAccess: props.canManageMembers,
+      },
     ];
     setMembers(nextMembers);
-    setMemberForm({ fn: "", ln: "", role: "Lead exhibitor", email: "", transport: "", hotel: "", diet: "", tours: "", notes: "" });
+    setMemberForm({ fn: "", ln: "", role: "Lead exhibitor", email: "", phone: "", transport: "", hotel: "", diet: "", tours: "", notes: "" });
     setModalOpen(false);
     await persistRegistration({ members: nextMembers });
-    toast.success("Team member added");
+    toast.success(
+      props.canManageMembers
+        ? "Team member added — login credentials sent by email"
+        : "Team member added"
+    );
+  };
+
+  const handleBulkUpload = async (file: File) => {
+    if (!props.canManageMembers) return;
+    setBulkUploading(true);
+    setBulkResults(null);
+    try {
+      const csv = await file.text();
+      const fd = new FormData();
+      fd.set("csv", csv);
+      const result = await bulkUploadExhibitorMembers(fd);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.summary && result.added) {
+        setBulkResults({
+          summary: result.summary,
+          skipped: result.skipped ?? [],
+          failed: result.failed ?? [],
+        });
+
+        const existingEmails = new Set(members.map((m) => m.email.toLowerCase()));
+        const newMembers: TeamMember[] = result.added
+          .filter((a) => !existingEmails.has(a.email.toLowerCase()))
+          .map((a) => {
+            const parts = a.name.split(/\s+/);
+            const fn = parts[0] ?? "";
+            const ln = parts.slice(1).join(" ") || fn;
+            return {
+              id: crypto.randomUUID(),
+              fn,
+              ln,
+              role: "Support",
+              email: a.email,
+              phone: a.phone,
+              transport: "",
+              hotel: "",
+              diet: "",
+              tours: "",
+              notes: "",
+              portalAccess: true,
+            };
+          });
+
+        if (newMembers.length > 0) {
+          const nextMembers = [...members, ...newMembers];
+          setMembers(nextMembers);
+          await persistRegistration({ members: nextMembers });
+        }
+
+        toast.success(
+          `Bulk upload complete: ${result.summary.added} added, ${result.summary.skipped} skipped, ${result.summary.failed} failed`
+        );
+        router.refresh();
+      }
+    } finally {
+      setBulkUploading(false);
+      if (csvInputRef.current) csvInputRef.current.value = "";
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const sample = "name,email,phone\nJane Doe,jane@example.com,+254712345678\nJohn Smith,john@example.com,+254798765432";
+    const blob = new Blob([sample], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "exhibitor-members-sample.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const removeMember = async (id: string) => {
@@ -725,6 +847,54 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       {/* Members */}
       {tab === "members" && (
         <div className="space-y-4">
+          {props.canManageMembers && (
+            <Panel title="Bulk upload members" icon={Upload}>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Upload a CSV with columns <strong>name</strong>, <strong>email</strong>, and <strong>phone</strong>.
+                Each member receives a welcome email with exhibitor portal login credentials.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  ref={csvInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleBulkUpload(file);
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="gap-1"
+                  disabled={bulkUploading}
+                  onClick={() => csvInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  {bulkUploading ? "Uploading…" : "Upload CSV"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={downloadSampleCsv}>
+                  Download sample CSV
+                </Button>
+              </div>
+              {bulkResults && (
+                <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
+                  <p className="font-medium">
+                    {bulkResults.summary.added} added · {bulkResults.summary.skipped} skipped · {bulkResults.summary.failed} failed
+                  </p>
+                  {(bulkResults.skipped.length > 0 || bulkResults.failed.length > 0) && (
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {[...bulkResults.failed, ...bulkResults.skipped].slice(0, 8).map((row) => (
+                        <li key={`${row.email}-${row.reason}`}>
+                          {row.email}: {row.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Panel>
+          )}
           <Panel
             title="Team members"
             icon={Users}
@@ -872,7 +1042,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           footer={
             <>
               <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
-              <Button onClick={addMember} className="gap-1 bg-primary hover:bg-champagne-dark"><Check className="h-4 w-4" /> Add member</Button>
+              <Button onClick={addMember} disabled={addingMember} className="gap-1 bg-primary hover:bg-champagne-dark">
+                <Check className="h-4 w-4" /> {addingMember ? "Adding…" : "Add member"}
+              </Button>
             </>
           }
         >
@@ -886,8 +1058,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   <Select value={memberForm.role} onChange={(v) => setMemberForm({ ...memberForm, role: v })} options={[...MEMBER_ROLES]} />
                 </Field>
                 <Field label="Email"><Input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} /></Field>
+                <Field label="Phone"><Input type="tel" value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} placeholder="+254…" /></Field>
               </div>
             </div>
+            {props.canManageMembers && (
+              <p className="rounded-lg bg-teal-50 px-3 py-2 text-xs text-teal-900 dark:bg-teal-900/20 dark:text-teal-200">
+                A welcome email with exhibitor portal login credentials will be sent to this member.
+              </p>
+            )}
             <div>
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Logistics & preferences</p>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -924,7 +1102,8 @@ function MemberTable({ members, showStatus, overview, full, onRemove }: { member
           <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             <th className="w-[24%] pb-2">Name</th>
             <th className="w-[14%] pb-2">Role</th>
-            <th className="w-[14%] pb-2">Transport</th>
+            <th className="w-[14%] pb-2">Email</th>
+            <th className="w-[12%] pb-2">Transport</th>
             {!overview && <th className="w-[13%] pb-2">Hotel</th>}
             <th className="w-[15%] pb-2">Dietary</th>
             <th className="w-[10%] pb-2">Tours</th>
@@ -941,6 +1120,7 @@ function MemberTable({ members, showStatus, overview, full, onRemove }: { member
                 </div>
               </td>
               <td className="py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium", ROLE_BADGE[m.role] || ROLE_BADGE["Lead exhibitor"])}>{m.role}</span></td>
+              <td className="truncate py-2 text-xs text-muted-foreground">{m.email || "—"}</td>
               <td className="truncate py-2 text-xs text-muted-foreground">{m.transport}</td>
               {!overview && <td className="truncate py-2 text-xs text-muted-foreground">{m.hotel}</td>}
               <td className="truncate py-2 text-xs text-muted-foreground">{m.diet || "—"}</td>

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-import { requireExhibitorAccess } from "@/lib/exhibitor";
+import { requireExhibitorAccess, canManageMembers } from "@/lib/exhibitor";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
@@ -107,6 +107,7 @@ export default async function ExhibitorDashboardPage() {
       hall={eventEntry?.hall ?? null}
       expoDays={expoDays}
       eventActivities={activities.map(serializeActivity)}
+      canManageMembers={canManageMembers(access.membership.role)}
     />
   );
 }

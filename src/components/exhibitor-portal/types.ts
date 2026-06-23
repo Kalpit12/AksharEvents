@@ -6,11 +6,13 @@ export type TeamMember = {
   ln: string;
   role: string;
   email: string;
+  phone: string;
   transport: string;
   hotel: string;
   diet: string;
   tours: string;
   notes: string;
+  portalAccess?: boolean;
 };
 
 export const MEMBER_ROLES = [
