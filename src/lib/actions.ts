@@ -42,8 +42,17 @@ export async function registerUser(formData: FormData) {
     },
   });
 
-  await sendWelcomeEmail(user.email, user.name || "there");
-  await createAuditLog({ userId: user.id, action: "CREATE", entity: "User", entityId: user.id });
+  try {
+    await sendWelcomeEmail(user.email, user.name || "there");
+  } catch (error) {
+    console.error("Welcome email failed after user registration:", error);
+  }
+
+  try {
+    await createAuditLog({ userId: user.id, action: "CREATE", entity: "User", entityId: user.id });
+  } catch (error) {
+    console.error("Audit log failed after user registration:", error);
+  }
 
   return { success: true };
 }
@@ -61,6 +70,7 @@ async function uniqueExhibitorSlug(base: string) {
 }
 
 export async function registerExhibitor(formData: FormData) {
+  try {
   const raw = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -129,8 +139,17 @@ export async function registerExhibitor(formData: FormData) {
     return createdUser;
   });
 
-  await sendWelcomeEmail(user.email, user.name || "there");
-  await createAuditLog({ userId: user.id, action: "CREATE", entity: "Exhibitor", entityId: user.id });
+  try {
+    await sendWelcomeEmail(user.email, user.name || "there");
+  } catch (error) {
+    console.error("Welcome email failed after exhibitor registration:", error);
+  }
+
+  try {
+    await createAuditLog({ userId: user.id, action: "CREATE", entity: "Exhibitor", entityId: user.id });
+  } catch (error) {
+    console.error("Audit log failed after exhibitor registration:", error);
+  }
 
   try {
     await signIn("credentials", {
@@ -138,11 +157,19 @@ export async function registerExhibitor(formData: FormData) {
       password: parsed.data.password,
       redirect: false,
     });
-  } catch {
+  } catch (error) {
+    console.error("Auto sign-in failed after exhibitor registration:", error);
     return { success: true, requiresLogin: true };
   }
 
   return { success: true };
+  } catch (error) {
+    console.error("registerExhibitor failed:", error);
+    if (error instanceof Error && error.message.includes("Unique constraint")) {
+      return { error: "Email already registered" };
+    }
+    return { error: "Could not create exhibitor account. Please try again." };
+  }
 }
 
 export async function loginExhibitor(formData: FormData) {

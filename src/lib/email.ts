@@ -28,7 +28,10 @@ async function sendEmail({
     html,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error(`[Email] Failed to send to ${to}:`, error.message);
+    return { success: false, error: error.message };
+  }
   return { success: true, id: data?.id };
 }
 
