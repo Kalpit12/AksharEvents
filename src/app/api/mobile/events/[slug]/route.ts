@@ -36,7 +36,7 @@ export async function GET(
         quantity: t.quantity,
         sold: t.sold,
       })),
-      agenda: event.agendaItems,
+      agenda: event.agenda,
       speakers: event.speakers,
       faqs: event.faqs,
     },

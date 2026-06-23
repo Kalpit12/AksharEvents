@@ -41,9 +41,8 @@ export async function POST(request: Request) {
   const attendance = await prisma.attendance.create({
     data: {
       bookingId: booking.id,
-      eventId: booking.eventId,
       checkedInBy: user.id,
-      method: "QR_SCAN",
+      deviceInfo: "QR_SCAN",
     },
   });
 
