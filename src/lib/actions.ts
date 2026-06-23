@@ -11,6 +11,7 @@ import { sendTicketConfirmation, sendWelcomeEmail, sendBookingInquiryEmail } fro
 import { createCheckoutSession, isStripeEnabled } from "@/lib/stripe";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
+import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
 import { nanoid } from "nanoid";
 import type { EventStatus } from "@prisma/client";
 
@@ -79,6 +80,7 @@ export async function registerExhibitor(formData: FormData) {
     confirmPassword: formData.get("confirmPassword") as string,
     companyName: formData.get("companyName") as string,
     products: formData.get("products") as string,
+    eventId: formData.get("eventId") as string,
     description: (formData.get("description") as string) || undefined,
     website: (formData.get("website") as string) || undefined,
   };
@@ -99,6 +101,9 @@ export async function registerExhibitor(formData: FormData) {
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) return { error: "Email already registered" };
+
+  const event = await getOpenExhibitorEventById(parsed.data.eventId);
+  if (!event) return { error: "Selected event is not open for exhibitor registration" };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   const slug = await uniqueExhibitorSlug(parsed.data.companyName);
@@ -133,6 +138,11 @@ export async function registerExhibitor(formData: FormData) {
             role: "OWNER",
           },
         },
+        events: {
+          create: {
+            eventId: event.id,
+          },
+        },
       },
     });
 
@@ -162,6 +172,8 @@ export async function registerExhibitor(formData: FormData) {
     return { success: true, requiresLogin: true };
   }
 
+  revalidatePath("/exhibitor");
+  revalidatePath("/admin");
   return { success: true };
   } catch (error) {
     console.error("registerExhibitor failed:", error);

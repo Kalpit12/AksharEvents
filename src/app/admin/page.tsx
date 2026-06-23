@@ -46,7 +46,10 @@ export default async function AdminEventMasterPage() {
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-border bg-card p-10 text-center">
           <h1 className="text-xl font-semibold">Event Master</h1>
-          <p className="mt-2 text-sm text-muted-foreground">No published events yet. Add an event to get started.</p>
+          <p className="mt-2 text-sm text-muted-foreground">No published events yet.</p>
+          <a href="/admin/events" className="mt-4 inline-block text-sm font-medium text-primary hover:underline">
+            Create your first event →
+          </a>
         </div>
       </div>
     );

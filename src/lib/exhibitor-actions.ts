@@ -13,6 +13,7 @@ import {
   getEventExhibitorForUser,
   requireExhibitorAccess,
 } from "@/lib/exhibitor";
+import { linkExhibitorToEvent } from "@/lib/exhibitor-events";
 import {
   parseExhibitorMemberCsv,
   provisionExhibitorMember,
@@ -229,6 +230,21 @@ export async function bulkUploadExhibitorMembers(formData: FormData) {
     skipped: skipped.map((r) => ({ email: r.email, reason: r.reason })),
     failed: failed.map((r) => ({ email: r.email, reason: r.reason })),
   };
+}
+
+export async function registerExhibitorForEvent(eventId: string) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "You must be signed in" };
+
+  const access = await requireExhibitorAccess(user.id);
+  if (!access) return { error: "No exhibitor company found" };
+
+  const result = await linkExhibitorToEvent(access.exhibitor.id, eventId);
+  if ("error" in result && result.error) return { error: result.error };
+
+  revalidatePath("/exhibitor");
+  revalidatePath("/admin");
+  return { success: true, eventExhibitorId: result.eventExhibitorId };
 }
 
 export async function removeExhibitorMember(memberId: string) {

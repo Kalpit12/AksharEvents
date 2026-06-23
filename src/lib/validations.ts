@@ -22,6 +22,7 @@ export const exhibitorRegisterSchema = z.object({
   phone: z.string().min(8, "Enter a valid phone number"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
+  eventId: z.string().min(1, "Select the event you are exhibiting at"),
   companyName: z.string().min(2, "Company name is required"),
   products: z.string().min(3, "List at least one product or service"),
   description: z.string().optional(),

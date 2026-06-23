@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { requireExhibitorAccess, canManageMembers } from "@/lib/exhibitor";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
+import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
 import ExhibitorPortalDashboard from "@/components/exhibitor-portal/exhibitor-portal-dashboard";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
@@ -53,6 +54,7 @@ export default async function ExhibitorDashboardPage() {
   if (!access?.membership) redirect("/auth/exhibitor?mode=signup");
 
   const primaryEvent = await getPrimaryPublishedEvent();
+  const openEvents = await getOpenExhibitorEvents();
 
   let eventEntry = primaryEvent
     ? await prisma.eventExhibitor.findFirst({
@@ -108,6 +110,7 @@ export default async function ExhibitorDashboardPage() {
       expoDays={expoDays}
       eventActivities={activities.map(serializeActivity)}
       canManageMembers={canManageMembers(access.membership.role)}
+      openEvents={openEvents}
     />
   );
 }

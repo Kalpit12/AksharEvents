@@ -5,6 +5,7 @@ import { loginSchema, exhibitorRegisterSchema } from "@/lib/validations";
 import { slugify } from "@/lib/utils";
 import { sendWelcomeEmail } from "@/lib/email";
 import { createAuditLog } from "@/lib/audit";
+import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
 import type { UserRole } from "@prisma/client";
 
 async function uniqueExhibitorSlug(base: string) {
@@ -74,6 +75,7 @@ export async function mobileRegisterExhibitor(input: {
   phone: string;
   password: string;
   confirmPassword: string;
+  eventId: string;
   companyName: string;
   products: string;
   description?: string;
@@ -91,6 +93,9 @@ export async function mobileRegisterExhibitor(input: {
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) return { error: "Email already registered" };
+
+  const event = await getOpenExhibitorEventById(parsed.data.eventId);
+  if (!event) return { error: "Selected event is not open for exhibitor registration" };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   const slug = await uniqueExhibitorSlug(parsed.data.companyName);
@@ -120,6 +125,7 @@ export async function mobileRegisterExhibitor(input: {
         contactPhone: parsed.data.phone,
         products,
         members: { create: { userId: createdUser.id, role: "OWNER" } },
+        events: { create: { eventId: event.id } },
       },
     });
 

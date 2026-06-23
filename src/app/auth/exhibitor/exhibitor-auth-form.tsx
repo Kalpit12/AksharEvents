@@ -10,14 +10,22 @@ import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Building2 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 
 type AuthMode = "signin" | "signup";
 
 const mobileFieldClass = "mt-1.5 h-11 w-full min-w-0 text-base sm:h-10 sm:text-sm";
 const mobileTextareaClass = "mt-1.5 w-full min-w-0 text-base sm:text-sm";
+const mobileSelectClass = "mt-1.5 flex h-11 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-base sm:h-10 sm:text-sm";
 
-export default function ExhibitorAuthForm() {
+function formatEventLabel(event: OpenExhibitorEvent) {
+  const dates = `${formatDate(event.startDate, "MMM d")} – ${formatDate(event.endDate, "MMM d, yyyy")}`;
+  const location = event.city || event.venueName;
+  return location ? `${event.title} · ${dates} · ${location}` : `${event.title} · ${dates}`;
+}
+
+export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhibitorEvent[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
@@ -139,6 +147,27 @@ export default function ExhibitorAuthForm() {
           ) : (
             <form onSubmit={handleSignUp} className="space-y-5 sm:space-y-6" autoComplete="on">
               <fieldset className="min-w-0 space-y-3 border-0 p-0 sm:space-y-4">
+                <legend className="mb-1 text-sm font-semibold text-foreground">Event registration</legend>
+                {openEvents.length === 0 ? (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+                    No events are open for exhibitor registration right now. Please check back later or contact the organizer.
+                  </p>
+                ) : (
+                  <div className="min-w-0">
+                    <Label htmlFor="eventId">Event / expo *</Label>
+                    <select id="eventId" name="eventId" required className={mobileSelectClass}>
+                      <option value="">Select the event you are exhibiting at</option>
+                      {openEvents.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {formatEventLabel(event)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </fieldset>
+
+              <fieldset className="min-w-0 space-y-3 border-0 p-0 sm:space-y-4">
                 <legend className="mb-1 text-sm font-semibold text-foreground">Contact details</legend>
                 <div className="min-w-0">
                   <Label htmlFor="name">Full name *</Label>
@@ -248,7 +277,7 @@ export default function ExhibitorAuthForm() {
                 </div>
               </fieldset>
 
-              <Button type="submit" className="min-h-11 w-full text-base sm:text-sm" disabled={loading}>
+              <Button type="submit" className="min-h-11 w-full text-base sm:text-sm" disabled={loading || openEvents.length === 0}>
                 {loading ? "Creating account..." : (
                   <>
                     <span className="sm:hidden">Create Account</span>

@@ -87,7 +87,8 @@ import {
   Upload,
 } from "lucide-react";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
-import { saveExhibitorRegistration, addExhibitorMember, bulkUploadExhibitorMembers } from "@/lib/exhibitor-actions";
+import { saveExhibitorRegistration, addExhibitorMember, bulkUploadExhibitorMembers, registerExhibitorForEvent } from "@/lib/exhibitor-actions";
+import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -110,6 +111,7 @@ export type ExhibitorPortalProps = {
   expoDays: number;
   eventActivities: EventActivityOption[];
   canManageMembers?: boolean;
+  openEvents?: OpenExhibitorEvent[];
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -206,6 +208,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     skipped: { email: string; reason: string }[];
     failed: { email: string; reason: string }[];
   } | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [linkingEvent, setLinkingEvent] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const filteredMembers = useMemo(
@@ -497,6 +501,25 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     URL.revokeObjectURL(url);
   };
 
+  const linkToEvent = async () => {
+    if (!selectedEventId) {
+      toast.error("Select an event to continue.");
+      return;
+    }
+    setLinkingEvent(true);
+    try {
+      const result = await registerExhibitorForEvent(selectedEventId);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Event linked. You can now complete your registration.");
+      router.refresh();
+    } finally {
+      setLinkingEvent(false);
+    }
+  };
+
   const removeMember = async (id: string) => {
     const nextMembers = members.filter((m) => m.id !== id);
     setMembers(nextMembers);
@@ -561,6 +584,39 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         <div className="min-w-0 flex-1">
       {tab === "overview" && (
         <div className="space-y-4">
+          {!props.eventExhibitorId && (
+            <Panel title="Select your event" icon={Calendar}>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Choose the expo or event you are exhibiting at to unlock registration, team members, and logistics.
+              </p>
+              {(props.openEvents?.length ?? 0) === 0 ? (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+                  No events are open for registration right now. Please contact the organizer.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <Label className="mb-1 block text-xs text-muted-foreground">Event / expo</Label>
+                    <select
+                      value={selectedEventId}
+                      onChange={(e) => setSelectedEventId(e.target.value)}
+                      className="flex h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                    >
+                      <option value="">Select an event</option>
+                      {(props.openEvents ?? []).map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.title} · {formatDate(event.startDate, "MMM d")} – {formatDate(event.endDate, "MMM d, yyyy")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button onClick={linkToEvent} disabled={linkingEvent || !selectedEventId} className="sm:shrink-0">
+                    {linkingEvent ? "Linking…" : "Register for event"}
+                  </Button>
+                </div>
+              )}
+            </Panel>
+          )}
           <Panel title="Quick actions" icon={LayoutDashboard}>
             <QuickActionsRow>
               <QuickAction highlight label="Complete registration" sub="Fill in company, travel & food details" onClick={() => { setTab("registration"); goStep(1); }} />
