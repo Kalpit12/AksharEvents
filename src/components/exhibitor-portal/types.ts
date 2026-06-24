@@ -15,6 +15,13 @@ export type TeamMember = {
   portalAccess?: boolean;
 };
 
+export type AirBookingRequest = {
+  id: string;
+  ticketCount: number;
+  travelDate: string;
+  requestedAt: string;
+};
+
 export const MEMBER_ROLES = [
   "Lead exhibitor",
   "Sales rep",

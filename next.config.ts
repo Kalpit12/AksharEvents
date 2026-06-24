@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
     // Parent folder has pnpm-lock.yaml; pin root to this app so routes resolve correctly.
     root: path.resolve(__dirname),
   },
+  async redirects() {
+    return [
+      {
+        source: "/exhibitor/tourist-attractions",
+        destination: "/tourist-attractions",
+        permanent: true,
+      },
+    ];
+  },
   images: {
     unoptimized: true,
     remotePatterns: [

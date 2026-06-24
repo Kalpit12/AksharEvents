@@ -18,7 +18,7 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
   const isAdmin = session?.user?.role === "ADMIN";
 
   return (
-    <div className="md:hidden">
+    <div className="xl:hidden">
       <Button
         variant="ghost"
         size="icon"

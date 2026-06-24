@@ -26,6 +26,7 @@ import {
   TRANSPORT_OPTIONS,
   VEHICLE_OPTIONS,
   type ExhibitorTab,
+  type AirBookingRequest,
   type TeamMember,
 } from "@/components/exhibitor-portal/types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
@@ -75,6 +76,7 @@ import {
   LayoutDashboard,
   Leaf,
   MapPin,
+  Plane,
   Plus,
   Salad,
   Send,
@@ -168,8 +170,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const [tab, setTab] = useState<ExhibitorTab>("overview");
   const [members, setMembers] = useState<TeamMember[]>(() => saved?.members ?? []);
+  const [airBookingRequests, setAirBookingRequests] = useState<AirBookingRequest[]>(
+    () => saved?.airBookingRequests ?? []
+  );
   const [memberFilter, setMemberFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [airBookingModalOpen, setAirBookingModalOpen] = useState(false);
+  const [airBookingForm, setAirBookingForm] = useState({ ticketCount: "1", travelDate: "" });
+  const [submittingAirBooking, setSubmittingAirBooking] = useState(false);
   const [regStep, setRegStep] = useState(() => saved?.regStep ?? 1);
   const [formSteps, setFormSteps] = useState(
     () => saved?.formSteps ?? { company: false, event: false, travel: false, transport: false, food: false }
@@ -239,6 +247,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         yellowFever: visaDocs.yellowFever?.name ?? null,
       },
       members: overrides.members ?? members,
+      airBookingRequests: overrides.airBookingRequests ?? airBookingRequests,
       selectedTours: overrides.selectedTours ?? [...selectedTours],
       selectedMeals: overrides.selectedMeals ?? [...selectedMeals],
       selectedFoodExp: overrides.selectedFoodExp ?? [...selectedFoodExp],
@@ -246,7 +255,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       formSteps: overrides.formSteps ?? formSteps,
       regStep: overrides.regStep ?? regStep,
     }),
-    [form, travel, visaDocs, members, selectedTours, selectedMeals, selectedFoodExp, shuttles, formSteps, regStep]
+    [form, travel, visaDocs, members, airBookingRequests, selectedTours, selectedMeals, selectedFoodExp, shuttles, formSteps, regStep]
   );
 
   const isSubmitted = registrationStatus === "SUBMITTED";
@@ -262,10 +271,11 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       formSteps.transport ||
       formSteps.food ||
       members.length > 0 ||
+      airBookingRequests.length > 0 ||
       selectedTours.size > 0 ||
       selectedMeals.size > 0 ||
       shuttles.size > 0,
-    [regStep, formSteps, members.length, selectedTours.size, selectedMeals.size, shuttles.size]
+    [regStep, formSteps, members.length, airBookingRequests.length, selectedTours.size, selectedMeals.size, shuttles.size]
   );
 
   const persistRegistration = useCallback(
@@ -321,6 +331,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     form,
     travel,
     members,
+    airBookingRequests,
     selectedTours,
     selectedMeals,
     selectedFoodExp,
@@ -525,6 +536,38 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     await persistRegistration({ members: nextMembers });
   };
 
+  const submitAirBooking = async () => {
+    const ticketCount = Number.parseInt(airBookingForm.ticketCount, 10);
+    if (!Number.isFinite(ticketCount) || ticketCount < 1) {
+      toast.error("Enter at least 1 ticket.");
+      return;
+    }
+    if (!airBookingForm.travelDate) {
+      toast.error("Select a travel date.");
+      return;
+    }
+
+    setSubmittingAirBooking(true);
+    try {
+      const request: AirBookingRequest = {
+        id: crypto.randomUUID(),
+        ticketCount,
+        travelDate: airBookingForm.travelDate,
+        requestedAt: new Date().toISOString(),
+      };
+      const nextRequests = [...airBookingRequests, request];
+      setAirBookingRequests(nextRequests);
+      const result = await persistRegistration({ airBookingRequests: nextRequests });
+      if (result?.error) return;
+
+      setAirBookingModalOpen(false);
+      setAirBookingForm({ ticketCount: "1", travelDate: "" });
+      toast.success("Air booking request submitted. Our team will follow up.");
+    } finally {
+      setSubmittingAirBooking(false);
+    }
+  };
+
   const toggleSet = (set: Set<string>, key: string, setter: (s: Set<string>) => void) => {
     const next = new Set(set);
     if (next.has(key)) next.delete(key);
@@ -700,6 +743,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             icon={Users}
             action={
               <div className="flex shrink-0 flex-nowrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 gap-1 whitespace-nowrap"
+                  onClick={() => setAirBookingModalOpen(true)}
+                >
+                  <Plane className="h-4 w-4" /> Request air booking
+                </Button>
                 <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
                   <Plus className="h-4 w-4" /> Add member
                 </Button>
@@ -707,15 +758,26 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             }
           >
             {members.length === 0 ? (
-              <EmptyState
-                icon={UserPlus}
-                title="No team members yet"
-                description="Add your team to manage passes, transport and food."
-                compact
-                action={<Button onClick={() => setModalOpen(true)} className="gap-1"><Plus className="h-4 w-4" /> Add member</Button>}
-              />
+              <div className="space-y-3">
+                <EmptyState
+                  icon={UserPlus}
+                  title="No team members yet"
+                  description="Add your team to manage passes, transport and food."
+                  compact
+                  action={
+                    <Button onClick={() => setModalOpen(true)} className="gap-1">
+                      <Plus className="h-4 w-4" /> Add member
+                    </Button>
+                  }
+                />
+                {airBookingRequests.length > 0 && <AirBookingRequestsList requests={airBookingRequests} />}
+              </div>
             ) : (
-              <MemberTable members={filteredMembers.slice(0, 5)} overview />
+              <MemberTable
+                members={filteredMembers.slice(0, 5)}
+                overview
+                airBookingRequests={airBookingRequests}
+              />
             )}
           </Panel>
         </div>
@@ -935,6 +997,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   options={toSelectOptionsWithAll([...MEMBER_ROLES], "All roles")}
                   placeholder="All roles"
                 />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 gap-1 whitespace-nowrap"
+                  onClick={() => setAirBookingModalOpen(true)}
+                >
+                  <Plane className="h-4 w-4" /> Request air booking
+                </Button>
                 <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
                   <Plus className="h-4 w-4" /> Add member
                 </Button>
@@ -942,14 +1012,26 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             }
           >
             {members.length === 0 ? (
-              <EmptyState
-                icon={UserPlus}
-                title="No team members yet"
-                description="Add your team members to manage passes, transport and food."
-                action={<Button onClick={() => setModalOpen(true)} className="gap-1"><Plus className="h-4 w-4" /> Add first member</Button>}
-              />
+              <div className="space-y-3">
+                <EmptyState
+                  icon={UserPlus}
+                  title="No team members yet"
+                  description="Add your team members to manage passes, transport and food."
+                  action={
+                    <Button onClick={() => setModalOpen(true)} className="gap-1">
+                      <Plus className="h-4 w-4" /> Add first member
+                    </Button>
+                  }
+                />
+                {airBookingRequests.length > 0 && <AirBookingRequestsList requests={airBookingRequests} />}
+              </div>
             ) : (
-              <MemberTable members={filteredMembers} onRemove={removeMember} full />
+              <MemberTable
+                members={filteredMembers}
+                onRemove={removeMember}
+                full
+                airBookingRequests={airBookingRequests}
+              />
             )}
           </Panel>
           <Panel title="Team supply summary" icon={TrendingUp}>
@@ -1113,6 +1195,51 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           </div>
         </ModalShell>
       )}
+
+      {airBookingModalOpen && (
+        <ModalShell
+          title="Request air booking"
+          icon={Plane}
+          onClose={() => setAirBookingModalOpen(false)}
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setAirBookingModalOpen(false)}>Cancel</Button>
+              <Button
+                onClick={submitAirBooking}
+                disabled={submittingAirBooking}
+                className="gap-1 bg-primary hover:bg-champagne-dark"
+              >
+                <Check className="h-4 w-4" /> {submittingAirBooking ? "Submitting…" : "Submit request"}
+              </Button>
+            </>
+          }
+        >
+          <div className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              Tell us how many flight tickets you need and your preferred travel date. Our team will coordinate booking and follow up with options.
+            </p>
+            <FormRow>
+              <Field label="Number of tickets">
+                <Input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={airBookingForm.ticketCount}
+                  onChange={(e) => setAirBookingForm({ ...airBookingForm, ticketCount: e.target.value })}
+                  placeholder="e.g. 4"
+                />
+              </Field>
+              <Field label="Travel date">
+                <Input
+                  type="date"
+                  value={airBookingForm.travelDate}
+                  onChange={(e) => setAirBookingForm({ ...airBookingForm, travelDate: e.target.value })}
+                />
+              </Field>
+            </FormRow>
+          </div>
+        </ModalShell>
+      )}
         </div>
       </div>
     </div>
@@ -1190,9 +1317,24 @@ function BriefcaseIcon({ className }: { className?: string }) {
   return <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="20" height="14" x="2" y="7" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>;
 }
 
-function MemberTable({ members, showStatus, overview, full, onRemove }: { members: TeamMember[]; showStatus?: boolean; overview?: boolean; full?: boolean; onRemove?: (id: string) => void }) {
+function MemberTable({
+  members,
+  showStatus,
+  overview,
+  full,
+  onRemove,
+  airBookingRequests = [],
+}: {
+  members: TeamMember[];
+  showStatus?: boolean;
+  overview?: boolean;
+  full?: boolean;
+  onRemove?: (id: string) => void;
+  airBookingRequests?: AirBookingRequest[];
+}) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/60">
+    <div className="space-y-3">
+      <div className="overflow-x-auto rounded-xl border border-border/60">
       <table className="w-full min-w-[640px] table-fixed text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1233,6 +1375,28 @@ function MemberTable({ members, showStatus, overview, full, onRemove }: { member
           ))}
         </tbody>
       </table>
+      </div>
+      {airBookingRequests.length > 0 && <AirBookingRequestsList requests={airBookingRequests} />}
+    </div>
+  );
+}
+
+function AirBookingRequestsList({ requests }: { requests: AirBookingRequest[] }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Air booking requests</p>
+      <div className="space-y-1.5">
+        {requests.map((request) => (
+          <div key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-medium">
+              {request.ticketCount} ticket{request.ticketCount === 1 ? "" : "s"} · {formatDate(request.travelDate, "MMM d, yyyy")}
+            </span>
+            <span className="text-muted-foreground">
+              Requested {formatDate(request.requestedAt, "MMM d, yyyy")}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

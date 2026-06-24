@@ -87,7 +87,7 @@ export default async function HomePage() {
                 className="group flex flex-col items-center gap-2 rounded-2xl bg-card p-3 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md sm:gap-3 sm:p-4"
               >
                 <CategoryIcon slug={cat.slug} size="md" />
-                <span className="text-xs sm:text-sm font-medium text-center">{cat.name}</span>
+                <span className="block max-w-full truncate text-center text-[10px] font-medium sm:text-sm">{cat.name}</span>
               </Link>
             ))}
           </div>
@@ -127,7 +127,7 @@ export default async function HomePage() {
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold group-hover:text-primary transition-colors">{venue.name}</h3>
-                    <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                    <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
                       <Building2 className="h-3.5 w-3.5" />{venue.city} · {venue.capacity.toLocaleString()} capacity
                     </p>
                   </div>

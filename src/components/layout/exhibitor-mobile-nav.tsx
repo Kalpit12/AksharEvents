@@ -2,15 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, FileText, Home, LayoutDashboard, LifeBuoy, LogOut, Menu, X } from "lucide-react";
+import { exhibitorPortalLinks } from "@/lib/exhibitor-portal-links";
 import { Button } from "@/components/ui/Button";
+import { Building2, Home, LogOut, Menu, X } from "lucide-react";
 import { signOut } from "next-auth/react";
 
-const portalLinks = [
-  { href: "/exhibitor", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/exhibitor-registration-questions.pdf", label: "Registration guide", icon: FileText, external: true },
-  { href: "/contact", label: "Support", icon: LifeBuoy },
-] as const;
+const portalLinks = exhibitorPortalLinks;
 
 export function ExhibitorMobileNav({ companyName }: { companyName: string }) {
   const [open, setOpen] = useState(false);

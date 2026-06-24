@@ -1,5 +1,5 @@
 import type { TravelLogisticsForm } from "@/components/exhibitor-portal/registration-travel-step";
-import type { TeamMember } from "@/components/exhibitor-portal/types";
+import type { AirBookingRequest, TeamMember } from "@/components/exhibitor-portal/types";
 
 export type RegistrationFormState = {
   company: string;
@@ -40,6 +40,7 @@ export type SavedRegistrationData = {
     yellowFever: string | null;
   };
   members: TeamMember[];
+  airBookingRequests?: AirBookingRequest[];
   selectedTours: string[];
   selectedMeals: string[];
   selectedFoodExp: string[];

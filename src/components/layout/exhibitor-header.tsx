@@ -6,13 +6,10 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { ExhibitorMobileNav } from "@/components/layout/exhibitor-mobile-nav";
 import { Button } from "@/components/ui/Button";
-import { Building2, ExternalLink, FileText, Home, LayoutDashboard, LifeBuoy } from "lucide-react";
+import { exhibitorPortalLinks } from "@/lib/exhibitor-portal-links";
+import { Building2, ExternalLink, Home } from "lucide-react";
 
-const portalLinks = [
-  { href: "/exhibitor", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/exhibitor-registration-questions.pdf", label: "Registration guide", icon: FileText, external: true },
-  { href: "/contact", label: "Support", icon: LifeBuoy },
-];
+const portalLinks = exhibitorPortalLinks;
 
 export default async function ExhibitorHeader() {
   const session = await auth();
@@ -44,7 +41,7 @@ export default async function ExhibitorHeader() {
             const className =
               "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-champagne-light transition-colors hover:bg-alabaster/10 hover:text-alabaster";
 
-            if (link.external) {
+            if ("external" in link && link.external) {
               return (
                 <a key={link.href} href={link.href} target="_blank" rel="noopener noreferrer" className={className}>
                   <Icon className="h-4 w-4" />
