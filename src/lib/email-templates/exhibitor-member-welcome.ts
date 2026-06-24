@@ -7,6 +7,7 @@ export type ExhibitorMemberWelcomeParams = {
   email: string;
   password?: string;
   companyName: string;
+  eventName: string;
   loginUrl: string;
   invitedByName?: string;
 };
@@ -68,8 +69,8 @@ export function exhibitorMemberWelcomeEmailHtml({
   email,
   password,
   companyName,
+  eventName,
   loginUrl,
-  invitedByName,
 }: ExhibitorMemberWelcomeParams) {
   const source = readTemplateSource();
   const isNewAccount = Boolean(password);
@@ -90,15 +91,13 @@ export function exhibitorMemberWelcomeEmailHtml({
     brandTagline: BRAND.tagline,
     name: escapeHtml(name),
     companyName: escapeHtml(companyName),
+    eventName: escapeHtml(eventName),
     loginUrl: escapeHtml(loginUrl),
     year: String(new Date().getFullYear()),
-    invitedByLine: invitedByName
-      ? `<strong>${escapeHtml(invitedByName)}</strong> has added you`
-      : "You have been added",
     credentialsBlock,
   }).trim();
 }
 
-export function exhibitorMemberWelcomeEmailSubject(companyName: string) {
-  return `Welcome to ${companyName} — Your ${BRAND.name} exhibitor access`;
+export function exhibitorMemberWelcomeEmailSubject(eventName: string) {
+  return `Welcome to ${BRAND.name} — Your ${eventName} Exhibitor Access Information`;
 }

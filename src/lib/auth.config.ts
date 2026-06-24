@@ -19,7 +19,7 @@ function resolveSiteUrl(fallback: string): string {
 
 /**
  * Edge-safe auth config — no Prisma/bcrypt providers.
- * Used by middleware to stay under Vercel's Edge bundle size limit.
+ * Used by proxy to stay under Vercel's Edge bundle size limit.
  */
 export const authConfig = {
   trustHost: true,

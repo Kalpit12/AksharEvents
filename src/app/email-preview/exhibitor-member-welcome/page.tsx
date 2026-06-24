@@ -9,6 +9,7 @@ const sampleNewAccount: ExhibitorMemberWelcomeParams = {
   email: "jane.doe@example.com",
   password: "Kx7mP2nQw9Rt",
   companyName: "Acme Industries Ltd",
+  eventName: "Kenya Trade Expo 2026",
   loginUrl: "https://aksharevents.com/auth/exhibitor?mode=signin",
   invitedByName: "John Smith",
 };
@@ -17,6 +18,7 @@ const sampleExistingAccount: ExhibitorMemberWelcomeParams = {
   name: "Alex Kim",
   email: "alex.kim@example.com",
   companyName: "Acme Industries Ltd",
+  eventName: "Kenya Trade Expo 2026",
   loginUrl: "https://aksharevents.com/auth/exhibitor?mode=signin",
   invitedByName: "John Smith",
 };

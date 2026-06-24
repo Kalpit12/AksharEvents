@@ -32,6 +32,23 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+async function resolveExhibitorEventName(exhibitorId: string): Promise<string> {
+  const now = new Date();
+  const upcoming = await prisma.eventExhibitor.findFirst({
+    where: { exhibitorId, event: { startDate: { gte: now } } },
+    include: { event: { select: { title: true } } },
+    orderBy: { event: { startDate: "asc" } },
+  });
+  if (upcoming) return upcoming.event.title;
+
+  const latest = await prisma.eventExhibitor.findFirst({
+    where: { exhibitorId },
+    include: { event: { select: { title: true } } },
+    orderBy: { event: { startDate: "desc" } },
+  });
+  return latest?.event.title ?? "your event";
+}
+
 export function parseExhibitorMemberCsv(text: string): MemberRowInput[] {
   const lines = text.trim().split(/\r?\n/).filter((line) => line.trim());
   if (lines.length === 0) return [];
@@ -160,18 +177,20 @@ export async function provisionExhibitorMember({
     }
 
     const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://aksharevents.com"}/auth/exhibitor?mode=signin`;
+    const eventName = await resolveExhibitorEventName(exhibitorId);
     const html = exhibitorMemberWelcomeEmailHtml({
       name: existingUser?.name || name,
       email,
       password: plainPassword,
       companyName,
+      eventName,
       loginUrl,
       invitedByName,
     });
 
     await sendExhibitorMemberWelcomeEmail({
       to: email,
-      subject: exhibitorMemberWelcomeEmailSubject(companyName),
+      subject: exhibitorMemberWelcomeEmailSubject(eventName),
       html,
     });
 
