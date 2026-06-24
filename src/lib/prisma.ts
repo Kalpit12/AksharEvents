@@ -41,6 +41,15 @@ export function isTransientConnectionError(error: unknown): boolean {
   );
 }
 
+export async function refreshPrismaConnection(): Promise<void> {
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // Pool may already be torn down.
+  }
+  await prisma.$connect();
+}
+
 export async function withDbRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -52,9 +61,9 @@ export async function withDbRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Pro
         throw error;
       }
       try {
-        await prisma.$connect();
+        await refreshPrismaConnection();
       } catch {
-        // Pool may recreate connections on the next query.
+        // Next attempt may still succeed after pool recreation.
       }
       await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
     }

@@ -7,7 +7,15 @@ import { cn } from "@/lib/utils";
 
 const SLIDE_INTERVAL_MS = 4500;
 
-export function AttractionImageGallery({ images, name }: { images: AttractionImage[]; name: string }) {
+export function AttractionImageGallery({
+  images,
+  name,
+  priority = false,
+}: {
+  images: AttractionImage[];
+  name: string;
+  priority?: boolean;
+}) {
   const imageCount = images.length;
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -56,7 +64,8 @@ export function AttractionImageGallery({ images, name }: { images: AttractionIma
           fill
           className="attraction-slide-image object-cover"
           sizes="(max-width: 1024px) 100vw, 50vw"
-          priority={activeIndex === 0}
+          priority={priority && activeIndex === 0}
+          loading={priority && activeIndex === 0 ? "eager" : "lazy"}
         />
 
         {imageCount > 1 && (

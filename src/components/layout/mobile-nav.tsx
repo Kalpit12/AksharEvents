@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Building2, Calendar, ClipboardList, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { SearchBar } from "@/components/layout/search-bar";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
 
@@ -39,9 +38,6 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
             onClick={() => setOpen(false)}
           />
           <div className="fixed left-0 right-0 top-14 z-50 max-h-[calc(100dvh-3.5rem)] overflow-y-auto border-b border-border bg-background p-4 shadow-lg sm:top-16 sm:max-h-[calc(100dvh-4rem)]">
-            <div className="mb-4">
-              <SearchBar />
-            </div>
             <nav className="flex flex-col gap-2">
               {navLinks.map((link) => (
                 <Link

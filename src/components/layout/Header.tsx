@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import { BRAND } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { SearchBar } from "@/components/layout/search-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { LogoutButton } from "@/components/auth/logout-button";
 import {
@@ -52,10 +51,6 @@ export default async function Header() {
         <div className="hidden min-w-0 flex-1 xl:block" aria-hidden />
 
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
-          <div className="hidden w-full max-w-[12rem] min-w-0 lg:block lg:max-w-[14rem] xl:max-w-xs 2xl:max-w-sm">
-            <SearchBar />
-          </div>
-
           <ThemeToggle />
 
           {session?.user ? (
