@@ -166,6 +166,30 @@ export const createActivitySchema = z.object({
   price: z.coerce.number().min(0).default(0),
 });
 
+export const createEventHotelSchema = z.object({
+  eventId: z.string().min(1),
+  name: z.string().min(2, "Hotel name is required"),
+  location: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const createEventRestaurantSchema = z.object({
+  eventId: z.string().min(1),
+  name: z.string().min(2, "Restaurant name is required"),
+  cuisine: z.string().optional(),
+  location: z.string().optional(),
+  description: z.string().optional(),
+});
+
+export const createEventScheduleItemSchema = z.object({
+  eventId: z.string().min(1),
+  title: z.string().min(2, "Title is required"),
+  description: z.string().optional(),
+  startAt: z.string().min(1, "Start time is required"),
+  endAt: z.string().optional(),
+  location: z.string().optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ExhibitorRegisterInput = z.infer<typeof exhibitorRegisterSchema>;

@@ -3,6 +3,11 @@ import { requireRole } from "@/lib/auth";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import {
+  serializeEventHotel,
+  serializeEventRestaurant,
+  serializeEventScheduleItem,
+} from "@/lib/event-config-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import { listAirBookingRequestsForEvent } from "@/lib/air-booking-actions";
@@ -83,13 +88,26 @@ export default async function AdminEventMasterPage() {
     orderBy: { startAt: "asc" },
   });
 
-  const [airBookingRequests, memberDocumentRows] = await Promise.all([
-    listAirBookingRequestsForEvent(event.id),
-    prisma.exhibitorMemberDocument.findMany({
-      where: { eventExhibitor: { eventId: event.id } },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const [eventHotels, eventRestaurants, scheduleItems, airBookingRequests, memberDocumentRows] =
+    await Promise.all([
+      prisma.eventHotel.findMany({
+        where: { eventId: event.id },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.eventRestaurant.findMany({
+        where: { eventId: event.id },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      }),
+      prisma.eventScheduleItem.findMany({
+        where: { eventId: event.id },
+        orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
+      }),
+      listAirBookingRequestsForEvent(event.id),
+      prisma.exhibitorMemberDocument.findMany({
+        where: { eventExhibitor: { eventId: event.id } },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
   const memberDocuments: SerializedMemberDocument[] = memberDocumentRows.map((doc) => ({
     id: doc.id,
@@ -130,6 +148,9 @@ export default async function AdminEventMasterPage() {
         endDate={event.endDate.toISOString()}
         exhibitors={exhibitors}
         activities={activities.map(serializeActivity)}
+        eventHotels={eventHotels.map(serializeEventHotel)}
+        eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
+        scheduleItems={scheduleItems.map(serializeEventScheduleItem)}
         airBookingRequests={airBookingRequests}
         memberDocuments={memberDocuments}
         flightBookingAgentEmail={process.env.FLIGHT_BOOKING_AGENT_EMAIL ?? ""}

@@ -291,6 +291,9 @@ model Event {
   exhibitors      EventExhibitor[]
   coupons         Coupon[]
   activities      EventActivity[]
+  hotels          EventHotel[]
+  restaurants     EventRestaurant[]
+  scheduleItems   EventScheduleItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -594,6 +597,55 @@ model EventActivity {
 
   @@index([eventId])
   @@index([kind])
+}
+
+model EventHotel {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  location    String?
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model EventRestaurant {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  cuisine     String?
+  location    String?
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model EventScheduleItem {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  startAt     DateTime
+  endAt       DateTime?
+  location    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([startAt])
 }
 
 model ExhibitorActivityBooking {

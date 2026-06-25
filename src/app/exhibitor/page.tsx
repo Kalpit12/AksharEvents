@@ -2,6 +2,11 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { requireExhibitorAccess, canManageMembers } from "@/lib/exhibitor";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import {
+  serializeEventHotel,
+  serializeEventRestaurant,
+  serializeEventScheduleItem,
+} from "@/lib/event-config-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
@@ -89,6 +94,23 @@ export default async function ExhibitorDashboardPage() {
       })
     : [];
 
+  const [eventHotels, eventRestaurants, eventSchedule] = event
+    ? await Promise.all([
+        prisma.eventHotel.findMany({
+          where: { eventId: event.id, isActive: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        }),
+        prisma.eventRestaurant.findMany({
+          where: { eventId: event.id, isActive: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        }),
+        prisma.eventScheduleItem.findMany({
+          where: { eventId: event.id, isActive: true },
+          orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
+        }),
+      ])
+    : [[], [], []];
+
   const savedRegistration = eventEntry?.registration?.formData
     ? (eventEntry.registration.formData as SavedRegistrationData)
     : null;
@@ -138,6 +160,9 @@ export default async function ExhibitorDashboardPage() {
       hall={eventEntry?.hall ?? null}
       expoDays={expoDays}
       eventActivities={activities.map(serializeActivity)}
+      eventHotels={eventHotels.map(serializeEventHotel)}
+      eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
+      eventSchedule={eventSchedule.map(serializeEventScheduleItem)}
       canManageMembers={canManageMembers(access.membership.role)}
       openEvents={openEvents}
       memberDocuments={memberDocuments}

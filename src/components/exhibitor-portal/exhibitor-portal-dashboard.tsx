@@ -29,8 +29,13 @@ import {
   type TeamMember,
 } from "@/components/exhibitor-portal/types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import type {
+  EventHotelOption,
+  EventRestaurantOption,
+  EventScheduleItemOption,
+} from "@/lib/event-config-types";
+import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import {
-  VEG_DINING_EXPERIENCES,
   activityToTourOption,
   buildDepartureOptions,
   buildMealOptions,
@@ -63,6 +68,7 @@ import {
   Building2,
   Bus,
   Calendar,
+  CalendarDays,
   Check,
   ClipboardCheck,
   Clock,
@@ -122,6 +128,9 @@ export type ExhibitorPortalProps = {
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
+  eventHotels?: EventHotelOption[];
+  eventRestaurants?: EventRestaurantOption[];
+  eventSchedule?: EventScheduleItemOption[];
   canManageMembers?: boolean;
   openEvents?: OpenExhibitorEvent[];
   memberDocuments?: SerializedMemberDocument[];
@@ -179,6 +188,23 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const travelActivities = useMemo(
     () => props.eventActivities.filter((a) => a.kind === "TRAVEL"),
     [props.eventActivities]
+  );
+  const diningOptions = useMemo(
+    () =>
+      (props.eventRestaurants ?? []).map((restaurant) =>
+        [restaurant.name, restaurant.cuisine, restaurant.location].filter(Boolean).join(" · ")
+      ),
+    [props.eventRestaurants]
+  );
+  const hotelSelectOptions = useMemo(() => {
+    const hotels = (props.eventHotels ?? []).map((hotel) =>
+      hotel.location ? `${hotel.name} — ${hotel.location}` : hotel.name
+    );
+    return ["Own accommodation", ...hotels];
+  }, [props.eventHotels]);
+  const scheduleByDay = useMemo(
+    () => groupScheduleByDay(props.eventSchedule ?? []),
+    [props.eventSchedule]
   );
 
   const [tab, setTab] = useState<ExhibitorTab>("overview");
@@ -847,6 +873,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             </Panel>
           </div>
 
+          {scheduleByDay.length > 0 && (
+            <Panel title="Event schedule" icon={CalendarDays}>
+              <EventScheduleGrid scheduleByDay={scheduleByDay} />
+            </Panel>
+          )}
+
           {props.canManageMembers && (
             <BulkUploadMembersPanel
               bulkUploading={bulkUploading}
@@ -973,6 +1005,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           )}
           {regStep === 4 && (
             <RegStep title="Tours & travel arrangements" icon={MapPin}>
+              {scheduleByDay.length > 0 && (
+                <div className="mb-5">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Event schedule</p>
+                  <EventScheduleGrid scheduleByDay={scheduleByDay} compact />
+                </div>
+              )}
               <InfoBox>Select all transport and tours your team requires. Costs are per person and will be invoiced separately.</InfoBox>
               <Field label="Pickup from hotel or accommodation required?">
                 <Select
@@ -1014,7 +1052,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 <CheckGroup options={mealOptions} selected={selectedMeals} onToggle={(k) => toggleSet(selectedMeals, k, setSelectedMeals)} />
               </Field>
               <Field label="Optional vegetarian dining experiences — select all of interest">
-                <CheckGroup options={[...VEG_DINING_EXPERIENCES]} selected={selectedFoodExp} onToggle={(k) => toggleSet(selectedFoodExp, k, setSelectedFoodExp)} />
+                {diningOptions.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                    No restaurant outings have been published yet. The Event Master will add options here.
+                  </p>
+                ) : (
+                  <CheckGroup options={diningOptions} selected={selectedFoodExp} onToggle={(k) => toggleSet(selectedFoodExp, k, setSelectedFoodExp)} />
+                )}
               </Field>
               <div className="grid gap-3 sm:grid-cols-1">
                 <Field label="Allergies to note (veg menu)"><Input value={form.allergy} onChange={(e) => setForm({ ...form, allergy: e.target.value })} placeholder="e.g. nuts, dairy, gluten…" /></Field>
@@ -1307,7 +1351,16 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   <Select value={memberForm.transport} onChange={(v) => setMemberForm({ ...memberForm, transport: v })} options={[...TRANSPORT_OPTIONS]} placeholder="Select…" />
                 </Field>
                 <Field label="Hotel">
-                  <Input value={memberForm.hotel} onChange={(e) => setMemberForm({ ...memberForm, hotel: e.target.value })} placeholder="Hotel name or own accommodation" />
+                  {hotelSelectOptions.length <= 1 ? (
+                    <Input value={memberForm.hotel} onChange={(e) => setMemberForm({ ...memberForm, hotel: e.target.value })} placeholder="Hotel name or own accommodation" />
+                  ) : (
+                    <Select
+                      value={memberForm.hotel}
+                      onChange={(v) => setMemberForm({ ...memberForm, hotel: v })}
+                      options={hotelSelectOptions}
+                      placeholder="Select hotel…"
+                    />
+                  )}
                 </Field>
                 <Field label="Tours joining">
                   <Input value={memberForm.tours} onChange={(e) => setMemberForm({ ...memberForm, tours: e.target.value })} placeholder="e.g. Safari, city tour" />
@@ -1711,6 +1764,42 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
       options={toSelectOptions(options, placeholder)}
       placeholder={placeholder}
     />
+  );
+}
+
+function EventScheduleGrid({
+  scheduleByDay,
+  compact = false,
+}: {
+  scheduleByDay: { day: string; items: EventScheduleItemOption[] }[];
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn("grid gap-3", compact ? "sm:grid-cols-1" : "sm:grid-cols-2")}>
+      {scheduleByDay.map(({ day, items }) => (
+        <div key={day} className="rounded-xl border border-border bg-muted/30 p-3">
+          <span className="mb-3 inline-flex rounded-full bg-champagne/15 px-2.5 py-0.5 text-[11px] font-medium text-espresso">
+            {day}
+          </span>
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li key={item.id} className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                <div>
+                  <div className="font-medium text-foreground">{item.title}</div>
+                  <div>
+                    {formatDate(item.startAt, "h:mm a")}
+                    {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
+                    {item.location ? ` · ${item.location}` : ""}
+                  </div>
+                  {item.description ? <p className="mt-1">{item.description}</p> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 

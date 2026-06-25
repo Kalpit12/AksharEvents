@@ -9,19 +9,30 @@ import {
 } from "@/components/event-master/types";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
 import FlightBookingsPanel from "@/components/event-master/flight-bookings-panel";
+import {
+  EventHotelsManager,
+  EventRestaurantsManager,
+  EventScheduleManager,
+} from "@/components/event-master/event-config-panels";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import type {
+  EventHotelOption,
+  EventRestaurantOption,
+  EventScheduleItemOption,
+} from "@/lib/event-config-types";
 import {
   aggregateDietary,
   aggregateHotelAssignments,
   aggregateHotelRequests,
   aggregateMeals,
   aggregateMembers,
+  aggregateRestaurantSelections,
   aggregateTransport,
   expoDaysFromRange,
-  groupActivitiesByDay,
+  groupScheduleByDay,
 } from "@/lib/event-master-aggregations";
 import { Input } from "@/components/ui/Input";
 import { cn, formatDate } from "@/lib/utils";
@@ -60,6 +71,9 @@ type Props = {
   endDate: string;
   exhibitors?: AdminExhibitorRecord[];
   activities?: EventActivityOption[];
+  eventHotels?: EventHotelOption[];
+  eventRestaurants?: EventRestaurantOption[];
+  scheduleItems?: EventScheduleItemOption[];
   airBookingRequests?: SerializedAirBookingRequest[];
   memberDocuments?: SerializedMemberDocument[];
   flightBookingAgentEmail?: string;
@@ -89,6 +103,9 @@ export default function EventMasterDashboard({
   endDate,
   exhibitors = [],
   activities = [],
+  eventHotels = [],
+  eventRestaurants = [],
+  scheduleItems = [],
   airBookingRequests = [],
   memberDocuments = [],
   flightBookingAgentEmail = "",
@@ -107,7 +124,11 @@ export default function EventMasterDashboard({
   const hotelAssignments = useMemo(() => aggregateHotelAssignments(exhibitors), [exhibitors]);
   const mealAggregates = useMemo(() => aggregateMeals(exhibitors), [exhibitors]);
   const dietaryRows = useMemo(() => aggregateDietary(exhibitors), [exhibitors]);
-  const scheduleByDay = useMemo(() => groupActivitiesByDay(activities), [activities]);
+  const restaurantSelections = useMemo(() => aggregateRestaurantSelections(exhibitors), [exhibitors]);
+  const eventScheduleByDay = useMemo(
+    () => groupScheduleByDay(scheduleItems.filter((item) => item.isActive)),
+    [scheduleItems]
+  );
 
   const filteredMembers = useMemo(
     () => (roleFilter ? members.filter((m) => m.role === roleFilter) : members),
@@ -383,6 +404,7 @@ export default function EventMasterDashboard({
 
       {tab === "hotels" && (
         <div className="space-y-4">
+          <EventHotelsManager eventId={eventId} hotels={eventHotels} />
           <Panel title="Hotel accommodation requests" icon={Building2}>
             {hotelRequests.length === 0 ? (
               <EmptyMessage message="No hotel requests yet." />
@@ -412,6 +434,7 @@ export default function EventMasterDashboard({
 
       {tab === "food" && (
         <div className="space-y-4">
+          <EventRestaurantsManager eventId={eventId} restaurants={eventRestaurants} />
           <Panel title="Meal selections" icon={UtensilsCrossed}>
             {mealAggregates.length === 0 ? (
               <EmptyMessage message="No meal selections yet. Exhibitors choose meals in their registration form." />
@@ -419,6 +442,16 @@ export default function EventMasterDashboard({
               <SimpleTable
                 headers={["Meal", "Est. attendees", "Companies"]}
                 rows={mealAggregates.map((m) => [m.meal, String(m.attendees), m.companies.join(", ")])}
+              />
+            )}
+          </Panel>
+          <Panel title="Restaurant outing selections" icon={Coffee}>
+            {restaurantSelections.length === 0 ? (
+              <EmptyMessage message="No restaurant selections yet. Exhibitors choose from restaurants you add above." />
+            ) : (
+              <SimpleTable
+                headers={["Restaurant", "Companies"]}
+                rows={restaurantSelections.map((r) => [r.restaurant, r.companies.join(", ")])}
               />
             )}
           </Panel>
@@ -437,26 +470,28 @@ export default function EventMasterDashboard({
       )}
 
       {tab === "schedule" && (
-        <Panel title="Event activities" icon={CalendarDays}>
-          {scheduleByDay.length === 0 ? (
-            <EmptyMessage message="No activities scheduled yet. Add tours and travel options from the event activities admin." />
+        <div className="space-y-4">
+          <EventScheduleManager eventId={eventId} scheduleItems={scheduleItems} />
+          <Panel title="Published event schedule" icon={CalendarDays}>
+          {eventScheduleByDay.length === 0 ? (
+            <EmptyMessage message="No schedule items published yet. Add items above to build the event schedule for exhibitors." />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {scheduleByDay.map(({ day, items }) => (
+              {eventScheduleByDay.map(({ day, items }) => (
                 <div key={day} className="rounded-xl border border-border bg-muted/30 p-3">
                   <span className="mb-3 inline-flex rounded-full bg-champagne/15 px-2.5 py-0.5 text-[11px] font-medium text-espresso">
                     {day}
                   </span>
                   <ul className="space-y-2">
-                    {items.map((activity) => (
-                      <li key={activity.id} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    {items.map((item) => (
+                      <li key={item.id} className="flex items-start gap-2 text-xs text-muted-foreground">
                         <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                         <div>
-                          <div className="font-medium text-foreground">{activity.title}</div>
+                          <div className="font-medium text-foreground">{item.title}</div>
                           <div>
-                            {formatDate(activity.startAt, "h:mm a")}
-                            {activity.location ? ` · ${activity.location}` : ""}
-                            {activity.kind === "TOUR" ? " · Tour" : " · Travel"}
+                            {formatDate(item.startAt, "h:mm a")}
+                            {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
+                            {item.location ? ` · ${item.location}` : ""}
                           </div>
                         </div>
                       </li>
@@ -466,7 +501,8 @@ export default function EventMasterDashboard({
               ))}
             </div>
           )}
-        </Panel>
+          </Panel>
+        </div>
       )}
       </div>
     </div>

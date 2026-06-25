@@ -189,6 +189,38 @@ export function groupActivitiesByDay(activities: EventActivityOption[]) {
   return [...groups.entries()].map(([day, items]) => ({ day, items }));
 }
 
+export function groupScheduleByDay<T extends { startAt: string }>(items: T[]) {
+  const groups = new Map<string, T[]>();
+
+  for (const item of items) {
+    const day = formatDate(item.startAt, "EEE · MMM d");
+    if (!groups.has(day)) groups.set(day, []);
+    groups.get(day)!.push(item);
+  }
+
+  return [...groups.entries()].map(([day, dayItems]) => ({ day, items: dayItems }));
+}
+
+export function aggregateRestaurantSelections(
+  exhibitors: AdminExhibitorRecord[]
+): { restaurant: string; companies: string[] }[] {
+  const map = new Map<string, Set<string>>();
+
+  for (const record of exhibitors) {
+    const data = record.formData;
+    if (!data) continue;
+    for (const name of data.selectedFoodExp) {
+      if (!map.has(name)) map.set(name, new Set());
+      map.get(name)!.add(record.companyName);
+    }
+  }
+
+  return [...map.entries()].map(([restaurant, companies]) => ({
+    restaurant,
+    companies: [...companies],
+  }));
+}
+
 export function countHotelRequests(exhibitors: AdminExhibitorRecord[]): number {
   return aggregateHotelRequests(exhibitors).length;
 }
