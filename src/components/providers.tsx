@@ -19,7 +19,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
         {children}
-        <Toaster position="top-right" richColors closeButton />
+        <Toaster
+          position="top-right"
+          closeButton
+          expand={false}
+          visibleToasts={4}
+          toastOptions={{
+            unstyled: true,
+            classNames: {
+              toast: "akshar-toast",
+              title: "akshar-toast__title",
+              description: "akshar-toast__description",
+              closeButton: "akshar-toast__close",
+              success: "akshar-toast--success",
+              error: "akshar-toast--error",
+              info: "akshar-toast--info",
+            },
+          }}
+        />
       </ThemeProvider>
     </QueryClientProvider>
   );

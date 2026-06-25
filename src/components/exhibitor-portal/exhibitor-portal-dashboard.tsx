@@ -90,13 +90,19 @@ import {
 } from "lucide-react";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import { MemberDocumentsUpload } from "@/components/exhibitor-portal/member-documents-upload";
-import { saveExhibitorRegistration, addExhibitorMember, bulkUploadExhibitorMembers, registerExhibitorForEvent } from "@/lib/exhibitor-actions";
+import {
+  saveExhibitorRegistration,
+  addExhibitorMember,
+  bulkUploadExhibitorMembers,
+  registerExhibitorForEvent,
+  updateExhibitorMemberPassport,
+} from "@/lib/exhibitor-actions";
 import { createAirBookingRequest } from "@/lib/air-booking-actions";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 
 export type ExhibitorPortalProps = {
   eventExhibitorId: string | null;
@@ -295,7 +301,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const persistRegistration = useCallback(
     async (overrides: Partial<SavedRegistrationData> = {}, status: "DRAFT" | "SUBMITTED" = "DRAFT") => {
       if (!props.eventExhibitorId) {
-        toast.error("No event linked to your exhibitor account. Contact the organizer to be added to this event.");
+        notify.error("No event linked");
         return { error: "No event exhibitor record" };
       }
       const saveStatus = isSubmitted && status !== "SUBMITTED" ? "SUBMITTED" : status;
@@ -309,7 +315,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             saveStatus
           );
           if (result.error) {
-            toast.error(result.error);
+            notify.error(result.error);
           } else if (result.success) {
             setLastSavedAt(new Date());
             router.refresh();
@@ -375,11 +381,11 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const submitRegistration = async () => {
     if (isSubmitted) {
-      toast.info("Registration already submitted.");
+      notify.info("Already submitted");
       return;
     }
     if (!form.company.trim()) {
-      toast.error("Please complete the company name before submitting.");
+      notify.error("Company name required");
       goStep(1);
       return;
     }
@@ -390,7 +396,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       const result = await persistRegistration({ formSteps: finalSteps, regStep }, "SUBMITTED");
       if (result?.success) {
         setRegistrationStatus("SUBMITTED");
-        toast.success("Registration submitted! Your event coordinator will contact you within 24 hours.");
+        notify.success("Registration submitted");
       }
     } finally {
       setSubmitting(false);
@@ -399,15 +405,15 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const addMember = async () => {
     if (!memberForm.fn.trim() || !memberForm.ln.trim()) {
-      toast.error("Please enter first and last name.");
+      notify.error("Name required");
       return;
     }
     if (!memberForm.email.trim()) {
-      toast.error("Please enter an email address.");
+      notify.error("Email required");
       return;
     }
     if (!memberForm.phone.trim() || memberForm.phone.trim().length < 8) {
-      toast.error("Please enter a valid phone number.");
+      notify.error("Valid phone required");
       return;
     }
 
@@ -422,7 +428,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
         const result = await addExhibitorMember(fd);
         if (result.error) {
-          toast.error(result.error);
+          notify.error(result.error);
           return;
         }
       } finally {
@@ -459,11 +465,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     });
     setModalOpen(false);
     await persistRegistration({ members: nextMembers });
-    toast.success(
-      props.canManageMembers
-        ? "Team member added — login credentials sent by email"
-        : "Team member added"
-    );
+    notify.success(props.canManageMembers ? "Member added — invite sent" : "Member added");
   };
 
   const handleBulkUpload = async (file: File) => {
@@ -476,7 +478,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       fd.set("csv", csv);
       const result = await bulkUploadExhibitorMembers(fd);
       if (result.error) {
-        toast.error(result.error);
+        notify.error(result.error);
         return;
       }
       if (result.summary && result.added) {
@@ -515,8 +517,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           await persistRegistration({ members: nextMembers });
         }
 
-        toast.success(
-          `Bulk upload complete: ${result.summary.added} added, ${result.summary.skipped} skipped, ${result.summary.failed} failed`
+        notify.success(
+          `Upload complete: ${result.summary.added} added`
         );
         router.refresh();
       }
@@ -539,17 +541,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const linkToEvent = async () => {
     if (!selectedEventId) {
-      toast.error("Select an event to continue.");
+      notify.error("Select an event");
       return;
     }
     setLinkingEvent(true);
     try {
       const result = await registerExhibitorForEvent(selectedEventId);
       if (result.error) {
-        toast.error(result.error);
+        notify.error(result.error);
         return;
       }
-      toast.success("Event linked. You can now complete your registration.");
+      notify.success("Event linked");
       router.refresh();
     } finally {
       setLinkingEvent(false);
@@ -564,15 +566,15 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const submitAirBooking = async () => {
     if (!props.eventExhibitorId) {
-      toast.error("Link an event before requesting air booking.");
+      notify.error("Link an event first");
       return;
     }
     if (airBookingMemberIds.length === 0) {
-      toast.error("Select at least one team member.");
+      notify.error("Select team members");
       return;
     }
     if (!airBookingForm.travelDate) {
-      toast.error("Select a travel date.");
+      notify.error("Travel date required");
       return;
     }
 
@@ -585,7 +587,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         memberLocalIds: airBookingMemberIds,
       });
       if (result.error) {
-        toast.error(result.error);
+        notify.error(result.error);
         return;
       }
       if (result.request) {
@@ -595,7 +597,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       setAirBookingModalOpen(false);
       setAirBookingForm({ travelDate: "", notes: "" });
       setAirBookingMemberIds([]);
-      toast.success("Flight booking request submitted. Event Master will coordinate with the travel agent.");
+      notify.success("Flight booking request sent");
       router.refresh();
     } finally {
       setSubmittingAirBooking(false);
@@ -604,7 +606,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const openAirBookingModal = () => {
     if (members.length === 0) {
-      toast.error("Add team members before requesting air booking.");
+      notify.error("Add team members first");
       return;
     }
     setAirBookingMemberIds(members.map((m) => m.id));
@@ -622,24 +624,54 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     setDocumentsPassportDraft(member.passportNumber?.trim() ?? "");
   };
 
-  const saveMemberPassport = async () => {
-    if (!documentsMember) return;
+  const saveMemberPassport = async (options?: { silent?: boolean }) => {
+    if (!documentsMember || !props.eventExhibitorId) {
+      notify.error("No event linked");
+      return false;
+    }
     const passportNumber = documentsPassportDraft.trim();
-    const nextMembers = members.map((m) =>
-      m.id === documentsMember.id ? { ...m, passportNumber } : m
-    );
-    setMembers(nextMembers);
+    if (!passportNumber) {
+      notify.error("Passport number required");
+      return false;
+    }
+
     setSavingPassport(true);
     try {
-      const result = await persistRegistration({ members: nextMembers });
-      if (result?.error) return;
-      setDocumentsMember((current) =>
-        current ? { ...current, passportNumber } : current
+      const result = await updateExhibitorMemberPassport(
+        props.eventExhibitorId,
+        documentsMember.id,
+        passportNumber
       );
-      toast.success("Passport number saved");
+      if (result.error) {
+        notify.error(result.error);
+        return false;
+      }
+
+      const savedPassport = result.passportNumber ?? passportNumber;
+      const nextMembers = members.map((m) =>
+        m.id === documentsMember.id ? { ...m, passportNumber: savedPassport } : m
+      );
+      setMembers(nextMembers);
+      setDocumentsMember((current) =>
+        current ? { ...current, passportNumber: savedPassport } : current
+      );
+      if (!options?.silent) {
+        notify.success("Passport saved");
+      }
+      return true;
     } finally {
       setSavingPassport(false);
     }
+  };
+
+  const closeDocumentsModal = async () => {
+    if (!documentsMember) return;
+    const draft = documentsPassportDraft.trim();
+    const saved = documentsMember.passportNumber?.trim() ?? "";
+    if (draft && draft !== saved) {
+      await saveMemberPassport({ silent: true });
+    }
+    setDocumentsMember(null);
   };
 
   const handleDocumentUploaded = (document: SerializedMemberDocument) => {
@@ -1292,9 +1324,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           title={`Documents — ${documentsMember.fn} ${documentsMember.ln}`}
           icon={FileUp}
           wide
-          onClose={() => setDocumentsMember(null)}
+          onClose={() => void closeDocumentsModal()}
           footer={
-            <Button variant="outline" onClick={() => setDocumentsMember(null)}>
+            <Button variant="outline" disabled={savingPassport} onClick={() => void closeDocumentsModal()}>
               Done
             </Button>
           }
@@ -1309,6 +1341,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   value={documentsPassportDraft}
                   onChange={(e) => setDocumentsPassportDraft(e.target.value)}
                   placeholder="Required for flight booking"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void saveMemberPassport();
+                    }
+                  }}
                 />
                 <Button
                   type="button"

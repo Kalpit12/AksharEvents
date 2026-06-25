@@ -63,6 +63,7 @@ type Props = {
   airBookingRequests?: SerializedAirBookingRequest[];
   memberDocuments?: SerializedMemberDocument[];
   flightBookingAgentEmail?: string;
+  flightBookingCcEmail?: string;
 };
 
 const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -91,6 +92,7 @@ export default function EventMasterDashboard({
   airBookingRequests = [],
   memberDocuments = [],
   flightBookingAgentEmail = "",
+  flightBookingCcEmail = "",
 }: Props) {
   const [tab, setTab] = useState<EventMasterTab>("exhibitors");
   const [roleFilter, setRoleFilter] = useState("");
@@ -202,7 +204,9 @@ export default function EventMasterDashboard({
           requests={airBookingRequests}
           exhibitors={exhibitors}
           memberDocuments={memberDocuments}
+          eventTitle={eventTitle}
           defaultAgentEmail={flightBookingAgentEmail}
+          defaultCcEmail={flightBookingCcEmail}
         />
       )}
 

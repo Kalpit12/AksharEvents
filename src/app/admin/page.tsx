@@ -133,6 +133,9 @@ export default async function AdminEventMasterPage() {
         airBookingRequests={airBookingRequests}
         memberDocuments={memberDocuments}
         flightBookingAgentEmail={process.env.FLIGHT_BOOKING_AGENT_EMAIL ?? ""}
+        flightBookingCcEmail={
+          process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
+        }
       />
     </div>
   );

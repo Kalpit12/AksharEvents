@@ -1,4 +1,8 @@
 import { ServerClient } from "postmark";
+import {
+  flightBookingPackageEmailHtml,
+  flightBookingPackageEmailSubject,
+} from "@/lib/email-templates/flight-booking-package";
 import { BRAND } from "./utils";
 
 function getPostmarkClient() {
@@ -19,17 +23,21 @@ async function sendEmail({
   subject,
   html,
   cc,
+  replyTo,
+  tag,
   attachments,
 }: {
   to: string;
   subject: string;
   html: string;
   cc?: string;
+  replyTo?: string;
+  tag?: string;
   attachments?: { name: string; content: string; contentType: string }[];
 }) {
   const postmark = getPostmarkClient();
   if (!postmark) {
-    console.log(`[Email] To: ${to}${cc ? ` | Cc: ${cc}` : ""} | Subject: ${subject}`);
+    console.log(`[Email] To: ${to}${cc ? ` | Cc: ${cc}` : ""}${replyTo ? ` | Reply-To: ${replyTo}` : ""} | Subject: ${subject}`);
     if (attachments?.length) {
       console.log(`[Email] Attachments: ${attachments.map((a) => a.name).join(", ")}`);
     }
@@ -41,9 +49,11 @@ async function sendEmail({
       From: getFromAddress(),
       To: to,
       Cc: cc,
+      ReplyTo: replyTo,
       Subject: subject,
       HtmlBody: html,
       MessageStream: MESSAGE_STREAM,
+      ...(tag ? { Tag: tag } : {}),
       Attachments: attachments?.map((attachment) => ({
         Name: attachment.name,
         Content: attachment.content,
@@ -285,49 +295,28 @@ export async function sendFlightBookingPackageEmail({
   message?: string;
   attachments: { name: string; content: string; contentType: string }[];
 }) {
-  const rows = members
-    .map(
-      (member, index) => `
-      <tr>
-        <td style="padding: 8px; border: 1px solid #e5dfd4;">${index + 1}</td>
-        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.name}</td>
-        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.email}</td>
-        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.phone}</td>
-        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.passportNumber}</td>
-      </tr>`
-    )
-    .join("");
+  const replyTo =
+    process.env.EVENT_MASTER_NOTIFICATION_EMAIL ||
+    process.env.FLIGHT_BOOKING_CC_EMAIL ||
+    process.env.POSTMARK_SENDER_EMAIL;
+
+  const attachmentNames = attachments.map((a) => a.name);
 
   return sendEmail({
     to,
     cc,
-    subject: `Flight booking package — ${companyName} (${eventTitle})`,
+    replyTo,
+    tag: "flight-booking-package",
+    subject: flightBookingPackageEmailSubject(companyName, eventTitle),
     attachments,
-    html: `
-      <div style="font-family: sans-serif; max-width: 720px; margin: 0 auto;">
-        <h1 style="color: #1C1A17;">Flight booking traveller package</h1>
-        <p><strong>Company:</strong> ${companyName}</p>
-        <p><strong>Event:</strong> ${eventTitle}</p>
-        <p><strong>Travel date:</strong> ${travelDate}</p>
-        <p><strong>Tickets requested:</strong> ${ticketCount}</p>
-        ${message ? `<p style="white-space: pre-wrap;"><strong>Note from coordinator:</strong><br/>${message}</p>` : ""}
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px;">
-          <thead>
-            <tr style="background: #EFECE6;">
-              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">#</th>
-              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Name</th>
-              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Email</th>
-              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Phone</th>
-              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Passport #</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <p style="margin-top: 20px; color: #6b6560; font-size: 13px;">
-          Each traveller's documents are attached as a separate PDF (e.g. "Kalpit Patel Documents.pdf").
-          These files contain official identity documents — please handle confidentially.
-        </p>
-      </div>
-    `,
+    html: flightBookingPackageEmailHtml({
+      companyName,
+      eventTitle,
+      travelDate,
+      ticketCount,
+      members,
+      message,
+      attachmentNames,
+    }),
   });
 }

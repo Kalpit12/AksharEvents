@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { MEMBER_DOCUMENT_LABELS, type SerializedMemberDocument } from "@/lib/member-document-types";
 import { cn } from "@/lib/utils";
 import { Check, FileUp, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 
 const UPLOAD_TYPES: MemberDocumentType[] = ["PASSPORT", "VISA", "NATIONAL_ID", "YELLOW_FEVER"];
 
@@ -45,13 +45,13 @@ export function MemberDocumentsUpload({
       });
       const result = await response.json();
       if (!response.ok) {
-        toast.error(result.error ?? "Upload failed");
+        notify.error(result.error ?? "Upload failed");
         return;
       }
       onUploaded(result.document);
-      toast.success(`${MEMBER_DOCUMENT_LABELS[documentType]} uploaded for ${memberName}`);
+      notify.success(`${MEMBER_DOCUMENT_LABELS[documentType]} uploaded`);
     } catch {
-      toast.error("Upload failed");
+      notify.error("Upload failed");
     } finally {
       setUploading(null);
     }

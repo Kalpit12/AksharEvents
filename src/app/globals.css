@@ -207,3 +207,85 @@ body {
   background-size: 200% auto;
   animation: launch-shimmer 4s linear infinite;
 }
+
+/* Custom notifications (Sonner) */
+.akshar-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  box-shadow: 0 8px 24px rgb(28 26 23 / 12%);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.akshar-toast__title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.akshar-toast__description {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.akshar-toast__close {
+  position: static !important;
+  order: -1;
+  margin-right: 0.125rem;
+  margin-left: -0.125rem;
+  height: 1.25rem !important;
+  width: 1.25rem !important;
+  border: none !important;
+  background: transparent !important;
+  color: inherit !important;
+  opacity: 0.55;
+}
+
+.akshar-toast__close:hover {
+  opacity: 1;
+}
+
+.akshar-toast--success {
+  border-color: #b8d4c4;
+  background: #eef7f1;
+  color: #1f4d35;
+}
+
+.akshar-toast--error {
+  border-color: #e8c4c4;
+  background: #fdf0f0;
+  color: #7a2424;
+}
+
+.akshar-toast--info {
+  border-color: #d4c9b8;
+  background: #f7f3ec;
+  color: #4a3f2f;
+}
+
+.dark .akshar-toast--success {
+  border-color: #2f5a42;
+  background: #1a2e24;
+  color: #b8e0c8;
+}
+
+.dark .akshar-toast--error {
+  border-color: #6b3030;
+  background: #2a1818;
+  color: #f0b8b8;
+}
+
+.dark .akshar-toast--info {
+  border-color: #4a4035;
+  background: #221e19;
+  color: #d9c9a8;
+}

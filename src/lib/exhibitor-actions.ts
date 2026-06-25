@@ -128,6 +128,74 @@ export async function saveExhibitorRegistration(
   }
 }
 
+export async function updateExhibitorMemberPassport(
+  eventExhibitorId: string,
+  memberLocalId: string,
+  passportNumber: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "You must be signed in" };
+
+  const access = await requireExhibitorAccess(user.id);
+  if (!access) return { error: "No exhibitor access" };
+
+  const trimmed = passportNumber.trim();
+  if (!trimmed) return { error: "Passport number is required" };
+
+  try {
+    await withDbRetry(async () => {
+      const eventExhibitor = await prisma.eventExhibitor.findFirst({
+        where: { id: eventExhibitorId, exhibitorId: access.exhibitor.id },
+        include: { registration: true },
+      });
+      if (!eventExhibitor) throw new Error("Event registration not found");
+
+      const existing = eventExhibitor.registration?.formData as SavedRegistrationData | null | undefined;
+      if (!existing || !Array.isArray(existing.members)) {
+        throw new Error("Registration data not found");
+      }
+
+      const memberIndex = existing.members.findIndex((m) => m.id === memberLocalId);
+      if (memberIndex === -1) throw new Error("Team member not found");
+
+      const nextMembers = existing.members.map((m) =>
+        m.id === memberLocalId ? { ...m, passportNumber: trimmed } : m
+      );
+      const nextFormData = { ...existing, members: nextMembers } as Prisma.InputJsonValue;
+
+      await prisma.exhibitorRegistration.upsert({
+        where: { eventExhibitorId },
+        create: {
+          eventExhibitorId,
+          status: "DRAFT",
+          formData: nextFormData,
+        },
+        update: { formData: nextFormData },
+      });
+    });
+
+    revalidatePath("/exhibitor");
+    return { success: true, passportNumber: trimmed };
+  } catch (error) {
+    console.error("updateExhibitorMemberPassport failed:", error);
+    if (isTransientConnectionError(error)) {
+      return { error: "Database connection lost. Please wait a moment and try again." };
+    }
+    if (error instanceof Error) {
+      if (error.message === "Event registration not found") {
+        return { error: "Event registration not found" };
+      }
+      if (error.message === "Registration data not found") {
+        return { error: "Save your team members first, then add a passport number." };
+      }
+      if (error.message === "Team member not found") {
+        return { error: "Team member not found. Refresh the page and try again." };
+      }
+    }
+    return { error: "Failed to save passport number. Please try again." };
+  }
+}
+
 export async function addExhibitorMember(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) return { error: "You must be signed in" };
