@@ -23,6 +23,19 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
     return () => clearInterval(timer);
   }, [slides.length]);
 
+  useEffect(() => {
+    const firstImage = slides[0]?.image;
+    if (!firstImage) return;
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = firstImage;
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, [slides]);
+
   const slide = slides[current] || slides[0];
 
   return (
@@ -42,6 +55,7 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
             alt=""
             aria-hidden="true"
             className="absolute inset-0 h-full w-full object-cover"
+            loading="eager"
             fetchPriority="high"
             decoding="async"
           />

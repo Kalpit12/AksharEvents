@@ -8,7 +8,10 @@ import {
   type EventMasterTab,
 } from "@/components/event-master/types";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
+import FlightBookingsPanel from "@/components/event-master/flight-bookings-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
+import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import {
   aggregateDietary,
@@ -41,6 +44,7 @@ import {
   MapPin,
   Package,
   Pencil,
+  Plane,
   Settings,
   Store,
   Ticket,
@@ -56,11 +60,15 @@ type Props = {
   endDate: string;
   exhibitors?: AdminExhibitorRecord[];
   activities?: EventActivityOption[];
+  airBookingRequests?: SerializedAirBookingRequest[];
+  memberDocuments?: SerializedMemberDocument[];
+  flightBookingAgentEmail?: string;
 };
 
 const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "exhibitors", label: "Exhibitors", icon: Store },
   { id: "members", label: "Members", icon: Users },
+  { id: "flights", label: "Flight bookings", icon: Plane },
   { id: "supplies", label: "Supplies", icon: Package },
   { id: "transport", label: "Transport", icon: Bus },
   { id: "hotels", label: "Hotels", icon: Building2 },
@@ -80,6 +88,9 @@ export default function EventMasterDashboard({
   endDate,
   exhibitors = [],
   activities = [],
+  airBookingRequests = [],
+  memberDocuments = [],
+  flightBookingAgentEmail = "",
 }: Props) {
   const [tab, setTab] = useState<EventMasterTab>("exhibitors");
   const [roleFilter, setRoleFilter] = useState("");
@@ -185,6 +196,15 @@ export default function EventMasterDashboard({
       </div>
 
       {tab === "exhibitors" && <ExhibitorRegistrationsPanel exhibitors={exhibitors} activities={activities} />}
+
+      {tab === "flights" && (
+        <FlightBookingsPanel
+          requests={airBookingRequests}
+          exhibitors={exhibitors}
+          memberDocuments={memberDocuments}
+          defaultAgentEmail={flightBookingAgentEmail}
+        />
+      )}
 
       {tab === "members" && (
         <Panel title="Exhibitor team roster" icon={Users}>

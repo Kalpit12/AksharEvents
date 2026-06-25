@@ -10,3 +10,21 @@
 .ferrofluid-container canvas {
   pointer-events: auto;
 }
+
+.ferrofluid-fallback {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #1c1a17 0%, #4a4035 35%, #c5a880 70%, #efece6 100%);
+  background-size: 200% 200%;
+  animation: ferrofluid-fallback-shift 12s ease-in-out infinite;
+}
+
+@keyframes ferrofluid-fallback-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}

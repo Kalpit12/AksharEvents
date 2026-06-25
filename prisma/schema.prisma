@@ -123,6 +123,21 @@ enum ExhibitorRegistrationStatus {
   SUBMITTED
 }
 
+enum AirBookingRequestStatus {
+  PENDING
+  SENT
+  CONFIRMED
+  CANCELLED
+}
+
+enum MemberDocumentType {
+  PASSPORT
+  VISA
+  NATIONAL_ID
+  YELLOW_FEVER
+  OTHER
+}
+
 // ─── Auth (NextAuth) ─────────────────────────────────────────────────────────
 
 model User {
@@ -152,6 +167,9 @@ model User {
   exhibitorMemberships ExhibitorMember[]
   activityBookings ExhibitorActivityBooking[] @relation("ActivityBookedBy")
   createdActivities EventActivity[] @relation("ActivityCreator")
+  airBookingRequestsRequested AirBookingRequest[] @relation("AirBookingRequestedBy")
+  memberDocumentsUploaded ExhibitorMemberDocument[] @relation("MemberDocumentUploadedBy")
+  airBookingDispatchesSent AirBookingDispatch[] @relation("AirBookingDispatchSentBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -461,6 +479,8 @@ model EventExhibitor {
 
   itineraryItems ItineraryItem[]
   registration   ExhibitorRegistration?
+  airBookingRequests AirBookingRequest[]
+  memberDocuments    ExhibitorMemberDocument[]
 
   @@unique([eventId, exhibitorId])
 }
@@ -474,6 +494,62 @@ model ExhibitorRegistration {
   submittedAt      DateTime?
   createdAt        DateTime                    @default(now())
   updatedAt        DateTime                    @updatedAt
+}
+
+model AirBookingRequest {
+  id               String                  @id @default(cuid())
+  eventExhibitorId String
+  eventExhibitor   EventExhibitor          @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  ticketCount      Int
+  travelDate       DateTime                @db.Date
+  notes            String?                 @db.Text
+  memberLocalIds   String[]
+  status           AirBookingRequestStatus @default(PENDING)
+  requestedById    String?
+  requestedBy      User?                   @relation("AirBookingRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  dispatches       AirBookingDispatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventExhibitorId])
+  @@index([status])
+}
+
+model ExhibitorMemberDocument {
+  id                 String             @id @default(cuid())
+  eventExhibitorId   String
+  eventExhibitor     EventExhibitor     @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  memberLocalId      String
+  documentType       MemberDocumentType
+  cloudinaryPublicId String
+  originalFileName   String
+  mimeType           String
+  fileSize           Int
+  uploadedById       String
+  uploadedBy         User               @relation("MemberDocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventExhibitorId, memberLocalId, documentType])
+  @@index([eventExhibitorId, memberLocalId])
+}
+
+model AirBookingDispatch {
+  id                  String            @id @default(cuid())
+  airBookingRequestId String
+  airBookingRequest   AirBookingRequest @relation(fields: [airBookingRequestId], references: [id], onDelete: Cascade)
+  sentById            String
+  sentBy              User              @relation("AirBookingDispatchSentBy", fields: [sentById], references: [id], onDelete: Cascade)
+  recipientEmail      String
+  memberLocalIds      String[]
+  postmarkMessageId   String?
+  message             String?           @db.Text
+
+  sentAt DateTime @default(now())
+
+  @@index([airBookingRequestId])
 }
 
 model ExhibitorMember {

@@ -18,14 +18,21 @@ async function sendEmail({
   to,
   subject,
   html,
+  cc,
+  attachments,
 }: {
   to: string;
   subject: string;
   html: string;
+  cc?: string;
+  attachments?: { name: string; content: string; contentType: string }[];
 }) {
   const postmark = getPostmarkClient();
   if (!postmark) {
-    console.log(`[Email] To: ${to} | Subject: ${subject}`);
+    console.log(`[Email] To: ${to}${cc ? ` | Cc: ${cc}` : ""} | Subject: ${subject}`);
+    if (attachments?.length) {
+      console.log(`[Email] Attachments: ${attachments.map((a) => a.name).join(", ")}`);
+    }
     return { success: true, id: "dev-mode" };
   }
 
@@ -33,9 +40,16 @@ async function sendEmail({
     const result = await postmark.sendEmail({
       From: getFromAddress(),
       To: to,
+      Cc: cc,
       Subject: subject,
       HtmlBody: html,
       MessageStream: MESSAGE_STREAM,
+      Attachments: attachments?.map((attachment) => ({
+        Name: attachment.name,
+        Content: attachment.content,
+        ContentType: attachment.contentType,
+        ContentID: attachment.name,
+      })),
     });
     return { success: true, id: result.MessageID };
   } catch (error) {
@@ -203,6 +217,116 @@ export async function sendBookingInquiryEmail(data: {
         <p><strong>Country:</strong> ${data.country}</p>
         <h2 style="font-size: 16px; margin-top: 24px;">Message</h2>
         <p style="white-space: pre-wrap;">${data.message}</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendFlightBookingRequestNotification({
+  companyName,
+  eventTitle,
+  travelDate,
+  ticketCount,
+  memberNames,
+}: {
+  companyName: string;
+  eventTitle: string;
+  travelDate: string;
+  ticketCount: number;
+  memberNames: string[];
+}) {
+  const to =
+    process.env.EVENT_MASTER_NOTIFICATION_EMAIL ||
+    process.env.FLIGHT_BOOKING_CC_EMAIL ||
+    process.env.POSTMARK_SENDER_EMAIL ||
+    "info@aksharevents.com";
+  const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5001"}/admin`;
+
+  return sendEmail({
+    to,
+    subject: `New flight booking request — ${companyName}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto;">
+        <h1 style="color: #1C1A17;">New flight booking request</h1>
+        <p><strong>Company:</strong> ${companyName}</p>
+        <p><strong>Event:</strong> ${eventTitle}</p>
+        <p><strong>Travel date:</strong> ${travelDate}</p>
+        <p><strong>Tickets:</strong> ${ticketCount}</p>
+        <p><strong>Travellers:</strong></p>
+        <ul>${memberNames.map((name) => `<li>${name}</li>`).join("")}</ul>
+        <p style="margin-top: 24px;">
+          <a href="${adminUrl}" style="display: inline-block; background: #C5A880; color: #1C1A17; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+            Review in Event Master
+          </a>
+        </p>
+      </div>
+    `,
+  });
+}
+
+export async function sendFlightBookingPackageEmail({
+  to,
+  cc,
+  companyName,
+  eventTitle,
+  travelDate,
+  ticketCount,
+  members,
+  message,
+  attachments,
+}: {
+  to: string;
+  cc?: string;
+  companyName: string;
+  eventTitle: string;
+  travelDate: string;
+  ticketCount: number;
+  members: { name: string; email: string; phone: string; passportNumber: string }[];
+  message?: string;
+  attachments: { name: string; content: string; contentType: string }[];
+}) {
+  const rows = members
+    .map(
+      (member, index) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #e5dfd4;">${index + 1}</td>
+        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.name}</td>
+        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.email}</td>
+        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.phone}</td>
+        <td style="padding: 8px; border: 1px solid #e5dfd4;">${member.passportNumber}</td>
+      </tr>`
+    )
+    .join("");
+
+  return sendEmail({
+    to,
+    cc,
+    subject: `Flight booking package — ${companyName} (${eventTitle})`,
+    attachments,
+    html: `
+      <div style="font-family: sans-serif; max-width: 720px; margin: 0 auto;">
+        <h1 style="color: #1C1A17;">Flight booking traveller package</h1>
+        <p><strong>Company:</strong> ${companyName}</p>
+        <p><strong>Event:</strong> ${eventTitle}</p>
+        <p><strong>Travel date:</strong> ${travelDate}</p>
+        <p><strong>Tickets requested:</strong> ${ticketCount}</p>
+        ${message ? `<p style="white-space: pre-wrap;"><strong>Note from coordinator:</strong><br/>${message}</p>` : ""}
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px;">
+          <thead>
+            <tr style="background: #EFECE6;">
+              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">#</th>
+              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Name</th>
+              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Email</th>
+              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Phone</th>
+              <th style="padding: 8px; border: 1px solid #e5dfd4; text-align: left;">Passport #</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <p style="margin-top: 20px; color: #6b6560; font-size: 13px;">
+          Each traveller's documents are attached as a separate PDF (e.g. "Kalpit Patel Documents.pdf").
+          These files contain official identity documents — please handle confidentially.
+        </p>
       </div>
     `,
   });

@@ -5,6 +5,8 @@ import type { SavedRegistrationData } from "@/components/exhibitor-portal/regist
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
+import { listAirBookingRequestsForEvent } from "@/lib/air-booking-actions";
+import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 
@@ -81,6 +83,25 @@ export default async function AdminEventMasterPage() {
     orderBy: { startAt: "asc" },
   });
 
+  const [airBookingRequests, memberDocumentRows] = await Promise.all([
+    listAirBookingRequestsForEvent(event.id),
+    prisma.exhibitorMemberDocument.findMany({
+      where: { eventExhibitor: { eventId: event.id } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
+  const memberDocuments: SerializedMemberDocument[] = memberDocumentRows.map((doc) => ({
+    id: doc.id,
+    eventExhibitorId: doc.eventExhibitorId,
+    memberLocalId: doc.memberLocalId,
+    documentType: doc.documentType,
+    originalFileName: doc.originalFileName,
+    mimeType: doc.mimeType,
+    fileSize: doc.fileSize,
+    uploadedAt: doc.createdAt.toISOString(),
+  }));
+
   const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
     id: entry.id,
     companyName: entry.exhibitor.companyName,
@@ -109,6 +130,9 @@ export default async function AdminEventMasterPage() {
         endDate={event.endDate.toISOString()}
         exhibitors={exhibitors}
         activities={activities.map(serializeActivity)}
+        airBookingRequests={airBookingRequests}
+        memberDocuments={memberDocuments}
+        flightBookingAgentEmail={process.env.FLIGHT_BOOKING_AGENT_EMAIL ?? ""}
       />
     </div>
   );

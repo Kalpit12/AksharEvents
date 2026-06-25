@@ -11,6 +11,7 @@ export type EventMasterMember = {
 export type EventMasterTab =
   | "exhibitors"
   | "members"
+  | "flights"
   | "supplies"
   | "transport"
   | "hotels"

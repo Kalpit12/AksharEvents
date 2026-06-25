@@ -5,6 +5,9 @@ import type { EventActivityOption } from "@/lib/event-activity-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
+import { listAirBookingRequestsForExhibitor } from "@/lib/air-booking-actions";
+import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import ExhibitorPortalDashboard from "@/components/exhibitor-portal/exhibitor-portal-dashboard";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import { differenceInCalendarDays } from "date-fns";
@@ -90,6 +93,32 @@ export default async function ExhibitorDashboardPage() {
     ? (eventEntry.registration.formData as SavedRegistrationData)
     : null;
 
+  const memberDocuments: SerializedMemberDocument[] = eventEntry
+    ? (
+        await prisma.exhibitorMemberDocument.findMany({
+          where: { eventExhibitorId: eventEntry.id },
+          orderBy: { createdAt: "desc" },
+        })
+      ).map((doc) => ({
+        id: doc.id,
+        eventExhibitorId: doc.eventExhibitorId,
+        memberLocalId: doc.memberLocalId,
+        documentType: doc.documentType,
+        originalFileName: doc.originalFileName,
+        mimeType: doc.mimeType,
+        fileSize: doc.fileSize,
+        uploadedAt: doc.createdAt.toISOString(),
+      }))
+    : [];
+
+  let airBookingRequests: SerializedAirBookingRequest[] = [];
+  if (eventEntry) {
+    const airBookingResult = await listAirBookingRequestsForExhibitor(eventEntry.id);
+    if (airBookingResult.success && airBookingResult.requests) {
+      airBookingRequests = airBookingResult.requests;
+    }
+  }
+
   return (
     <ExhibitorPortalDashboard
       eventExhibitorId={eventEntry?.id ?? null}
@@ -111,6 +140,8 @@ export default async function ExhibitorDashboardPage() {
       eventActivities={activities.map(serializeActivity)}
       canManageMembers={canManageMembers(access.membership.role)}
       openEvents={openEvents}
+      memberDocuments={memberDocuments}
+      airBookingRequests={airBookingRequests}
     />
   );
 }

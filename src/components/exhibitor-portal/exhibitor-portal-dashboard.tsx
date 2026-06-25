@@ -26,7 +26,6 @@ import {
   TRANSPORT_OPTIONS,
   VEHICLE_OPTIONS,
   type ExhibitorTab,
-  type AirBookingRequest,
   type TeamMember,
 } from "@/components/exhibitor-portal/types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
@@ -70,6 +69,7 @@ import {
   Coffee,
   Droplets,
   FileText,
+  FileUp,
   ForkKnife,
   IdCard,
   Info,
@@ -80,6 +80,7 @@ import {
   Plus,
   Salad,
   Send,
+  ShieldCheck,
   Ticket,
   Trash2,
   TrendingUp,
@@ -88,7 +89,11 @@ import {
   Upload,
 } from "lucide-react";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
+import { MemberDocumentsUpload } from "@/components/exhibitor-portal/member-documents-upload";
 import { saveExhibitorRegistration, addExhibitorMember, bulkUploadExhibitorMembers, registerExhibitorForEvent } from "@/lib/exhibitor-actions";
+import { createAirBookingRequest } from "@/lib/air-booking-actions";
+import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -113,6 +118,8 @@ export type ExhibitorPortalProps = {
   eventActivities: EventActivityOption[];
   canManageMembers?: boolean;
   openEvents?: OpenExhibitorEvent[];
+  memberDocuments?: SerializedMemberDocument[];
+  airBookingRequests?: SerializedAirBookingRequest[];
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -170,13 +177,20 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const [tab, setTab] = useState<ExhibitorTab>("overview");
   const [members, setMembers] = useState<TeamMember[]>(() => saved?.members ?? []);
-  const [airBookingRequests, setAirBookingRequests] = useState<AirBookingRequest[]>(
-    () => saved?.airBookingRequests ?? []
+  const [memberDocuments, setMemberDocuments] = useState<SerializedMemberDocument[]>(
+    () => props.memberDocuments ?? []
+  );
+  const [airBookingRequests, setAirBookingRequests] = useState<SerializedAirBookingRequest[]>(
+    () => props.airBookingRequests ?? []
   );
   const [memberFilter, setMemberFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [airBookingModalOpen, setAirBookingModalOpen] = useState(false);
-  const [airBookingForm, setAirBookingForm] = useState({ ticketCount: "1", travelDate: "" });
+  const [airBookingForm, setAirBookingForm] = useState({ travelDate: "", notes: "" });
+  const [airBookingMemberIds, setAirBookingMemberIds] = useState<string[]>([]);
+  const [documentsMember, setDocumentsMember] = useState<TeamMember | null>(null);
+  const [documentsPassportDraft, setDocumentsPassportDraft] = useState("");
+  const [savingPassport, setSavingPassport] = useState(false);
   const [submittingAirBooking, setSubmittingAirBooking] = useState(false);
   const [regStep, setRegStep] = useState(() => saved?.regStep ?? 1);
   const [formSteps, setFormSteps] = useState(
@@ -202,6 +216,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     role: "Lead exhibitor",
     email: "",
     phone: "",
+    passportNumber: "",
     transport: "",
     hotel: "",
     diet: "",
@@ -247,7 +262,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         yellowFever: visaDocs.yellowFever?.name ?? null,
       },
       members: overrides.members ?? members,
-      airBookingRequests: overrides.airBookingRequests ?? airBookingRequests,
       selectedTours: overrides.selectedTours ?? [...selectedTours],
       selectedMeals: overrides.selectedMeals ?? [...selectedMeals],
       selectedFoodExp: overrides.selectedFoodExp ?? [...selectedFoodExp],
@@ -255,7 +269,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       formSteps: overrides.formSteps ?? formSteps,
       regStep: overrides.regStep ?? regStep,
     }),
-    [form, travel, visaDocs, members, airBookingRequests, selectedTours, selectedMeals, selectedFoodExp, shuttles, formSteps, regStep]
+    [form, travel, visaDocs, members, selectedTours, selectedMeals, selectedFoodExp, shuttles, formSteps, regStep]
   );
 
   const isSubmitted = registrationStatus === "SUBMITTED";
@@ -331,7 +345,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     form,
     travel,
     members,
-    airBookingRequests,
     selectedTours,
     selectedMeals,
     selectedFoodExp,
@@ -425,12 +438,25 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         fn: memberForm.fn.trim(),
         ln: memberForm.ln.trim(),
         phone: memberForm.phone.trim(),
+        passportNumber: memberForm.passportNumber.trim(),
         diet: memberForm.diet.trim(),
         portalAccess: props.canManageMembers,
       },
     ];
     setMembers(nextMembers);
-    setMemberForm({ fn: "", ln: "", role: "Lead exhibitor", email: "", phone: "", transport: "", hotel: "", diet: "", tours: "", notes: "" });
+    setMemberForm({
+      fn: "",
+      ln: "",
+      role: "Lead exhibitor",
+      email: "",
+      phone: "",
+      passportNumber: "",
+      transport: "",
+      hotel: "",
+      diet: "",
+      tours: "",
+      notes: "",
+    });
     setModalOpen(false);
     await persistRegistration({ members: nextMembers });
     toast.success(
@@ -537,9 +563,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   };
 
   const submitAirBooking = async () => {
-    const ticketCount = Number.parseInt(airBookingForm.ticketCount, 10);
-    if (!Number.isFinite(ticketCount) || ticketCount < 1) {
-      toast.error("Enter at least 1 ticket.");
+    if (!props.eventExhibitorId) {
+      toast.error("Link an event before requesting air booking.");
+      return;
+    }
+    if (airBookingMemberIds.length === 0) {
+      toast.error("Select at least one team member.");
       return;
     }
     if (!airBookingForm.travelDate) {
@@ -549,23 +578,81 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
     setSubmittingAirBooking(true);
     try {
-      const request: AirBookingRequest = {
-        id: crypto.randomUUID(),
-        ticketCount,
+      const result = await createAirBookingRequest({
+        eventExhibitorId: props.eventExhibitorId,
         travelDate: airBookingForm.travelDate,
-        requestedAt: new Date().toISOString(),
-      };
-      const nextRequests = [...airBookingRequests, request];
-      setAirBookingRequests(nextRequests);
-      const result = await persistRegistration({ airBookingRequests: nextRequests });
-      if (result?.error) return;
+        notes: airBookingForm.notes.trim() || undefined,
+        memberLocalIds: airBookingMemberIds,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.request) {
+        setAirBookingRequests((current) => [result.request!, ...current]);
+      }
 
       setAirBookingModalOpen(false);
-      setAirBookingForm({ ticketCount: "1", travelDate: "" });
-      toast.success("Air booking request submitted. Our team will follow up.");
+      setAirBookingForm({ travelDate: "", notes: "" });
+      setAirBookingMemberIds([]);
+      toast.success("Flight booking request submitted. Event Master will coordinate with the travel agent.");
+      router.refresh();
     } finally {
       setSubmittingAirBooking(false);
     }
+  };
+
+  const openAirBookingModal = () => {
+    if (members.length === 0) {
+      toast.error("Add team members before requesting air booking.");
+      return;
+    }
+    setAirBookingMemberIds(members.map((m) => m.id));
+    setAirBookingModalOpen(true);
+  };
+
+  const memberHasPassportDoc = (memberId: string) =>
+    memberDocuments.some((d) => d.memberLocalId === memberId && d.documentType === "PASSPORT");
+
+  const memberDocCount = (memberId: string) =>
+    memberDocuments.filter((d) => d.memberLocalId === memberId).length;
+
+  const openDocumentsModal = (member: TeamMember) => {
+    setDocumentsMember(member);
+    setDocumentsPassportDraft(member.passportNumber?.trim() ?? "");
+  };
+
+  const saveMemberPassport = async () => {
+    if (!documentsMember) return;
+    const passportNumber = documentsPassportDraft.trim();
+    const nextMembers = members.map((m) =>
+      m.id === documentsMember.id ? { ...m, passportNumber } : m
+    );
+    setMembers(nextMembers);
+    setSavingPassport(true);
+    try {
+      const result = await persistRegistration({ members: nextMembers });
+      if (result?.error) return;
+      setDocumentsMember((current) =>
+        current ? { ...current, passportNumber } : current
+      );
+      toast.success("Passport number saved");
+    } finally {
+      setSavingPassport(false);
+    }
+  };
+
+  const handleDocumentUploaded = (document: SerializedMemberDocument) => {
+    setMemberDocuments((current) => {
+      const without = current.filter(
+        (d) =>
+          !(
+            d.memberLocalId === document.memberLocalId &&
+            d.documentType === document.documentType
+          )
+      );
+      return [...without, document];
+    });
   };
 
   const toggleSet = (set: Set<string>, key: string, setter: (s: Set<string>) => void) => {
@@ -747,7 +834,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   size="sm"
                   variant="outline"
                   className="shrink-0 gap-1 whitespace-nowrap"
-                  onClick={() => setAirBookingModalOpen(true)}
+                  onClick={openAirBookingModal}
                 >
                   <Plane className="h-4 w-4" /> Request air booking
                 </Button>
@@ -1001,7 +1088,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   size="sm"
                   variant="outline"
                   className="shrink-0 gap-1 whitespace-nowrap"
-                  onClick={() => setAirBookingModalOpen(true)}
+                  onClick={openAirBookingModal}
                 >
                   <Plane className="h-4 w-4" /> Request air booking
                 </Button>
@@ -1031,6 +1118,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 onRemove={removeMember}
                 full
                 airBookingRequests={airBookingRequests}
+                onOpenDocuments={openDocumentsModal}
+                memberDocCount={memberDocCount}
+                memberHasPassportDoc={memberHasPassportDoc}
               />
             )}
           </Panel>
@@ -1170,6 +1260,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 </Field>
                 <Field label="Email"><Input type="email" value={memberForm.email} onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })} /></Field>
                 <Field label="Phone"><Input type="tel" value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} placeholder="+254…" /></Field>
+                <Field label="Passport number"><Input value={memberForm.passportNumber} onChange={(e) => setMemberForm({ ...memberForm, passportNumber: e.target.value })} placeholder="Required for flight booking" /></Field>
               </div>
             </div>
             {props.canManageMembers && (
@@ -1196,6 +1287,51 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         </ModalShell>
       )}
 
+      {documentsMember && props.eventExhibitorId && (
+        <ModalShell
+          title={`Documents — ${documentsMember.fn} ${documentsMember.ln}`}
+          icon={FileUp}
+          wide
+          onClose={() => setDocumentsMember(null)}
+          footer={
+            <Button variant="outline" onClick={() => setDocumentsMember(null)}>
+              Done
+            </Button>
+          }
+        >
+          <div className="space-y-5">
+            <p className="text-sm text-muted-foreground">
+              Upload official travel documents for this team member. Files are stored privately and only shared with Event Master and the travel agent when a flight booking is sent.
+            </p>
+            <Field label="Passport number">
+              <div className="flex gap-2">
+                <Input
+                  value={documentsPassportDraft}
+                  onChange={(e) => setDocumentsPassportDraft(e.target.value)}
+                  placeholder="Required for flight booking"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={savingPassport}
+                  onClick={() => void saveMemberPassport()}
+                >
+                  {savingPassport ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </Field>
+            <MemberDocumentsUpload
+              eventExhibitorId={props.eventExhibitorId}
+              memberLocalId={documentsMember.id}
+              memberName={`${documentsMember.fn} ${documentsMember.ln}`}
+              documents={memberDocuments}
+              onUploaded={handleDocumentUploaded}
+              compact
+            />
+          </div>
+        </ModalShell>
+      )}
+
       {airBookingModalOpen && (
         <ModalShell
           title="Request air booking"
@@ -1216,27 +1352,65 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         >
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              Tell us how many flight tickets you need and your preferred travel date. Our team will coordinate booking and follow up with options.
+              Select team members who need tickets. Each traveller must have a passport number and an uploaded passport document.
             </p>
-            <FormRow>
-              <Field label="Number of tickets">
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={airBookingForm.ticketCount}
-                  onChange={(e) => setAirBookingForm({ ...airBookingForm, ticketCount: e.target.value })}
-                  placeholder="e.g. 4"
-                />
-              </Field>
-              <Field label="Travel date">
-                <Input
-                  type="date"
-                  value={airBookingForm.travelDate}
-                  onChange={(e) => setAirBookingForm({ ...airBookingForm, travelDate: e.target.value })}
-                />
-              </Field>
-            </FormRow>
+            <Field label="Travel date">
+              <Input
+                type="date"
+                value={airBookingForm.travelDate}
+                onChange={(e) => setAirBookingForm({ ...airBookingForm, travelDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Notes (optional)">
+              <Input
+                value={airBookingForm.notes}
+                onChange={(e) => setAirBookingForm({ ...airBookingForm, notes: e.target.value })}
+                placeholder="Preferred airline, routing, class…"
+              />
+            </Field>
+            <div className="space-y-2">
+              <Label>Travellers</Label>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border p-2">
+                {members.map((member) => {
+                  const selected = airBookingMemberIds.includes(member.id);
+                  const ready =
+                    Boolean(member.passportNumber?.trim()) && memberHasPassportDoc(member.id);
+                  return (
+                    <label
+                      key={member.id}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-lg border p-3",
+                        selected ? "border-primary bg-primary/5" : "border-border"
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={selected}
+                        onChange={() =>
+                          setAirBookingMemberIds((current) =>
+                            current.includes(member.id)
+                              ? current.filter((id) => id !== member.id)
+                              : [...current, member.id]
+                          )
+                        }
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{member.fn} {member.ln}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {member.email} · Passport {member.passportNumber?.trim() || "—"}
+                        </p>
+                        {!ready && (
+                          <p className="mt-1 text-[11px] text-amber-700">
+                            Add passport number and upload passport document in Team members
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </ModalShell>
       )}
@@ -1324,67 +1498,135 @@ function MemberTable({
   full,
   onRemove,
   airBookingRequests = [],
+  onOpenDocuments,
+  memberDocCount,
+  memberHasPassportDoc,
 }: {
   members: TeamMember[];
   showStatus?: boolean;
   overview?: boolean;
   full?: boolean;
   onRemove?: (id: string) => void;
-  airBookingRequests?: AirBookingRequest[];
+  airBookingRequests?: SerializedAirBookingRequest[];
+  onOpenDocuments?: (member: TeamMember) => void;
+  memberDocCount?: (memberId: string) => number;
+  memberHasPassportDoc?: (memberId: string) => boolean;
 }) {
+  const docCount = memberDocCount ?? (() => 0);
+  const hasPassport = memberHasPassportDoc ?? (() => false);
+
   return (
     <div className="space-y-3">
       <div className="overflow-x-auto rounded-xl border border-border/60">
-      <table className="w-full min-w-[640px] table-fixed text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            <th className="w-[24%] pb-2">Name</th>
-            <th className="w-[14%] pb-2">Role</th>
-            <th className="w-[14%] pb-2">Email</th>
-            <th className="w-[12%] pb-2">Transport</th>
-            {!overview && <th className="w-[13%] pb-2">Hotel</th>}
-            <th className="w-[15%] pb-2">Dietary</th>
-            <th className="w-[10%] pb-2">Tours</th>
-            {(showStatus || full) && <th className="w-[10%] pb-2">{full ? "Action" : "Status"}</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m, i) => (
-            <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-              <td className="py-2">
-                <div className="flex items-center gap-2">
-                  <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold", AVATAR_COLORS[i % AVATAR_COLORS.length])}>{initials(m)}</span>
-                  {m.fn} {m.ln}
-                </div>
-              </td>
-              <td className="py-2"><span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium", ROLE_BADGE[m.role] || ROLE_BADGE["Lead exhibitor"])}>{m.role}</span></td>
-              <td className="truncate py-2 text-xs text-muted-foreground">{m.email || "—"}</td>
-              <td className="truncate py-2 text-xs text-muted-foreground">{m.transport}</td>
-              {!overview && <td className="truncate py-2 text-xs text-muted-foreground">{m.hotel}</td>}
-              <td className="truncate py-2 text-xs text-muted-foreground">{m.diet || "—"}</td>
-              <td className="truncate py-2 text-xs text-muted-foreground">{m.tours}</td>
-              {showStatus && (
-                <td className="py-2"><span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">Active</span></td>
-              )}
-              {full && onRemove && (
-                <td className="py-2">
-                  <Button variant="ghost" size="sm" onClick={() => onRemove(m.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                </td>
+        <table className="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <th className="px-3 py-2.5">Name</th>
+              <th className="px-3 py-2.5">Role</th>
+              <th className="px-3 py-2.5">Email</th>
+              <th className="px-3 py-2.5">Phone</th>
+              {!overview && <th className="px-3 py-2.5">Passport</th>}
+              {full && <th className="px-3 py-2.5">Documents</th>}
+              {(showStatus || full) && (
+                <th className="px-3 py-2.5 text-right">{full ? "Action" : "Status"}</th>
               )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {members.map((m, i) => {
+              const uploadedCount = docCount(m.id);
+              const passportReady = hasPassport(m.id);
+              return (
+                <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
+                          AVATAR_COLORS[i % AVATAR_COLORS.length]
+                        )}
+                      >
+                        {initials(m)}
+                      </span>
+                      <span className="font-medium whitespace-nowrap">
+                        {m.fn} {m.ln}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={cn(
+                        "inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        ROLE_BADGE[m.role] || ROLE_BADGE["Lead exhibitor"]
+                      )}
+                    >
+                      {m.role}
+                    </span>
+                  </td>
+                  <td className="max-w-[10rem] truncate px-3 py-3 text-xs text-muted-foreground">
+                    {m.email || "—"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
+                    {m.phone || "—"}
+                  </td>
+                  {!overview && (
+                    <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
+                      {m.passportNumber?.trim() || "—"}
+                    </td>
+                  )}
+                  {full && onOpenDocuments && (
+                    <td className="px-3 py-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 whitespace-nowrap text-xs"
+                        onClick={() => onOpenDocuments(m)}
+                      >
+                        {passportReady ? (
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        ) : (
+                          <FileUp className="h-3.5 w-3.5" />
+                        )}
+                        {uploadedCount > 0 ? `Manage (${uploadedCount})` : "Upload"}
+                      </Button>
+                    </td>
+                  )}
+                  {showStatus && (
+                    <td className="px-3 py-3 text-right">
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+                        Active
+                      </span>
+                    </td>
+                  )}
+                  {full && onRemove && (
+                    <td className="px-3 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemove(m.id)}
+                        className="text-destructive hover:text-destructive"
+                        aria-label={`Remove ${m.fn} ${m.ln}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
       {airBookingRequests.length > 0 && <AirBookingRequestsList requests={airBookingRequests} />}
     </div>
   );
 }
 
-function AirBookingRequestsList({ requests }: { requests: AirBookingRequest[] }) {
+function AirBookingRequestsList({ requests }: { requests: SerializedAirBookingRequest[] }) {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Air booking requests</p>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Flight booking requests</p>
       <div className="space-y-1.5">
         {requests.map((request) => (
           <div key={request.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -1392,7 +1634,7 @@ function AirBookingRequestsList({ requests }: { requests: AirBookingRequest[] })
               {request.ticketCount} ticket{request.ticketCount === 1 ? "" : "s"} · {formatDate(request.travelDate, "MMM d, yyyy")}
             </span>
             <span className="text-muted-foreground">
-              Requested {formatDate(request.requestedAt, "MMM d, yyyy")}
+              {request.status} · Requested {formatDate(request.requestedAt, "MMM d, yyyy")}
             </span>
           </div>
         ))}

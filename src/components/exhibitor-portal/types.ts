@@ -7,6 +7,7 @@ export type TeamMember = {
   role: string;
   email: string;
   phone: string;
+  passportNumber?: string;
   transport: string;
   hotel: string;
   diet: string;
@@ -20,6 +21,9 @@ export type AirBookingRequest = {
   ticketCount: number;
   travelDate: string;
   requestedAt: string;
+  memberLocalIds?: string[];
+  status?: "PENDING" | "SENT" | "CONFIRMED" | "CANCELLED";
+  notes?: string | null;
 };
 
 export const MEMBER_ROLES = [
