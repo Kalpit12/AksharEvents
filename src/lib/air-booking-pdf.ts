@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { TeamMember } from "@/components/exhibitor-portal/types";
 import { fetchAuthenticatedDocumentBuffer } from "@/lib/cloudinary-server";
 import type { MemberDocumentType } from "@prisma/client";
@@ -20,21 +20,50 @@ function safePdfFileName(name: string, index: number) {
   return `${index} ${safe} documents.pdf`;
 }
 
-async function appendImagePage(pdf: PDFDocument, bytes: Buffer, mimeType: string) {
+function documentLabel(doc: MemberDoc) {
+  return MEMBER_DOCUMENT_LABELS[doc.documentType];
+}
+
+function appendDocumentLabelPage(pdf: PDFDocument, label: string, fontBold: PDFFont) {
   const page = pdf.addPage([595, 842]);
+  page.drawText(label, {
+    x: 48,
+    y: 780,
+    size: 14,
+    font: fontBold,
+    color: rgb(0.11, 0.1, 0.09),
+  });
+}
+
+async function appendImagePage(
+  pdf: PDFDocument,
+  bytes: Buffer,
+  mimeType: string,
+  label: string,
+  fontBold: PDFFont
+) {
+  const page = pdf.addPage([595, 842]);
+  page.drawText(label, {
+    x: 48,
+    y: 800,
+    size: 12,
+    font: fontBold,
+    color: rgb(0.11, 0.1, 0.09),
+  });
+
   const embedded =
     mimeType === "image/png"
       ? await pdf.embedPng(bytes)
       : await pdf.embedJpg(bytes);
   const { width, height } = embedded.scale(1);
   const maxW = 515;
-  const maxH = 742;
+  const maxH = 700;
   const scale = Math.min(maxW / width, maxH / height, 1);
   const w = width * scale;
   const h = height * scale;
   page.drawImage(embedded, {
     x: (595 - w) / 2,
-    y: (842 - h) / 2,
+    y: Math.max(48, (760 - h) / 2),
     width: w,
     height: h,
   });
@@ -51,17 +80,11 @@ async function appendPdfPages(target: PDFDocument, sourceBytes: Buffer) {
 export async function buildMemberDocumentsPdf({
   member,
   passportNumber,
-  companyName,
-  eventTitle,
-  travelDate,
   documents,
   fileIndex,
 }: {
   member: TeamMember;
   passportNumber: string;
-  companyName: string;
-  eventTitle: string;
-  travelDate: string;
   documents: MemberDoc[];
   fileIndex: number;
 }): Promise<{ fileName: string; bytes: Uint8Array }> {
@@ -91,11 +114,8 @@ export async function buildMemberDocumentsPdf({
   line("Email", member.email || "—");
   line("Phone", member.phone || "—");
   line("Passport number", passportNumber);
-  line("Company", companyName);
-  line("Event", eventTitle);
-  line("Travel date", travelDate);
   y -= 12;
-  cover.drawText("Documents included in this package:", {
+  cover.drawText("Documents included in this Pdf.", {
     x: 48,
     y,
     size: 11,
@@ -104,7 +124,7 @@ export async function buildMemberDocumentsPdf({
   });
   y -= 20;
   for (const doc of documents) {
-    cover.drawText(`• ${MEMBER_DOCUMENT_LABELS[doc.documentType]}`, {
+    cover.drawText(`• ${documentLabel(doc)}`, {
       x: 56,
       y,
       size: 10,
@@ -116,12 +136,14 @@ export async function buildMemberDocumentsPdf({
 
   const ordered = [...documents].sort((a, b) => a.documentType.localeCompare(b.documentType));
   for (const doc of ordered) {
+    const label = documentLabel(doc);
     const resourceType = doc.mimeType === "application/pdf" ? "raw" : "image";
     const bytes = await fetchAuthenticatedDocumentBuffer(doc.cloudinaryPublicId, resourceType);
     if (doc.mimeType === "application/pdf") {
+      appendDocumentLabelPage(pdf, label, fontBold);
       await appendPdfPages(pdf, bytes);
     } else if (doc.mimeType.startsWith("image/")) {
-      await appendImagePage(pdf, bytes, doc.mimeType);
+      await appendImagePage(pdf, bytes, doc.mimeType, label, fontBold);
     }
   }
 

@@ -267,9 +267,6 @@ export async function sendAirBookingPackageToAgent(input: z.infer<typeof sendPac
     const { fileName, bytes } = await buildMemberDocumentsPdf({
       member,
       passportNumber: member.passportNumber?.trim() || "—",
-      companyName: request.eventExhibitor.exhibitor.companyName,
-      eventTitle: request.eventExhibitor.event.title,
-      travelDate: travelDateLabel,
       fileIndex: 1,
       documents: docs.map((d) => ({
         documentType: d.documentType as MemberDocumentType,
@@ -417,9 +414,6 @@ export async function sendCombinedAirBookingPackageToAgent(
     const { fileName, bytes } = await buildMemberDocumentsPdf({
       member,
       passportNumber: member.passportNumber?.trim() || "—",
-      companyName,
-      eventTitle,
-      travelDate: travelDateLabel,
       fileIndex: i + 1,
       documents: docs.map((d) => ({
         documentType: d.documentType as MemberDocumentType,
