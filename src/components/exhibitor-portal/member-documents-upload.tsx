@@ -3,12 +3,20 @@
 import { useRef, useState } from "react";
 import type { MemberDocumentType } from "@prisma/client";
 import { Button } from "@/components/ui/Button";
-import { MEMBER_DOCUMENT_LABELS, type SerializedMemberDocument } from "@/lib/member-document-types";
+import { MEMBER_DOCUMENT_LABELS, ALLOWED_DOCUMENT_MIME_TYPES, MAX_DOCUMENT_BYTES, type SerializedMemberDocument } from "@/lib/member-document-types";
 import { cn } from "@/lib/utils";
 import { Check, FileUp, Loader2 } from "lucide-react";
 import { notify } from "@/lib/notify";
 
 const UPLOAD_TYPES: MemberDocumentType[] = ["PASSPORT", "VISA", "NATIONAL_ID", "YELLOW_FEVER"];
+
+type UploadSignature = {
+  cloudName: string;
+  apiKey: string;
+  signature: string;
+  timestamp: number;
+  folder: string;
+};
 
 export function MemberDocumentsUpload({
   eventExhibitorId,
@@ -31,24 +39,67 @@ export function MemberDocumentsUpload({
   const docsForMember = documents.filter((d) => d.memberLocalId === memberLocalId);
 
   const upload = async (documentType: MemberDocumentType, file: File) => {
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      notify.error("File must be 10 MB or smaller");
+      return;
+    }
+    if (!ALLOWED_DOCUMENT_MIME_TYPES.has(file.type)) {
+      notify.error("Only PDF, JPG, or PNG files are allowed");
+      return;
+    }
+
     setUploading(documentType);
     try {
-      const body = new FormData();
-      body.set("eventExhibitorId", eventExhibitorId);
-      body.set("memberLocalId", memberLocalId);
-      body.set("documentType", documentType);
-      body.set("file", file);
-
-      const response = await fetch("/api/exhibitor/documents/upload", {
+      const signResponse = await fetch("/api/exhibitor/documents/upload-signature", {
         method: "POST",
-        body,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventExhibitorId, memberLocalId, documentType }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        notify.error(result.error ?? "Upload failed");
+      const signResult = await signResponse.json();
+      if (!signResponse.ok) {
+        notify.error(signResult.error ?? "Could not prepare upload");
         return;
       }
-      onUploaded(result.document);
+
+      const { cloudName, apiKey, signature, timestamp, folder } = signResult as UploadSignature;
+      const cloudForm = new FormData();
+      cloudForm.append("file", file);
+      cloudForm.append("api_key", apiKey);
+      cloudForm.append("timestamp", String(timestamp));
+      cloudForm.append("signature", signature);
+      cloudForm.append("folder", folder);
+      cloudForm.append("type", "authenticated");
+
+      const cloudResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+        method: "POST",
+        body: cloudForm,
+      });
+      const cloudResult = await cloudResponse.json();
+      if (!cloudResponse.ok || cloudResult.error) {
+        notify.error(cloudResult.error?.message ?? "Cloudinary upload failed");
+        return;
+      }
+
+      const registerResponse = await fetch("/api/exhibitor/documents/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventExhibitorId,
+          memberLocalId,
+          documentType,
+          cloudinaryPublicId: cloudResult.public_id,
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: cloudResult.bytes,
+        }),
+      });
+      const registerResult = await registerResponse.json();
+      if (!registerResponse.ok) {
+        notify.error(registerResult.error ?? "Upload failed");
+        return;
+      }
+
+      onUploaded(registerResult.document);
       notify.success(`${MEMBER_DOCUMENT_LABELS[documentType]} uploaded`);
     } catch {
       notify.error("Upload failed");

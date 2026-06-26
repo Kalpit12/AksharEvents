@@ -2,19 +2,45 @@ import { v2 as cloudinary } from "cloudinary";
 
 const EXHIBITOR_DOC_FOLDER = "akshar-events/exhibitor-documents";
 
-function ensureCloudinaryConfig() {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+function readEnv(name: string): string | undefined {
+  const raw = process.env[name];
+  if (!raw) return undefined;
+  return raw.trim().replace(/^["']|["']$/g, "");
+}
+
+export function getCloudinaryConfig() {
+  const cloudName = readEnv("CLOUDINARY_CLOUD_NAME");
+  const apiKey = readEnv("CLOUDINARY_API_KEY");
+  const apiSecret = readEnv("CLOUDINARY_API_SECRET");
   if (!cloudName || !apiKey || !apiSecret) {
-    throw new Error("Cloudinary is not configured");
+    throw new Error(
+      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on Vercel (Production)."
+    );
   }
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
   return { cloudName, apiKey, apiSecret };
 }
 
+function ensureCloudinaryConfig() {
+  return getCloudinaryConfig();
+}
+
 export function exhibitorDocumentFolder(eventExhibitorId: string, memberLocalId: string) {
   return `${EXHIBITOR_DOC_FOLDER}/${eventExhibitorId}/${memberLocalId}`;
+}
+
+export function createAuthenticatedUploadSignature(params: {
+  eventExhibitorId: string;
+  memberLocalId: string;
+}) {
+  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+  const folder = exhibitorDocumentFolder(params.eventExhibitorId, params.memberLocalId);
+  const timestamp = Math.round(Date.now() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    { folder, timestamp, type: "authenticated" },
+    apiSecret
+  );
+  return { cloudName, apiKey, signature, timestamp, folder };
 }
 
 export async function uploadAuthenticatedDocument(

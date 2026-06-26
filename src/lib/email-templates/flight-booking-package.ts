@@ -22,7 +22,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flight booking package — {{companyName}} ({{eventTitle}})</title>
+  <title>Traveler Details — {{companyName}} ({{eventTitle}})</title>
 </head>
 <body style="margin: 0; padding: 0; background: #f9f6f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9f6f0; padding: 32px 16px;">
@@ -37,43 +37,15 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                 </tr>
               </table>
               <p style="margin: 0 0 4px; font-size: 24px; font-weight: 700; color: #f9f6f0; letter-spacing: -0.02em;">{{brandName}}</p>
-              <p style="margin: 0; font-size: 12px; color: #d9c9a8; letter-spacing: 0.04em; text-transform: uppercase;">Flight booking package</p>
+              <p style="margin: 0; font-size: 12px; color: #d9c9a8; letter-spacing: 0.04em; text-transform: uppercase;">Flight Booking Request</p>
             </td>
           </tr>
           <tr>
             <td style="padding: 32px 32px 24px; background: #ffffff;">
-              <h1 style="margin: 0 0 8px; font-size: 21px; font-weight: 700; color: #1c1a17; line-height: 1.35;">Traveller package for travel agent</h1>
+              <h1 style="margin: 0 0 8px; font-size: 21px; font-weight: 700; color: #1c1a17; line-height: 1.35;">Traveler Details</h1>
               <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b6560;">
                 Please arrange flights for the exhibitor team below. Official identity documents are attached as PDFs.
               </p>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px; border-collapse: separate; border-spacing: 0;">
-                <tr>
-                  <td style="background: #efece6; border: 1px solid #e5dfd4; border-radius: 12px; padding: 18px 20px;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td width="50%" style="padding: 0 8px 10px 0; vertical-align: top;">
-                          <p style="margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Company</p>
-                          <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1c1a17;">{{companyName}}</p>
-                        </td>
-                        <td width="50%" style="padding: 0 0 10px 8px; vertical-align: top;">
-                          <p style="margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Event</p>
-                          <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1c1a17;">{{eventTitle}}</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td width="50%" style="padding: 0 8px 0 0; vertical-align: top;">
-                          <p style="margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travel date</p>
-                          <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1c1a17;">{{travelDate}}</p>
-                        </td>
-                        <td width="50%" style="padding: 0 0 0 8px; vertical-align: top;">
-                          <p style="margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Tickets</p>
-                          <p style="margin: 0; font-size: 14px; font-weight: 600; color: #1c1a17;">{{ticketCount}} {{ticketLabel}}</p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
               <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travellers</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e5dfd4; border-radius: 12px; overflow: hidden; margin: 0 0 24px;">
                 <tr style="background: #efece6;">
@@ -94,7 +66,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                 </tr>
               </table>
               <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #6b6560;">
-                Each PDF contains Passport, Visa, National ID, and Health certificates where uploaded. Please handle confidentially.
+                Each PDF contains sensitive personal data. Please handle confidentiality.
               </p>
             </td>
           </tr>
@@ -158,7 +130,7 @@ function buildAttachmentList(attachmentNames: string[]) {
 }
 
 export function flightBookingPackageEmailSubject(companyName: string, eventTitle: string) {
-  return `Flight booking package — ${companyName} (${eventTitle})`;
+  return `Traveler Details — ${companyName} (${eventTitle})`;
 }
 
 export function flightBookingPackageAttachmentName(memberName: string) {
@@ -177,9 +149,6 @@ export function flightBookingPackageEmailHtml(params: FlightBookingPackageEmailP
     year: String(new Date().getFullYear()),
     companyName: escapeHtml(params.companyName),
     eventTitle: escapeHtml(params.eventTitle),
-    travelDate: escapeHtml(params.travelDate),
-    ticketCount: String(params.ticketCount),
-    ticketLabel: params.ticketCount === 1 ? "ticket" : "tickets",
     travellerRows: buildTravellerRows(params.members),
     attachmentList: buildAttachmentList(attachmentNames),
   });

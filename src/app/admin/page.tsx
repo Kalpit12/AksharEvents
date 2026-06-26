@@ -10,6 +10,7 @@ import {
 } from "@/lib/event-config-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
+import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { listAirBookingRequestsForEvent } from "@/lib/air-booking-actions";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
@@ -153,7 +154,7 @@ export default async function AdminEventMasterPage() {
         scheduleItems={scheduleItems.map(serializeEventScheduleItem)}
         airBookingRequests={airBookingRequests}
         memberDocuments={memberDocuments}
-        flightBookingAgentEmail={process.env.FLIGHT_BOOKING_AGENT_EMAIL ?? ""}
+        flightBookingAgentEmail={getFlightBookingAgentEmail()}
         flightBookingCcEmail={
           process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
         }

@@ -7,6 +7,7 @@ import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { TeamMember } from "@/components/exhibitor-portal/types";
+import { DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL } from "@/lib/flight-booking-config";
 import { sendAirBookingPackageToAgent } from "@/lib/air-booking-actions";
 import {
   flightBookingPackageAttachmentName,
@@ -224,21 +225,76 @@ function statusClass(status: SerializedAirBookingRequest["status"]) {
   }
 }
 
+function isPendingStatus(status: SerializedAirBookingRequest["status"]) {
+  return status === "PENDING";
+}
+
+function isCompletedStatus(status: SerializedAirBookingRequest["status"]) {
+  return status === "SENT" || status === "CONFIRMED";
+}
+
+type BookingRow = {
+  request: SerializedAirBookingRequest;
+  member: TeamMember;
+};
+
+type CompanyBookingGroup = {
+  eventExhibitorId: string;
+  companyName: string;
+  rows: BookingRow[];
+};
+
+type StatusTab = "pending" | "completed";
+
+type SendBatch = {
+  request: SerializedAirBookingRequest;
+  memberIds: string[];
+};
+
+function rowSelectionKey(requestId: string, memberId: string) {
+  return `${requestId}:${memberId}`;
+}
+
+function summarizeRequests(requests: SerializedAirBookingRequest[]) {
+  const map = new Map<
+    string,
+    { travelDate: string; status: SerializedAirBookingRequest["status"]; tickets: number }
+  >();
+  for (const request of requests) {
+    const key = `${request.travelDate}-${request.status}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.tickets += request.ticketCount;
+    } else {
+      map.set(key, {
+        travelDate: request.travelDate,
+        status: request.status,
+        tickets: request.ticketCount,
+      });
+    }
+  }
+  return [...map.values()];
+}
+
 export default function FlightBookingsPanel({
   requests,
   exhibitors,
   memberDocuments,
   eventTitle,
-  defaultAgentEmail = "",
+  defaultAgentEmail = DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL,
   defaultCcEmail = "",
 }: Props) {
   const router = useRouter();
+  const agentEmail = defaultAgentEmail.trim() || DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL;
+  const [statusTab, setStatusTab] = useState<StatusTab>("pending");
   const [query, setQuery] = useState("");
   const [sendOpen, setSendOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [activeRequest, setActiveRequest] = useState<SerializedAirBookingRequest | null>(null);
+  const [sendBatches, setSendBatches] = useState<SendBatch[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [recipientEmail, setRecipientEmail] = useState(defaultAgentEmail);
+  const [companySelection, setCompanySelection] = useState<Record<string, Set<string>>>({});
+  const [recipientEmail, setRecipientEmail] = useState(agentEmail);
   const [message, setMessage] = useState("");
   const [showEmailPreview, setShowEmailPreview] = useState(true);
 
@@ -247,24 +303,63 @@ export default function FlightBookingsPanel({
     [exhibitors]
   );
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return requests;
-    return requests.filter((r) => r.companyName.toLowerCase().includes(q));
-  }, [requests, query]);
-
-  const openSendModal = (request: SerializedAirBookingRequest) => {
-    setActiveRequest(request);
-    setSelectedMemberIds([...request.memberLocalIds]);
-    setRecipientEmail(defaultAgentEmail);
-    setMessage("");
-    setSendOpen(true);
-  };
-
   const membersForRequest = (request: SerializedAirBookingRequest): TeamMember[] => {
     const record = exhibitorMap.get(request.eventExhibitorId);
     return record?.formData?.members?.filter((m) => request.memberLocalIds.includes(m.id)) ?? [];
   };
+
+  const pendingCount = useMemo(
+    () => requests.filter((r) => isPendingStatus(r.status)).length,
+    [requests]
+  );
+  const completedCount = useMemo(
+    () => requests.filter((r) => isCompletedStatus(r.status)).length,
+    [requests]
+  );
+
+  const tabRequests = useMemo(() => {
+    const byStatus =
+      statusTab === "pending"
+        ? requests.filter((r) => isPendingStatus(r.status))
+        : requests.filter((r) => isCompletedStatus(r.status));
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter((r) => r.companyName.toLowerCase().includes(q));
+  }, [requests, statusTab, query]);
+
+  const companyGroups = useMemo((): CompanyBookingGroup[] => {
+    const map = new Map<string, CompanyBookingGroup>();
+
+    for (const request of tabRequests) {
+      for (const member of membersForRequest(request)) {
+        let group = map.get(request.eventExhibitorId);
+        if (!group) {
+          group = {
+            eventExhibitorId: request.eventExhibitorId,
+            companyName: request.companyName,
+            rows: [],
+          };
+          map.set(request.eventExhibitorId, group);
+        }
+        group.rows.push({ request, member });
+      }
+    }
+
+    for (const group of map.values()) {
+      group.rows.sort((a, b) => {
+        const dateCmp =
+          new Date(a.request.travelDate).getTime() - new Date(b.request.travelDate).getTime();
+        if (dateCmp !== 0) return dateCmp;
+        const nameA = `${a.member.fn} ${a.member.ln}`;
+        const nameB = `${b.member.fn} ${b.member.ln}`;
+        return nameA.localeCompare(nameB);
+      });
+    }
+
+    return [...map.values()].sort((a, b) => a.companyName.localeCompare(b.companyName));
+  }, [tabRequests, exhibitorMap]);
+
+  const filtered = tabRequests;
 
   const memberDocsFor = (eventExhibitorId: string, memberId: string) =>
     memberDocuments.filter(
@@ -280,16 +375,85 @@ export default function FlightBookingsPanel({
     };
   };
 
-  const toggleMember = (id: string) => {
-    setSelectedMemberIds((current) =>
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
-    );
+  const getCompanySelectedKeys = (eventExhibitorId: string) =>
+    companySelection[eventExhibitorId] ?? new Set<string>();
+
+  const toggleRowSelection = (eventExhibitorId: string, requestId: string, memberId: string) => {
+    const key = rowSelectionKey(requestId, memberId);
+    setCompanySelection((prev) => {
+      const current = new Set(prev[eventExhibitorId] ?? []);
+      if (current.has(key)) current.delete(key);
+      else current.add(key);
+      return { ...prev, [eventExhibitorId]: current };
+    });
   };
 
+  const toggleAllInCompany = (group: CompanyBookingGroup) => {
+    const allKeys = group.rows.map((row) => rowSelectionKey(row.request.id, row.member.id));
+    const current = getCompanySelectedKeys(group.eventExhibitorId);
+    const allSelected = allKeys.length > 0 && allKeys.every((key) => current.has(key));
+    setCompanySelection((prev) => ({
+      ...prev,
+      [group.eventExhibitorId]: allSelected ? new Set() : new Set(allKeys),
+    }));
+  };
+
+  const openSendForCompanyGroup = (group: CompanyBookingGroup) => {
+    const selected = getCompanySelectedKeys(group.eventExhibitorId);
+    if (selected.size === 0) {
+      notify.error("Select at least one traveller");
+      return;
+    }
+
+    const batchesMap = new Map<string, SendBatch>();
+    for (const row of group.rows) {
+      const key = rowSelectionKey(row.request.id, row.member.id);
+      if (!selected.has(key)) continue;
+      const existing = batchesMap.get(row.request.id);
+      if (existing) {
+        existing.memberIds.push(row.member.id);
+      } else {
+        batchesMap.set(row.request.id, {
+          request: row.request,
+          memberIds: [row.member.id],
+        });
+      }
+    }
+
+    const batches = [...batchesMap.values()];
+    if (batches.length === 0) {
+      notify.error("Select at least one traveller");
+      return;
+    }
+
+    setSendBatches(batches);
+    setActiveRequest(batches[0]!.request);
+    setSelectedMemberIds(batches[0]!.memberIds);
+    setRecipientEmail(agentEmail);
+    setMessage("");
+    setSendOpen(true);
+  };
+
+  const clearCompanySelection = (eventExhibitorId: string) => {
+    setCompanySelection((prev) => {
+      const next = { ...prev };
+      delete next[eventExhibitorId];
+      return next;
+    });
+  };
+
+  const modalTravellers = useMemo(() => {
+    if (sendBatches.length === 0 || !activeRequest) return [];
+    return sendBatches.flatMap((batch) =>
+      membersForRequest(batch.request).filter((m) => batch.memberIds.includes(m.id))
+    );
+  }, [sendBatches, activeRequest, exhibitorMap]);
+
   const emailPreview = useMemo(() => {
-    if (!activeRequest) return null;
-    const selected = membersForRequest(activeRequest).filter((m) =>
-      selectedMemberIds.includes(m.id)
+    if (!activeRequest || sendBatches.length === 0) return null;
+    const previewBatch = sendBatches[0]!;
+    const selected = membersForRequest(previewBatch.request).filter((m) =>
+      previewBatch.memberIds.includes(m.id)
     );
     if (selected.length === 0) return null;
 
@@ -302,53 +466,73 @@ export default function FlightBookingsPanel({
 
     return {
       subject: flightBookingPackageEmailSubject(activeRequest.companyName, eventTitle),
-      to: recipientEmail.trim() || defaultAgentEmail || "travel.agent@example.com",
+      to: recipientEmail.trim() || agentEmail,
       cc: defaultCcEmail || undefined,
       html: flightBookingPackageEmailHtml({
         companyName: activeRequest.companyName,
         eventTitle,
-        travelDate: formatDate(activeRequest.travelDate, "MMM d, yyyy"),
+        travelDate: formatDate(previewBatch.request.travelDate, "MMM d, yyyy"),
         ticketCount: selected.length,
         members,
         message: message.trim() || undefined,
         attachmentNames: members.map((m) => flightBookingPackageAttachmentName(m.name)),
       }),
+      batchCount: sendBatches.length,
     };
   }, [
     activeRequest,
-    selectedMemberIds,
+    sendBatches,
     recipientEmail,
     message,
     eventTitle,
-    defaultAgentEmail,
+    agentEmail,
     defaultCcEmail,
+    exhibitorMap,
   ]);
 
   const submitSend = async () => {
-    if (!activeRequest) return;
-    if (selectedMemberIds.length === 0) {
-      notify.error("Select travellers");
-      return;
-    }
-    if (!recipientEmail.trim()) {
+    const batches =
+      sendBatches.length > 0
+        ? sendBatches
+        : activeRequest
+          ? [{ request: activeRequest, memberIds: selectedMemberIds }]
+          : [];
+
+    if (batches.length === 0) return;
+    if (!recipientEmail.trim() && !agentEmail) {
       notify.error("Agent email required");
       return;
     }
 
+    const toEmail = recipientEmail.trim() || agentEmail;
+
     setSending(true);
     try {
-      const result = await sendAirBookingPackageToAgent({
-        requestId: activeRequest.id,
-        recipientEmail: recipientEmail.trim(),
-        memberLocalIds: selectedMemberIds,
-        message: message.trim() || undefined,
-      });
-      if (result.error) {
-        notify.error(result.error);
-        return;
+      for (const batch of batches) {
+        if (batch.memberIds.length === 0) {
+          notify.error("Select travellers");
+          return;
+        }
+        const result = await sendAirBookingPackageToAgent({
+          requestId: batch.request.id,
+          recipientEmail: toEmail,
+          memberLocalIds: batch.memberIds,
+          message: message.trim() || undefined,
+        });
+        if (result.error) {
+          notify.error(result.error);
+          return;
+        }
       }
-      notify.success("Booking package sent");
+
+      notify.success(
+        batches.length === 1
+          ? "Booking package sent"
+          : `${batches.length} booking packages sent`
+      );
+      if (activeRequest) clearCompanySelection(activeRequest.eventExhibitorId);
       setSendOpen(false);
+      setSendBatches([]);
       router.refresh();
     } finally {
       setSending(false);
@@ -369,6 +553,49 @@ export default function FlightBookingsPanel({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1">
+        <button
+          type="button"
+          onClick={() => setStatusTab("pending")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+            statusTab === "pending"
+              ? "bg-primary text-white shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          Pending
+          <span
+            className={cn(
+              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+              statusTab === "pending" ? "bg-white/20" : "bg-muted"
+            )}
+          >
+            {pendingCount}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusTab("completed")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+            statusTab === "completed"
+              ? "bg-primary text-white shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          Completed
+          <span
+            className={cn(
+              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+              statusTab === "completed" ? "bg-white/20" : "bg-muted"
+            )}
+          >
+            {completedCount}
+          </span>
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -379,119 +606,202 @@ export default function FlightBookingsPanel({
             className="pl-9"
           />
         </div>
-        <p className="text-sm text-muted-foreground">{filtered.length} request(s)</p>
+        <p className="text-sm text-muted-foreground">
+          {companyGroups.length} compan{companyGroups.length === 1 ? "y" : "ies"} · {filtered.length} request
+          {filtered.length === 1 ? "" : "s"}
+        </p>
       </div>
 
-      <div className="space-y-3">
-        {filtered.map((request) => {
-          const members = membersForRequest(request);
-          return (
-            <article
-              key={request.id}
-              className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-5">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold tracking-tight">{request.companyName}</h3>
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                        statusClass(request.status)
-                      )}
+      {companyGroups.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-10 text-center">
+          <Plane className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="font-medium">
+            No {statusTab === "pending" ? "pending" : "completed"} flight booking requests
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {statusTab === "pending"
+              ? "New exhibitor requests will appear here until they are sent to the travel agent."
+              : "Requests sent or confirmed by the travel agent will appear here."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {companyGroups.map((group) => {
+            const uniqueRequests = [...new Map(group.rows.map((r) => [r.request.id, r.request])).values()];
+            const requestSummaries = summarizeRequests(uniqueRequests);
+            const travellerCount = group.rows.length;
+            const selectedKeys = getCompanySelectedKeys(group.eventExhibitorId);
+            const selectedCount = selectedKeys.size;
+            const allRowKeys = group.rows.map((row) => rowSelectionKey(row.request.id, row.member.id));
+            const allSelected =
+              allRowKeys.length > 0 && allRowKeys.every((key) => selectedKeys.has(key));
+            const someSelected = selectedCount > 0 && !allSelected;
+
+            return (
+              <article
+                key={group.eventExhibitorId}
+                className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 bg-muted/20 px-4 py-4 sm:px-5">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold tracking-tight">{group.companyName}</h3>
+                      <span className="rounded-full bg-background px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border/60">
+                        {travellerCount} traveller{travellerCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      {requestSummaries.map((summary) => (
+                        <span
+                          key={`${summary.travelDate}-${summary.status}`}
+                          className="rounded-md bg-background px-2 py-1 ring-1 ring-border/60"
+                        >
+                          {summary.tickets} ticket{summary.tickets === 1 ? "" : "s"} · Travel{" "}
+                          {formatDate(summary.travelDate, "MMM d, yyyy")} ·{" "}
+                          <span
+                            className={cn(
+                              "inline-flex rounded px-1 py-0.5 text-[10px] font-semibold uppercase",
+                              statusClass(summary.status)
+                            )}
+                          >
+                            {summary.status}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {statusTab === "pending" && (
+                    <Button
+                      size="sm"
+                      className="shrink-0 gap-1.5"
+                      disabled={selectedCount === 0}
+                      onClick={() => openSendForCompanyGroup(group)}
                     >
-                      {request.status}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-md bg-background px-2 py-1 ring-1 ring-border/60">
-                      {request.ticketCount} ticket{request.ticketCount === 1 ? "" : "s"}
-                    </span>
-                    <span className="rounded-md bg-background px-2 py-1 ring-1 ring-border/60">
-                      Travel {formatDate(request.travelDate, "MMM d, yyyy")}
-                    </span>
-                    <span className="rounded-md bg-background px-2 py-1 ring-1 ring-border/60">
-                      Requested {formatDate(request.requestedAt, "MMM d, yyyy")}
-                    </span>
-                  </div>
-                  {request.notes && (
-                    <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{request.notes}</p>
+                      <Mail className="h-4 w-4" />
+                      Send to travel agent
+                      {selectedCount > 0 ? ` (${selectedCount})` : ""}
+                    </Button>
                   )}
                 </div>
-                <Button size="sm" className="shrink-0 gap-1.5" onClick={() => openSendModal(request)}>
-                  <Mail className="h-4 w-4" />
-                  Send to travel agent
-                </Button>
-              </div>
 
-              <div className="overflow-x-auto px-4 py-3 sm:px-5">
-                <table className="w-full min-w-[700px] text-sm">
-                  <thead>
-                    <tr className="text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 pb-2 pt-1">Traveller</th>
-                      <th className="px-3 pb-2 pt-1">Email</th>
-                      <th className="px-3 pb-2 pt-1">Phone</th>
-                      <th className="px-3 pb-2 pt-1">Passport</th>
-                      <th className="w-[11rem] px-3 pb-2 pt-1">Documents</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/70">
-                    {members.map((member, index) => {
-                      const docs = memberDocStatus(request.eventExhibitorId, member.id);
-                      return (
-                        <tr
-                          key={member.id}
-                          className={cn(
-                            "transition-colors hover:bg-muted/25",
-                            index % 2 === 1 && "bg-muted/10"
-                          )}
-                        >
-                          <td className="px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-champagne/15 text-[11px] font-semibold text-champagne-dark">
-                                {travellerInitials(member)}
-                              </span>
-                              <span className="font-medium whitespace-nowrap">
-                                {member.fn} {member.ln}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="max-w-[11rem] truncate px-3 py-2.5 text-muted-foreground">
-                            {member.email}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                            {member.phone}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
-                            {member.passportNumber || "—"}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <MemberDocumentsDropdown docs={docs.docs} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {request.dispatches.length > 0 && (
-                <div className="border-t border-border/60 bg-muted/15 px-4 py-2.5 text-xs text-muted-foreground sm:px-5">
-                  Last sent to <span className="font-medium text-foreground">{request.dispatches[0]?.recipientEmail}</span> on{" "}
-                  {formatDate(request.dispatches[0]!.sentAt, "MMM d, yyyy")}
+                <div className="overflow-x-auto px-4 py-3 sm:px-5">
+                  <table className="w-full min-w-[820px] text-sm">
+                    <thead>
+                      <tr className="text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {statusTab === "pending" && (
+                          <th className="w-10 px-2 pb-2 pt-1">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-border"
+                              checked={allSelected}
+                              ref={(el) => {
+                                if (el) el.indeterminate = someSelected;
+                              }}
+                              onChange={() => toggleAllInCompany(group)}
+                              aria-label={`Select all travellers for ${group.companyName}`}
+                            />
+                          </th>
+                        )}
+                        <th className="px-3 pb-2 pt-1">Traveller</th>
+                        <th className="px-3 pb-2 pt-1">Email</th>
+                        <th className="px-3 pb-2 pt-1">Phone</th>
+                        <th className="px-3 pb-2 pt-1">Passport</th>
+                        <th className="w-[11rem] px-3 pb-2 pt-1">Documents</th>
+                        <th className="px-3 pb-2 pt-1">Travel date</th>
+                        {statusTab === "completed" && (
+                          <th className="px-3 pb-2 pt-1">Sent</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/70">
+                      {group.rows.map(({ request, member }, index) => {
+                        const docs = memberDocStatus(request.eventExhibitorId, member.id);
+                        const lastDispatch = request.dispatches[0];
+                        const selectionKey = rowSelectionKey(request.id, member.id);
+                        const isSelected = selectedKeys.has(selectionKey);
+                        return (
+                          <tr
+                            key={selectionKey}
+                            className={cn(
+                              "transition-colors hover:bg-muted/25",
+                              index % 2 === 1 && "bg-muted/10",
+                              isSelected && statusTab === "pending" && "bg-primary/5"
+                            )}
+                          >
+                            {statusTab === "pending" && (
+                              <td className="px-2 py-2.5">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-border"
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    toggleRowSelection(group.eventExhibitorId, request.id, member.id)
+                                  }
+                                  aria-label={`Select ${member.fn} ${member.ln}`}
+                                />
+                              </td>
+                            )}
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-champagne/15 text-[11px] font-semibold text-champagne-dark">
+                                  {travellerInitials(member)}
+                                </span>
+                                <span className="font-medium whitespace-nowrap">
+                                  {member.fn} {member.ln}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="max-w-[11rem] truncate px-3 py-2.5 text-muted-foreground">
+                              {member.email}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+                              {member.phone}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs">
+                              {member.passportNumber || "—"}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <MemberDocumentsDropdown docs={docs.docs} />
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+                              {formatDate(request.travelDate, "MMM d, yyyy")}
+                            </td>
+                            {statusTab === "completed" && (
+                              <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                                {lastDispatch ? (
+                                  <>
+                                    <span className="font-medium text-foreground">
+                                      {lastDispatch.recipientEmail}
+                                    </span>
+                                    <br />
+                                    {formatDate(lastDispatch.sentAt, "MMM d, yyyy")}
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </article>
-          );
-        })}
-      </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {sendOpen && activeRequest && (
         <ModalShell
           title="Send package to travel agent"
           icon={Plane}
           wide
-          onClose={() => setSendOpen(false)}
+          onClose={() => {
+            setSendOpen(false);
+            setSendBatches([]);
+          }}
           footer={
             <>
               <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
@@ -507,13 +817,13 @@ export default function FlightBookingsPanel({
               Email is sent through Postmark with traveller PDFs attached. Review the preview before sending.
             </p>
             <div className="space-y-2">
-              <Label>Recipient email</Label>
-              <Input
-                type="email"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-                placeholder="travel.agent@example.com"
-              />
+              <Label>Travel agent</Label>
+              <p className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm font-medium text-foreground">
+                {agentEmail}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Packages are sent to this address via Postmark.
+              </p>
               {defaultCcEmail && (
                 <p className="text-xs text-muted-foreground">Cc: {defaultCcEmail}</p>
               )}
@@ -523,25 +833,15 @@ export default function FlightBookingsPanel({
               <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
             </div>
             <div className="space-y-2">
-              <Label>Travellers to include</Label>
+              <Label>Selected travellers ({modalTravellers.length})</Label>
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border p-2">
-                {membersForRequest(activeRequest).map((member) => {
+                {modalTravellers.map((member) => {
                   const docs = memberDocsFor(activeRequest.eventExhibitorId, member.id);
-                  const checked = selectedMemberIds.includes(member.id);
                   return (
-                    <label
+                    <div
                       key={member.id}
-                      className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-lg border p-3",
-                        checked ? "border-primary bg-primary/5" : "border-border"
-                      )}
+                      className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
                     >
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={checked}
-                        onChange={() => toggleMember(member.id)}
-                      />
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{member.fn} {member.ln}</p>
                         <p className="text-xs text-muted-foreground">
@@ -554,10 +854,15 @@ export default function FlightBookingsPanel({
                       {docs.some((d) => d.documentType === "PASSPORT") && (
                         <Check className="h-4 w-4 shrink-0 text-emerald-600" />
                       )}
-                    </label>
+                    </div>
                   );
                 })}
               </div>
+              {sendBatches.length > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  {sendBatches.length} separate booking requests will be emailed to the travel agent.
+                </p>
+              )}
             </div>
 
             <div className="rounded-xl border border-border bg-muted/20">
