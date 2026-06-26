@@ -8,7 +8,7 @@ import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display"
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { TeamMember } from "@/components/exhibitor-portal/types";
 import { DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL } from "@/lib/flight-booking-config";
-import { sendAirBookingPackageToAgent } from "@/lib/air-booking-actions";
+import { sendCombinedAirBookingPackageToAgent } from "@/lib/air-booking-actions";
 import {
   flightBookingPackageAttachmentName,
   flightBookingPackageEmailHtml,
@@ -450,19 +450,17 @@ export default function FlightBookingsPanel({
   }, [sendBatches, activeRequest, exhibitorMap]);
 
   const emailPreview = useMemo(() => {
-    if (!activeRequest || sendBatches.length === 0) return null;
-    const previewBatch = sendBatches[0]!;
-    const selected = membersForRequest(previewBatch.request).filter((m) =>
-      previewBatch.memberIds.includes(m.id)
-    );
-    if (selected.length === 0) return null;
+    if (!activeRequest || modalTravellers.length === 0) return null;
 
-    const members = selected.map((m) => ({
+    const members = modalTravellers.map((m) => ({
       name: `${m.fn} ${m.ln}`,
       email: m.email,
       phone: m.phone,
       passportNumber: m.passportNumber?.trim() || "—",
     }));
+
+    const previewTravelDate =
+      sendBatches[0]?.request.travelDate ?? activeRequest.travelDate;
 
     return {
       subject: flightBookingPackageEmailSubject(activeRequest.companyName, eventTitle),
@@ -471,23 +469,24 @@ export default function FlightBookingsPanel({
       html: flightBookingPackageEmailHtml({
         companyName: activeRequest.companyName,
         eventTitle,
-        travelDate: formatDate(previewBatch.request.travelDate, "MMM d, yyyy"),
-        ticketCount: selected.length,
+        travelDate: formatDate(previewTravelDate, "MMM d, yyyy"),
+        ticketCount: members.length,
         members,
         message: message.trim() || undefined,
-        attachmentNames: members.map((m) => flightBookingPackageAttachmentName(m.name)),
+        attachmentNames: members.map((m, i) =>
+          flightBookingPackageAttachmentName(m.name, i + 1)
+        ),
       }),
-      batchCount: sendBatches.length,
     };
   }, [
     activeRequest,
+    modalTravellers,
     sendBatches,
     recipientEmail,
     message,
     eventTitle,
     agentEmail,
     defaultCcEmail,
-    exhibitorMap,
   ]);
 
   const submitSend = async () => {
@@ -508,27 +507,30 @@ export default function FlightBookingsPanel({
 
     setSending(true);
     try {
-      for (const batch of batches) {
-        if (batch.memberIds.length === 0) {
-          notify.error("Select travellers");
-          return;
-        }
-        const result = await sendAirBookingPackageToAgent({
+      const totalMembers = batches.reduce((n, b) => n + b.memberIds.length, 0);
+      if (totalMembers === 0) {
+        notify.error("Select travellers");
+        return;
+      }
+
+      const result = await sendCombinedAirBookingPackageToAgent({
+        eventExhibitorId: batches[0]!.request.eventExhibitorId,
+        recipientEmail: toEmail,
+        message: message.trim() || undefined,
+        packages: batches.map((batch) => ({
           requestId: batch.request.id,
-          recipientEmail: toEmail,
           memberLocalIds: batch.memberIds,
-          message: message.trim() || undefined,
-        });
-        if (result.error) {
-          notify.error(result.error);
-          return;
-        }
+        })),
+      });
+      if (result.error) {
+        notify.error(result.error);
+        return;
       }
 
       notify.success(
-        batches.length === 1
-          ? "Booking package sent"
-          : `${batches.length} booking packages sent`
+        totalMembers === 1
+          ? "Booking package sent to travel agent"
+          : `One booking email sent with ${totalMembers} travellers`
       );
       if (activeRequest) clearCompanySelection(activeRequest.eventExhibitorId);
       setSendOpen(false);
@@ -835,15 +837,19 @@ export default function FlightBookingsPanel({
             <div className="space-y-2">
               <Label>Selected travellers ({modalTravellers.length})</Label>
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border p-2">
-                {modalTravellers.map((member) => {
-                  const docs = memberDocsFor(activeRequest.eventExhibitorId, member.id);
+                {modalTravellers.map((member, index) => {
+                  const eventExhibitorId =
+                    sendBatches[0]?.request.eventExhibitorId ?? activeRequest.eventExhibitorId;
+                  const docs = memberDocsFor(eventExhibitorId, member.id);
                   return (
                     <div
                       key={member.id}
                       className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium">{member.fn} {member.ln}</p>
+                        <p className="font-medium">
+                          {index + 1}. {member.fn} {member.ln}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {member.email} · {member.phone} · Passport {member.passportNumber || "—"}
                         </p>
@@ -858,9 +864,9 @@ export default function FlightBookingsPanel({
                   );
                 })}
               </div>
-              {sendBatches.length > 1 && (
+              {modalTravellers.length > 1 && (
                 <p className="text-xs text-muted-foreground">
-                  {sendBatches.length} separate booking requests will be emailed to the travel agent.
+                  All {modalTravellers.length} travellers will be included in one email to the travel agent.
                 </p>
               )}
             </div>

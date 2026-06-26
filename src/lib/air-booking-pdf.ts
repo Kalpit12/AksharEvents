@@ -15,8 +15,9 @@ function memberDisplayName(member: TeamMember) {
   return `${member.fn} ${member.ln}`.trim();
 }
 
-function safePdfFileName(name: string) {
-  return `${name.replace(/[^\w\s-]/g, "").replace(/\s+/g, " ").trim()} Documents.pdf`;
+function safePdfFileName(name: string, index: number) {
+  const safe = name.replace(/[^\w\s-]/g, "").replace(/\s+/g, " ").trim() || "Traveller";
+  return `${index} ${safe} documents.pdf`;
 }
 
 async function appendImagePage(pdf: PDFDocument, bytes: Buffer, mimeType: string) {
@@ -54,6 +55,7 @@ export async function buildMemberDocumentsPdf({
   eventTitle,
   travelDate,
   documents,
+  fileIndex,
 }: {
   member: TeamMember;
   passportNumber: string;
@@ -61,6 +63,7 @@ export async function buildMemberDocumentsPdf({
   eventTitle: string;
   travelDate: string;
   documents: MemberDoc[];
+  fileIndex: number;
 }): Promise<{ fileName: string; bytes: Uint8Array }> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -123,5 +126,5 @@ export async function buildMemberDocumentsPdf({
   }
 
   const pdfBytes = await pdf.save();
-  return { fileName: safePdfFileName(name), bytes: pdfBytes };
+  return { fileName: safePdfFileName(name, fileIndex), bytes: pdfBytes };
 }

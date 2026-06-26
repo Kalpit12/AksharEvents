@@ -46,7 +46,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
               <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b6560;">
                 Please arrange flights for the exhibitor team below. Official identity documents are attached as PDFs.
               </p>
-              <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travellers</p>
+              <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travellers ({{travellerCount}})</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e5dfd4; border-radius: 12px; overflow: hidden; margin: 0 0 24px;">
                 <tr style="background: #efece6;">
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">#</th>
@@ -133,15 +133,15 @@ export function flightBookingPackageEmailSubject(companyName: string, eventTitle
   return `Traveler Details — ${companyName} (${eventTitle})`;
 }
 
-export function flightBookingPackageAttachmentName(memberName: string) {
-  const safe = memberName.replace(/[^\w\s-]/g, "").trim() || "Traveller";
-  return `${safe} Documents.pdf`;
+export function flightBookingPackageAttachmentName(memberName: string, index: number) {
+  const safe = memberName.replace(/[^\w\s-]/g, "").replace(/\s+/g, " ").trim() || "Traveller";
+  return `${index} ${safe} documents.pdf`;
 }
 
 export function flightBookingPackageEmailHtml(params: FlightBookingPackageEmailParams) {
   const attachmentNames =
     params.attachmentNames ??
-    params.members.map((m) => flightBookingPackageAttachmentName(m.name));
+    params.members.map((m, i) => flightBookingPackageAttachmentName(m.name, i + 1));
 
   return fillTemplate(EMAIL_TEMPLATE, {
     brandName: escapeHtml(BRAND.name),
@@ -149,6 +149,7 @@ export function flightBookingPackageEmailHtml(params: FlightBookingPackageEmailP
     year: String(new Date().getFullYear()),
     companyName: escapeHtml(params.companyName),
     eventTitle: escapeHtml(params.eventTitle),
+    travellerCount: String(params.members.length),
     travellerRows: buildTravellerRows(params.members),
     attachmentList: buildAttachmentList(attachmentNames),
   });

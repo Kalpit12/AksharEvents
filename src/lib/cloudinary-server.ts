@@ -12,13 +12,20 @@ export function getCloudinaryConfig() {
   const cloudName = readEnv("CLOUDINARY_CLOUD_NAME");
   const apiKey = readEnv("CLOUDINARY_API_KEY");
   const apiSecret = readEnv("CLOUDINARY_API_SECRET");
-  if (!cloudName || !apiKey || !apiSecret) {
+  const missing = [
+    !cloudName && "CLOUDINARY_CLOUD_NAME",
+    !apiKey && "CLOUDINARY_API_KEY",
+    !apiSecret && "CLOUDINARY_API_SECRET",
+  ].filter(Boolean) as string[];
+
+  if (missing.length > 0) {
     throw new Error(
-      "Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on Vercel (Production)."
+      `Cloudinary is not configured for this deployment (missing: ${missing.join(", ")}). ` +
+        "In Vercel → Settings → Environment Variables, enable Production (not Preview only) for all CLOUDINARY_* vars, then redeploy."
     );
   }
   cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret, secure: true });
-  return { cloudName, apiKey, apiSecret };
+  return { cloudName: cloudName!, apiKey: apiKey!, apiSecret: apiSecret! };
 }
 
 function ensureCloudinaryConfig() {

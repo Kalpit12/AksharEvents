@@ -29,6 +29,21 @@ const sendPackageSchema = z.object({
   message: z.string().max(4000).optional(),
 });
 
+const sendCombinedPackageSchema = z.object({
+  eventExhibitorId: z.string().min(1),
+  recipientEmail: z.string().email(),
+  message: z.string().max(4000).optional(),
+  packages: z
+    .array(
+      z.object({
+        requestId: z.string().min(1),
+        memberLocalIds: z.array(z.string().min(1)).min(1).max(50),
+      })
+    )
+    .min(1)
+    .max(20),
+});
+
 async function assertExhibitorOwnsEventExhibitor(userId: string, eventExhibitorId: string) {
   const access = await requireExhibitorAccess(userId);
   if (!access) return null;
@@ -255,6 +270,7 @@ export async function sendAirBookingPackageToAgent(input: z.infer<typeof sendPac
       companyName: request.eventExhibitor.exhibitor.companyName,
       eventTitle: request.eventExhibitor.event.title,
       travelDate: travelDateLabel,
+      fileIndex: 1,
       documents: docs.map((d) => ({
         documentType: d.documentType as MemberDocumentType,
         cloudinaryPublicId: d.cloudinaryPublicId,
@@ -325,6 +341,157 @@ export async function sendAirBookingPackageToAgent(input: z.infer<typeof sendPac
   revalidatePath("/exhibitor");
 
   return { success: true, dispatchId: dispatch.id };
+}
+
+export async function sendCombinedAirBookingPackageToAgent(
+  input: z.infer<typeof sendCombinedPackageSchema>
+) {
+  const user = await requireRole("ADMIN");
+  if (!user) return { error: "Unauthorized" };
+
+  const parsed = sendCombinedPackageSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const requestIds = parsed.data.packages.map((pkg) => pkg.requestId);
+  const requests = await prisma.airBookingRequest.findMany({
+    where: {
+      id: { in: requestIds },
+      eventExhibitorId: parsed.data.eventExhibitorId,
+    },
+    include: {
+      eventExhibitor: {
+        include: {
+          exhibitor: true,
+          event: { select: { title: true } },
+          registration: true,
+        },
+      },
+    },
+  });
+
+  if (requests.length !== parsed.data.packages.length) {
+    return { error: "One or more flight booking requests were not found" };
+  }
+
+  const allMembers = membersFromFormData(requests[0]!.eventExhibitor.registration?.formData);
+  const orderedMembers: TeamMember[] = [];
+  const packagesToRecord: { requestId: string; memberLocalIds: string[] }[] = [];
+
+  for (const pkg of parsed.data.packages) {
+    const memberIds: string[] = [];
+    for (const memberId of pkg.memberLocalIds) {
+      const member = allMembers.find((m) => m.id === memberId);
+      if (!member) continue;
+      if (!orderedMembers.some((m) => m.id === memberId)) {
+        orderedMembers.push(member);
+      }
+      memberIds.push(memberId);
+    }
+    if (memberIds.length > 0) {
+      packagesToRecord.push({ requestId: pkg.requestId, memberLocalIds: memberIds });
+    }
+  }
+
+  if (orderedMembers.length === 0) {
+    return { error: "No valid members selected" };
+  }
+
+  const eventExhibitor = requests[0]!.eventExhibitor;
+  const companyName = eventExhibitor.exhibitor.companyName;
+  const eventTitle = eventExhibitor.event.title;
+  const travelDateLabel = formatDate(requests[0]!.travelDate.toISOString(), "MMM d, yyyy");
+  const attachments: { name: string; content: string; contentType: string }[] = [];
+
+  for (let i = 0; i < orderedMembers.length; i++) {
+    const member = orderedMembers[i]!;
+    const docs = await prisma.exhibitorMemberDocument.findMany({
+      where: {
+        eventExhibitorId: parsed.data.eventExhibitorId,
+        memberLocalId: member.id,
+      },
+    });
+    if (!docs.some((d) => d.documentType === "PASSPORT")) {
+      return { error: `Missing passport document for ${member.fn} ${member.ln}` };
+    }
+
+    const { fileName, bytes } = await buildMemberDocumentsPdf({
+      member,
+      passportNumber: member.passportNumber?.trim() || "—",
+      companyName,
+      eventTitle,
+      travelDate: travelDateLabel,
+      fileIndex: i + 1,
+      documents: docs.map((d) => ({
+        documentType: d.documentType as MemberDocumentType,
+        cloudinaryPublicId: d.cloudinaryPublicId,
+        mimeType: d.mimeType,
+        originalFileName: d.originalFileName,
+      })),
+    });
+
+    attachments.push({
+      name: fileName,
+      content: Buffer.from(bytes).toString("base64"),
+      contentType: "application/pdf",
+    });
+  }
+
+  const emailResult = await sendFlightBookingPackageEmail({
+    to: parsed.data.recipientEmail,
+    cc: process.env.FLIGHT_BOOKING_CC_EMAIL || process.env.POSTMARK_SENDER_EMAIL || undefined,
+    companyName,
+    eventTitle,
+    travelDate: travelDateLabel,
+    ticketCount: orderedMembers.length,
+    members: orderedMembers.map((m) => ({
+      name: `${m.fn} ${m.ln}`,
+      email: m.email,
+      phone: m.phone,
+      passportNumber: m.passportNumber?.trim() || "—",
+    })),
+    message: parsed.data.message,
+    attachments,
+  });
+
+  if (!emailResult.success) {
+    return { error: emailResult.error ?? "Failed to send email" };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const pkg of packagesToRecord) {
+      await tx.airBookingDispatch.create({
+        data: {
+          airBookingRequestId: pkg.requestId,
+          sentById: user.id,
+          recipientEmail: parsed.data.recipientEmail,
+          memberLocalIds: pkg.memberLocalIds,
+          postmarkMessageId: emailResult.id,
+          message: parsed.data.message?.trim() || null,
+        },
+      });
+      await tx.airBookingRequest.update({
+        where: { id: pkg.requestId },
+        data: { status: "SENT" },
+      });
+    }
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    action: "CREATE",
+    entity: "AirBookingDispatch",
+    details: {
+      eventExhibitorId: parsed.data.eventExhibitorId,
+      recipientEmail: parsed.data.recipientEmail,
+      memberCount: orderedMembers.length,
+      requestIds: packagesToRecord.map((p) => p.requestId),
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+
+  return { success: true, travellerCount: orderedMembers.length };
 }
 
 function serializeRequest(
