@@ -3,7 +3,6 @@ import { BRAND } from "@/lib/utils";
 export type FlightBookingPackageEmailMember = {
   name: string;
   email: string;
-  phone: string;
   passportNumber: string;
 };
 
@@ -22,7 +21,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Traveler Details — {{companyName}} ({{eventTitle}})</title>
+  <title>AksharEvents: Booking Details ({{shortEventName}})</title>
 </head>
 <body style="margin: 0; padding: 0; background: #f9f6f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9f6f0; padding: 32px 16px;">
@@ -42,7 +41,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
           </tr>
           <tr>
             <td style="padding: 32px 32px 24px; background: #ffffff;">
-              <h1 style="margin: 0 0 8px; font-size: 21px; font-weight: 700; color: #1c1a17; line-height: 1.35;">Traveler Details</h1>
+              <h1 style="margin: 0 0 8px; font-size: 21px; font-weight: 700; color: #1c1a17; line-height: 1.35;">Booking Details</h1>
               <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b6560;">
                 Please arrange flights for the exhibitor team below. Official identity documents are attached as PDFs.
               </p>
@@ -52,7 +51,6 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">#</th>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Name</th>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Email</th>
-                  <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Phone</th>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Passport #</th>
                 </tr>
                 {{travellerRows}}
@@ -113,7 +111,6 @@ function buildTravellerRows(members: FlightBookingPackageEmailMember[]) {
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #6b6560; font-size: 13px;">${index + 1}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; font-weight: 600; color: #1c1a17; font-size: 13px;">${escapeHtml(member.name)}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">${escapeHtml(member.email)}</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">${escapeHtml(member.phone)}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px; font-family: ui-monospace, monospace;">${escapeHtml(member.passportNumber)}</td>
       </tr>`
     )
@@ -129,8 +126,14 @@ function buildAttachmentList(attachmentNames: string[]) {
   </ul>`;
 }
 
-export function flightBookingPackageEmailSubject(companyName: string, eventTitle: string) {
-  return `Traveler Details — ${companyName} (${eventTitle})`;
+export function flightBookingShortEventName(eventTitle: string) {
+  const trimmed = eventTitle.trim();
+  const withoutKenya = trimmed.replace(/^Kenya\s+/i, "");
+  return withoutKenya || trimmed;
+}
+
+export function flightBookingPackageEmailSubject(eventTitle: string) {
+  return `AksharEvents: Booking Details (${flightBookingShortEventName(eventTitle)})`;
 }
 
 export function flightBookingPackageAttachmentName(memberName: string, index: number) {
@@ -149,6 +152,7 @@ export function flightBookingPackageEmailHtml(params: FlightBookingPackageEmailP
     year: String(new Date().getFullYear()),
     companyName: escapeHtml(params.companyName),
     eventTitle: escapeHtml(params.eventTitle),
+    shortEventName: escapeHtml(flightBookingShortEventName(params.eventTitle)),
     travellerCount: String(params.members.length),
     travellerRows: buildTravellerRows(params.members),
     attachmentList: buildAttachmentList(attachmentNames),

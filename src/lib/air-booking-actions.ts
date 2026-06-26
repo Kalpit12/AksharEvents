@@ -293,7 +293,6 @@ export async function sendAirBookingPackageToAgent(input: z.infer<typeof sendPac
     members: selectedMembers.map((m) => ({
       name: `${m.fn} ${m.ln}`,
       email: m.email,
-      phone: m.phone,
       passportNumber: m.passportNumber?.trim() || "—",
     })),
     message: parsed.data.message,
@@ -440,7 +439,6 @@ export async function sendCombinedAirBookingPackageToAgent(
     members: orderedMembers.map((m) => ({
       name: `${m.fn} ${m.ln}`,
       email: m.email,
-      phone: m.phone,
       passportNumber: m.passportNumber?.trim() || "—",
     })),
     message: parsed.data.message,

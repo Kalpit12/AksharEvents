@@ -455,7 +455,6 @@ export default function FlightBookingsPanel({
     const members = modalTravellers.map((m) => ({
       name: `${m.fn} ${m.ln}`,
       email: m.email,
-      phone: m.phone,
       passportNumber: m.passportNumber?.trim() || "—",
     }));
 
@@ -463,7 +462,7 @@ export default function FlightBookingsPanel({
       sendBatches[0]?.request.travelDate ?? activeRequest.travelDate;
 
     return {
-      subject: flightBookingPackageEmailSubject(activeRequest.companyName, eventTitle),
+      subject: flightBookingPackageEmailSubject(eventTitle),
       to: recipientEmail.trim() || agentEmail,
       cc: defaultCcEmail || undefined,
       html: flightBookingPackageEmailHtml({

@@ -291,7 +291,7 @@ export async function sendFlightBookingPackageEmail({
   eventTitle: string;
   travelDate: string;
   ticketCount: number;
-  members: { name: string; email: string; phone: string; passportNumber: string }[];
+  members: { name: string; email: string; passportNumber: string }[];
   message?: string;
   attachments: { name: string; content: string; contentType: string }[];
 }) {
@@ -307,7 +307,7 @@ export async function sendFlightBookingPackageEmail({
     cc,
     replyTo,
     tag: "flight-booking-package",
-    subject: flightBookingPackageEmailSubject(companyName, eventTitle),
+    subject: flightBookingPackageEmailSubject(eventTitle),
     attachments,
     html: flightBookingPackageEmailHtml({
       companyName,
