@@ -58,11 +58,8 @@ export function resolveExhibitorMemberFlightStatus(
   requests: SerializedAirBookingRequest[],
   hasPassportDocument = false
 ): MemberFlightStatusView {
-  if (memberWasDispatched(memberLocalId, requests)) {
-    return { key: "sent", label: "Sent" };
-  }
-
   const workflow = workflows.find((w) => w.memberLocalId === memberLocalId);
+  const dispatched = memberWasDispatched(memberLocalId, requests);
 
   if (workflow?.status === "PAID") {
     return { key: "paid", label: "Paid" };
@@ -81,6 +78,10 @@ export function resolveExhibitorMemberFlightStatus(
       rateAmount: amount ?? undefined,
       rateCurrency: currency,
     };
+  }
+
+  if (dispatched) {
+    return { key: "sent", label: "Sent" };
   }
 
   if (workflow?.status === "VERIFIED") {
@@ -152,6 +153,14 @@ export function canSendMemberToTravelAgent(
   status?: SerializedAirBookingMemberWorkflow["status"]
 ): boolean {
   return status === "VERIFIED" || status === "RATE_SENT" || status === "PAID";
+}
+
+export function canSendMemberRate(
+  status: SerializedAirBookingMemberWorkflow["status"] | undefined,
+  dispatched: boolean
+): boolean {
+  if (status === "RATE_SENT" || status === "PAID") return false;
+  return status === "VERIFIED" || dispatched;
 }
 
 export function serializeWorkflow(row: {

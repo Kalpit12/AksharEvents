@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
 import {
+  canSendMemberRate,
   canSendMemberToTravelAgent,
   memberWasDispatched,
   resolveAdminMemberFlightStatus,
@@ -20,6 +21,7 @@ import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { TeamMember } from "@/components/exhibitor-portal/types";
 import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import { DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL } from "@/lib/flight-booking-config";
+import { FLIGHT_BOOKING_CURRENCY_OPTIONS } from "@/lib/flight-booking-currencies";
 import { sendCombinedAirBookingPackageToAgent } from "@/lib/air-booking-actions";
 import { MEMBER_DOCUMENT_LABELS } from "@/lib/member-document-types";
 import { Button } from "@/components/ui/Button";
@@ -27,6 +29,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { ModalShell } from "@/components/exhibitor-portal/exhibitor-portal-ui";
+import { CustomSelect } from "@/components/exhibitor-portal/custom-select";
 import { cn, formatDate } from "@/lib/utils";
 import { Check, ChevronDown, ExternalLink, FileText, Mail, MoreHorizontal, Plane, Search, ShieldCheck } from "lucide-react";
 import { notify } from "@/lib/notify";
@@ -314,6 +317,7 @@ export default function FlightBookingsPanel({
     memberLocalId: string;
     travelDate: string;
     travellerName: string;
+    travellerEmail: string | null;
     contactEmail: string | null;
   } | null>(null);
   const [rateForm, setRateForm] = useState({
@@ -422,6 +426,7 @@ export default function FlightBookingsPanel({
       memberLocalId: member.id,
       travelDate,
       travellerName: `${member.fn} ${member.ln}`,
+      travellerEmail: member.email?.trim() || null,
       contactEmail,
     });
     setRateForm({ amount: "", currency: "KES", details: "" });
@@ -812,6 +817,7 @@ export default function FlightBookingsPanel({
                             <td className="px-3 py-2.5 text-right">
                               <TravellerWorkflowMenu
                                 workflowStatus={workflow?.status}
+                                dispatched={alreadySent}
                                 busyVerify={busyVerify}
                                 busyPaid={busyPaid}
                                 onVerify={() =>
@@ -844,7 +850,7 @@ export default function FlightBookingsPanel({
 
       {rateModalOpen && rateTarget && (
         <ModalShell
-          title="Send flight rate to exhibitor"
+          title="Send flight rate"
           icon={Mail}
           onClose={() => {
             setRateModalOpen(false);
@@ -863,22 +869,43 @@ export default function FlightBookingsPanel({
               </Button>
               <Button onClick={submitRate} disabled={rateSubmitting} className="gap-1.5">
                 <Mail className="h-4 w-4" />
-                {rateSubmitting ? "Sending…" : "Email rate"}
+                {rateSubmitting ? "Sending…" : "Send rate email"}
               </Button>
             </>
           }
         >
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              The rate will be emailed to the exhibitor&apos;s main contact only
-              {rateTarget.contactEmail ? ` (${rateTarget.contactEmail})` : ""}. Payment is handled
-              outside the portal.
-            </p>
-            <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Traveller:</span>{" "}
-              <span className="font-medium">{rateTarget.travellerName}</span>
+            <div className="rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm">
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Traveller
+                  </p>
+                  <p className="mt-0.5 font-medium">{rateTarget.travellerName}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Email
+                  </p>
+                  <p className="mt-0.5 font-medium">
+                    {rateTarget.travellerEmail || "—"}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">
+            <p className="text-sm text-muted-foreground">
+              The rate quote will be emailed to the exhibitor&apos;s main contact
+              {rateTarget.contactEmail ? (
+                <>
+                  {" "}
+                  (<span className="font-medium text-foreground">{rateTarget.contactEmail}</span>)
+                </>
+              ) : (
+                " on file"
+              )}
+              . Payment is handled outside the portal.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
               <div className="space-y-2">
                 <Label>Rate amount</Label>
                 <Input
@@ -892,9 +919,10 @@ export default function FlightBookingsPanel({
               </div>
               <div className="space-y-2">
                 <Label>Currency</Label>
-                <Input
+                <CustomSelect
                   value={rateForm.currency}
-                  onChange={(e) => setRateForm({ ...rateForm, currency: e.target.value })}
+                  onChange={(currency) => setRateForm({ ...rateForm, currency })}
+                  options={FLIGHT_BOOKING_CURRENCY_OPTIONS}
                 />
               </div>
             </div>
@@ -995,6 +1023,7 @@ export default function FlightBookingsPanel({
 
 function TravellerWorkflowMenu({
   workflowStatus,
+  dispatched,
   busyVerify,
   busyPaid,
   onVerify,
@@ -1002,6 +1031,7 @@ function TravellerWorkflowMenu({
   onMarkPaid,
 }: {
   workflowStatus?: SerializedAirBookingMemberWorkflow["status"];
+  dispatched: boolean;
   busyVerify: boolean;
   busyPaid: boolean;
   onVerify: () => void;
@@ -1049,10 +1079,10 @@ function TravellerWorkflowMenu({
   }, [open]);
 
   const items: { label: string; onClick: () => void; disabled?: boolean }[] = [];
-  if (!workflowStatus || workflowStatus === "VERIFICATION_PENDING") {
+  if (!dispatched && (!workflowStatus || workflowStatus === "VERIFICATION_PENDING")) {
     items.push({ label: busyVerify ? "Verifying…" : "Verified", onClick: onVerify, disabled: busyVerify });
   }
-  if (workflowStatus === "VERIFIED") {
+  if (canSendMemberRate(workflowStatus, dispatched)) {
     items.push({ label: "Send rate", onClick: onSendRate });
   }
   if (workflowStatus === "RATE_SENT") {

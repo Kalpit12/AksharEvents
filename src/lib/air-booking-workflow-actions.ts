@@ -23,6 +23,60 @@ const sendRateSchema = z.object({
   travelDate: z.string().min(1),
 });
 
+async function memberWasDispatchedInDb(eventExhibitorId: string, memberLocalId: string) {
+  const dispatches = await prisma.airBookingDispatch.findMany({
+    where: {
+      airBookingRequest: { eventExhibitorId },
+      memberLocalIds: { has: memberLocalId },
+    },
+    take: 1,
+  });
+  return dispatches.length > 0;
+}
+
+async function ensureWorkflowReadyForRate(
+  eventExhibitorId: string,
+  memberLocalId: string,
+  dispatched: boolean
+) {
+  let workflow = await prisma.airBookingMemberWorkflow.findUnique({
+    where: {
+      eventExhibitorId_memberLocalId: { eventExhibitorId, memberLocalId },
+    },
+  });
+
+  if (!workflow) {
+    if (!dispatched) return { error: "No verification record found for this traveller" as const };
+    workflow = await prisma.airBookingMemberWorkflow.create({
+      data: {
+        eventExhibitorId,
+        memberLocalId,
+        status: "VERIFIED",
+        verifiedAt: new Date(),
+      },
+    });
+    return { workflow };
+  }
+
+  if (workflow.status === "RATE_SENT" || workflow.status === "PAID") {
+    return { error: "Rate has already been sent for this traveller" as const };
+  }
+
+  if (workflow.status === "VERIFICATION_PENDING" && dispatched) {
+    workflow = await prisma.airBookingMemberWorkflow.update({
+      where: { id: workflow.id },
+      data: { status: "VERIFIED", verifiedAt: new Date() },
+    });
+    return { workflow };
+  }
+
+  if (workflow.status !== "VERIFIED") {
+    return { error: "Traveller must be verified before sending a rate" as const };
+  }
+
+  return { workflow };
+}
+
 export async function listAirBookingMemberWorkflowsForEvent(
   eventId: string
 ): Promise<SerializedAirBookingMemberWorkflow[]> {
@@ -154,18 +208,17 @@ export async function sendAirBookingRateToExhibitor(input: z.infer<typeof sendRa
     return { error: "Exhibitor account has no contact email on file" };
   }
 
-  const workflow = await prisma.airBookingMemberWorkflow.findUnique({
-    where: {
-      eventExhibitorId_memberLocalId: {
-        eventExhibitorId: parsed.data.eventExhibitorId,
-        memberLocalId: parsed.data.memberLocalId,
-      },
-    },
-  });
-  if (!workflow) return { error: "No verification record found for this traveller" };
-  if (workflow.status !== "VERIFIED") {
-    return { error: "Traveller must be verified before sending a rate" };
-  }
+  const dispatched = await memberWasDispatchedInDb(
+    parsed.data.eventExhibitorId,
+    parsed.data.memberLocalId
+  );
+  const workflowResult = await ensureWorkflowReadyForRate(
+    parsed.data.eventExhibitorId,
+    parsed.data.memberLocalId,
+    dispatched
+  );
+  if ("error" in workflowResult) return { error: workflowResult.error };
+  const readyWorkflow = workflowResult.workflow;
 
   const members =
     entry.registration?.formData &&
@@ -199,7 +252,7 @@ export async function sendAirBookingRateToExhibitor(input: z.infer<typeof sendRa
 
   const updated = await withDbRetry(() =>
     prisma.airBookingMemberWorkflow.update({
-      where: { id: workflow.id },
+      where: { id: readyWorkflow.id },
       data: {
         status: "RATE_SENT",
         rateAmount: parsed.data.rateAmount,
