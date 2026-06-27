@@ -107,23 +107,30 @@ export function resolveAdminMemberFlightStatus(
   requests: SerializedAirBookingRequest[],
   hasPassportDocument = false
 ): MemberFlightStatusView {
-  if (memberWasDispatched(memberLocalId, requests)) {
-    return { key: "sent", label: "Sent to agent" };
-  }
-
   const workflow = workflows.find((w) => w.memberLocalId === memberLocalId);
+  const dispatched = memberWasDispatched(memberLocalId, requests);
 
   if (workflow?.status === "PAID") {
     return { key: "paid", label: "Paid" };
   }
 
   if (workflow?.status === "RATE_SENT") {
+    const amount = workflow.rateAmount;
+    const currency = workflow.rateCurrency || "KES";
+    const label =
+      amount != null
+        ? `Rate sent · ${currency} ${amount.toLocaleString()}`
+        : "Rate sent";
     return {
       key: "rate_sent",
-      label: "Payment pending",
-      rateAmount: workflow.rateAmount ?? undefined,
-      rateCurrency: workflow.rateCurrency,
+      label,
+      rateAmount: amount ?? undefined,
+      rateCurrency: currency,
     };
+  }
+
+  if (dispatched) {
+    return { key: "sent", label: "Sent to agent" };
   }
 
   if (workflow?.status === "VERIFIED") {

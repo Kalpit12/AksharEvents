@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
 import {
   canSendMemberToTravelAgent,
+  memberWasDispatched,
   resolveAdminMemberFlightStatus,
   type SerializedAirBookingMemberWorkflow,
 } from "@/lib/air-booking-workflow-types";
@@ -222,10 +223,6 @@ function workflowStatusClass(key: ReturnType<typeof resolveAdminMemberFlightStat
   }
 }
 
-function isPendingStatus(status: SerializedAirBookingRequest["status"]) {
-  return status === "PENDING";
-}
-
 function statusClass(status: SerializedAirBookingRequest["status"]) {
   switch (status) {
     case "SENT":
@@ -249,10 +246,6 @@ type Props = {
   defaultCcEmail?: string;
 };
 
-function isCompletedStatus(status: SerializedAirBookingRequest["status"]) {
-  return status === "SENT" || status === "CONFIRMED";
-}
-
 type BookingRow = {
   request: SerializedAirBookingRequest;
   member: TeamMember;
@@ -263,8 +256,6 @@ type CompanyBookingGroup = {
   companyName: string;
   rows: BookingRow[];
 };
-
-type StatusTab = "pending" | "completed";
 
 type SendBatch = {
   request: SerializedAirBookingRequest;
@@ -307,7 +298,6 @@ export default function FlightBookingsPanel({
 }: Props) {
   const router = useRouter();
   const agentEmail = defaultAgentEmail.trim() || DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL;
-  const [statusTab, setStatusTab] = useState<StatusTab>("pending");
   const [query, setQuery] = useState("");
   const [sendOpen, setSendOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -343,29 +333,16 @@ export default function FlightBookingsPanel({
     return record?.formData?.members?.filter((m) => request.memberLocalIds.includes(m.id)) ?? [];
   };
 
-  const pendingCount = useMemo(
-    () => requests.filter((r) => isPendingStatus(r.status)).length,
-    [requests]
-  );
-  const completedCount = useMemo(
-    () => requests.filter((r) => isCompletedStatus(r.status)).length,
-    [requests]
-  );
-
-  const tabRequests = useMemo(() => {
-    const byStatus =
-      statusTab === "pending"
-        ? requests.filter((r) => isPendingStatus(r.status))
-        : requests.filter((r) => isCompletedStatus(r.status));
+  const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return byStatus;
-    return byStatus.filter((r) => r.companyName.toLowerCase().includes(q));
-  }, [requests, statusTab, query]);
+    if (!q) return requests;
+    return requests.filter((r) => r.companyName.toLowerCase().includes(q));
+  }, [requests, query]);
 
   const companyGroups = useMemo((): CompanyBookingGroup[] => {
     const map = new Map<string, CompanyBookingGroup>();
 
-    for (const request of tabRequests) {
+    for (const request of filteredRequests) {
       for (const member of membersForRequest(request)) {
         let group = map.get(request.eventExhibitorId);
         if (!group) {
@@ -392,9 +369,7 @@ export default function FlightBookingsPanel({
     }
 
     return [...map.values()].sort((a, b) => a.companyName.localeCompare(b.companyName));
-  }, [tabRequests, exhibitorMap]);
-
-  const filtered = tabRequests;
+  }, [filteredRequests, exhibitorMap]);
 
   const memberDocsFor = (eventExhibitorId: string, memberId: string) =>
     memberDocuments.filter(
@@ -415,8 +390,10 @@ export default function FlightBookingsPanel({
       (w) => w.eventExhibitorId === eventExhibitorId && w.memberLocalId === memberId
     );
 
-  const canSendToAgent = (eventExhibitorId: string, memberId: string) =>
-    canSendMemberToTravelAgent(workflowFor(eventExhibitorId, memberId)?.status);
+  const canSendToAgent = (eventExhibitorId: string, memberId: string) => {
+    if (memberWasDispatched(memberId, requests)) return false;
+    return canSendMemberToTravelAgent(workflowFor(eventExhibitorId, memberId)?.status);
+  };
 
   const handleVerify = async (eventExhibitorId: string, memberId: string) => {
     const key = `${eventExhibitorId}:${memberId}:verify`;
@@ -640,49 +617,6 @@ export default function FlightBookingsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1">
-        <button
-          type="button"
-          onClick={() => setStatusTab("pending")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-            statusTab === "pending"
-              ? "bg-primary text-white shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          Pending
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              statusTab === "pending" ? "bg-white/20" : "bg-muted"
-            )}
-          >
-            {pendingCount}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setStatusTab("completed")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-            statusTab === "completed"
-              ? "bg-primary text-white shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          Completed
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              statusTab === "completed" ? "bg-white/20" : "bg-muted"
-            )}
-          >
-            {completedCount}
-          </span>
-        </button>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -694,21 +628,17 @@ export default function FlightBookingsPanel({
           />
         </div>
         <p className="text-sm text-muted-foreground">
-          {companyGroups.length} compan{companyGroups.length === 1 ? "y" : "ies"} · {filtered.length} request
-          {filtered.length === 1 ? "" : "s"}
+          {companyGroups.length} compan{companyGroups.length === 1 ? "y" : "ies"} · {filteredRequests.length} request
+          {filteredRequests.length === 1 ? "" : "s"}
         </p>
       </div>
 
       {companyGroups.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-10 text-center">
           <Plane className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-          <p className="font-medium">
-            No {statusTab === "pending" ? "pending" : "completed"} flight booking requests
-          </p>
+          <p className="font-medium">No flight booking requests match your search</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {statusTab === "pending"
-              ? "New exhibitor requests will appear here until they are sent to the travel agent."
-              : "Requests sent or confirmed by the travel agent will appear here."}
+            Try a different company name or clear the search field.
           </p>
         </div>
       ) : (
@@ -759,53 +689,49 @@ export default function FlightBookingsPanel({
                       ))}
                     </div>
                   </div>
-                  {statusTab === "pending" && (
-                    <Button
-                      size="sm"
-                      className="shrink-0 gap-1.5"
-                      disabled={selectedCount === 0}
-                      onClick={() => openSendForCompanyGroup(group)}
-                    >
-                      <Mail className="h-4 w-4" />
-                      Send to travel agent
-                      {selectedCount > 0 ? ` (${selectedCount})` : ""}
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    className="shrink-0 gap-1.5"
+                    disabled={selectedCount === 0}
+                    onClick={() => openSendForCompanyGroup(group)}
+                  >
+                    <Mail className="h-4 w-4" />
+                    Send to travel agent
+                    {selectedCount > 0 ? ` (${selectedCount})` : ""}
+                  </Button>
                 </div>
 
                 <div className="overflow-x-auto px-4 py-3 sm:px-5">
-                  <table className="w-full min-w-[720px] text-sm">
+                  <table className="w-full min-w-[820px] text-sm">
                     <thead>
                       <tr className="text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {statusTab === "pending" && (
-                          <th className="w-10 px-2 pb-2 pt-1">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-border"
-                              checked={allSelected}
-                              ref={(el) => {
-                                if (el) el.indeterminate = someSelected;
-                              }}
-                              onChange={() => toggleAllInCompany(group)}
-                              aria-label={`Select all travellers for ${group.companyName}`}
-                            />
-                          </th>
-                        )}
+                        <th className="w-10 px-2 pb-2 pt-1">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-border"
+                            checked={allSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someSelected;
+                            }}
+                            onChange={() => toggleAllInCompany(group)}
+                            aria-label={`Select all travellers for ${group.companyName}`}
+                          />
+                        </th>
                         <th className="px-3 pb-2 pt-1">Traveller</th>
                         <th className="px-3 pb-2 pt-1">Passport</th>
                         <th className="w-[11rem] px-3 pb-2 pt-1">Documents</th>
                         <th className="px-3 pb-2 pt-1">Travel date</th>
                         <th className="px-3 pb-2 pt-1">Status</th>
-                        {statusTab === "pending" && <th className="px-3 pb-2 pt-1 text-right">Action</th>}
-                        {statusTab === "completed" && (
-                          <th className="px-3 pb-2 pt-1">Sent</th>
-                        )}
+                        <th className="px-3 pb-2 pt-1">Sent</th>
+                        <th className="px-3 pb-2 pt-1 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/70">
                       {group.rows.map(({ request, member }, index) => {
                         const docs = memberDocStatus(request.eventExhibitorId, member.id);
-                        const lastDispatch = request.dispatches[0];
+                        const memberDispatch = request.dispatches.find((d) =>
+                          d.memberLocalIds.includes(member.id)
+                        );
                         const selectionKey = rowSelectionKey(request.id, member.id);
                         const isSelected = selectedKeys.has(selectionKey);
                         const workflow = workflowFor(request.eventExhibitorId, member.id);
@@ -817,6 +743,7 @@ export default function FlightBookingsPanel({
                         );
                         const exhibitorRecord = exhibitorMap.get(request.eventExhibitorId);
                         const sendAllowed = canSendToAgent(request.eventExhibitorId, member.id);
+                        const alreadySent = memberWasDispatched(member.id, requests);
                         const busyVerify = workflowBusyKey === `${request.eventExhibitorId}:${member.id}:verify`;
                         const busyPaid = workflowBusyKey === `${request.eventExhibitorId}:${member.id}:paid`;
                         return (
@@ -825,28 +752,28 @@ export default function FlightBookingsPanel({
                             className={cn(
                               "transition-colors hover:bg-muted/25",
                               index % 2 === 1 && "bg-muted/10",
-                              isSelected && statusTab === "pending" && "bg-primary/5"
+                              isSelected && "bg-primary/5"
                             )}
                           >
-                            {statusTab === "pending" && (
-                              <td className="px-2 py-2.5">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-border disabled:opacity-40"
-                                  checked={isSelected}
-                                  disabled={!sendAllowed}
-                                  title={
-                                    sendAllowed
-                                      ? undefined
+                            <td className="px-2 py-2.5">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-border disabled:opacity-40"
+                                checked={isSelected}
+                                disabled={!sendAllowed}
+                                title={
+                                  sendAllowed
+                                    ? undefined
+                                    : alreadySent
+                                      ? "Already sent to travel agent"
                                       : "Verify traveller before sending to travel agent"
-                                  }
-                                  onChange={() =>
-                                    toggleRowSelection(group.eventExhibitorId, request.id, member.id)
-                                  }
-                                  aria-label={`Select ${member.fn} ${member.ln}`}
-                                />
-                              </td>
-                            )}
+                                }
+                                onChange={() =>
+                                  toggleRowSelection(group.eventExhibitorId, request.id, member.id)
+                                }
+                                aria-label={`Select ${member.fn} ${member.ln}`}
+                              />
+                            </td>
                             <td className="px-3 py-2.5">
                               <MemberNameWithTooltip member={member} />
                             </td>
@@ -869,44 +796,40 @@ export default function FlightBookingsPanel({
                                 {flightStatus.label}
                               </span>
                             </td>
-                            {statusTab === "pending" && (
-                              <td className="px-3 py-2.5 text-right">
-                                <TravellerWorkflowMenu
-                                  workflowStatus={workflow?.status}
-                                  busyVerify={busyVerify}
-                                  busyPaid={busyPaid}
-                                  onVerify={() =>
-                                    void handleVerify(request.eventExhibitorId, member.id)
-                                  }
-                                  onSendRate={() =>
-                                    openRateModal(
-                                      request.eventExhibitorId,
-                                      member,
-                                      request.travelDate,
-                                      exhibitorRecord?.contactEmail ?? request.contactEmail
-                                    )
-                                  }
-                                  onMarkPaid={() =>
-                                    void handleMarkPaid(request.eventExhibitorId, member.id)
-                                  }
-                                />
-                              </td>
-                            )}
-                            {statusTab === "completed" && (
-                              <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                                {lastDispatch ? (
-                                  <>
-                                    <span className="font-medium text-foreground">
-                                      {lastDispatch.recipientEmail}
-                                    </span>
-                                    <br />
-                                    {formatDate(lastDispatch.sentAt, "MMM d, yyyy")}
-                                  </>
-                                ) : (
-                                  "—"
-                                )}
-                              </td>
-                            )}
+                            <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                              {memberDispatch ? (
+                                <>
+                                  <span className="font-medium text-foreground">
+                                    {memberDispatch.recipientEmail}
+                                  </span>
+                                  <br />
+                                  {formatDate(memberDispatch.sentAt, "MMM d, yyyy")}
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <TravellerWorkflowMenu
+                                workflowStatus={workflow?.status}
+                                busyVerify={busyVerify}
+                                busyPaid={busyPaid}
+                                onVerify={() =>
+                                  void handleVerify(request.eventExhibitorId, member.id)
+                                }
+                                onSendRate={() =>
+                                  openRateModal(
+                                    request.eventExhibitorId,
+                                    member,
+                                    request.travelDate,
+                                    exhibitorRecord?.contactEmail ?? request.contactEmail
+                                  )
+                                }
+                                onMarkPaid={() =>
+                                  void handleMarkPaid(request.eventExhibitorId, member.id)
+                                }
+                              />
+                            </td>
                           </tr>
                         );
                       })}
