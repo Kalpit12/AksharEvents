@@ -16,11 +16,17 @@ import { formatDate } from "@/lib/utils";
 
 const sendRateSchema = z.object({
   eventExhibitorId: z.string().min(1),
-  memberLocalId: z.string().min(1),
+  travellers: z
+    .array(
+      z.object({
+        memberLocalId: z.string().min(1),
+        travelDate: z.string().min(1),
+      })
+    )
+    .min(1),
   rateAmount: z.number().positive(),
   rateCurrency: z.string().min(1).max(8).default("KES"),
   rateDetails: z.string().max(4000).optional(),
-  travelDate: z.string().min(1),
 });
 
 async function memberWasDispatchedInDb(eventExhibitorId: string, memberLocalId: string) {
@@ -208,40 +214,56 @@ export async function sendAirBookingRateToExhibitor(input: z.infer<typeof sendRa
     return { error: "Exhibitor account has no contact email on file" };
   }
 
-  const dispatched = await memberWasDispatchedInDb(
-    parsed.data.eventExhibitorId,
-    parsed.data.memberLocalId
-  );
-  const workflowResult = await ensureWorkflowReadyForRate(
-    parsed.data.eventExhibitorId,
-    parsed.data.memberLocalId,
-    dispatched
-  );
-  if ("error" in workflowResult) return { error: workflowResult.error };
-  const readyWorkflow = workflowResult.workflow;
-
   const members =
     entry.registration?.formData &&
     typeof entry.registration.formData === "object" &&
     Array.isArray((entry.registration.formData as { members?: unknown }).members)
-      ? ((entry.registration.formData as { members: { id: string; fn: string; ln: string }[] })
-          .members)
+      ? ((entry.registration.formData as {
+          members: { id: string; fn: string; ln: string; email?: string }[];
+        }).members)
       : [];
-  const member = members.find((m) => m.id === parsed.data.memberLocalId);
-  const travellerName = member ? `${member.fn} ${member.ln}` : "Traveller";
 
-  const travelDate = new Date(parsed.data.travelDate);
-  const travelDateLabel = Number.isNaN(travelDate.getTime())
-    ? parsed.data.travelDate
-    : formatDate(travelDate.toISOString(), "MMM d, yyyy");
+  const readyWorkflows: { id: string; memberLocalId: string }[] = [];
+  const emailTravellers: { name: string; email: string; travelDate: string }[] = [];
+
+  for (const traveller of parsed.data.travellers) {
+    const dispatched = await memberWasDispatchedInDb(
+      parsed.data.eventExhibitorId,
+      traveller.memberLocalId
+    );
+    const workflowResult = await ensureWorkflowReadyForRate(
+      parsed.data.eventExhibitorId,
+      traveller.memberLocalId,
+      dispatched
+    );
+    if ("error" in workflowResult) {
+      return { error: `${workflowResult.error} (${traveller.memberLocalId})` };
+    }
+
+    const member = members.find((m) => m.id === traveller.memberLocalId);
+    const travellerName = member ? `${member.fn} ${member.ln}` : "Traveller";
+    const travelDate = new Date(traveller.travelDate);
+    const travelDateLabel = Number.isNaN(travelDate.getTime())
+      ? traveller.travelDate
+      : formatDate(travelDate.toISOString(), "MMM d, yyyy");
+
+    readyWorkflows.push({
+      id: workflowResult.workflow.id,
+      memberLocalId: traveller.memberLocalId,
+    });
+    emailTravellers.push({
+      name: travellerName,
+      email: member?.email?.trim() || "—",
+      travelDate: travelDateLabel,
+    });
+  }
 
   const emailResult = await sendFlightBookingRateEmail({
     to: contactEmail,
     companyName: entry.exhibitor.companyName,
     eventTitle: entry.event.title,
-    travellerName,
-    travelDate: travelDateLabel,
-    rateAmount: parsed.data.rateAmount,
+    travellers: emailTravellers,
+    rateAmountPerPerson: parsed.data.rateAmount,
     rateCurrency: parsed.data.rateCurrency,
     rateDetails: parsed.data.rateDetails,
   });
@@ -250,36 +272,48 @@ export async function sendAirBookingRateToExhibitor(input: z.infer<typeof sendRa
     return { error: emailResult.error ?? "Failed to send rate email" };
   }
 
-  const updated = await withDbRetry(() =>
-    prisma.airBookingMemberWorkflow.update({
-      where: { id: readyWorkflow.id },
-      data: {
-        status: "RATE_SENT",
-        rateAmount: parsed.data.rateAmount,
-        rateCurrency: parsed.data.rateCurrency,
-        rateDetails: parsed.data.rateDetails?.trim() || null,
-        rateSentAt: new Date(),
-      },
-    })
+  const rateDetails = parsed.data.rateDetails?.trim() || null;
+  const updatedWorkflows = await withDbRetry(() =>
+    prisma.$transaction(
+      readyWorkflows.map((workflow) =>
+        prisma.airBookingMemberWorkflow.update({
+          where: { id: workflow.id },
+          data: {
+            status: "RATE_SENT",
+            rateAmount: parsed.data.rateAmount,
+            rateCurrency: parsed.data.rateCurrency,
+            rateDetails,
+            rateSentAt: new Date(),
+          },
+        })
+      )
+    )
   );
 
-  await createAuditLog({
-    userId: user.id,
-    action: "UPDATE",
-    entity: "AirBookingMemberWorkflow",
-    entityId: updated.id,
-    details: {
-      status: "RATE_SENT",
-      memberLocalId: parsed.data.memberLocalId,
-      recipientEmail: contactEmail,
-      rateAmount: parsed.data.rateAmount,
-    },
-  });
+  for (const updated of updatedWorkflows) {
+    await createAuditLog({
+      userId: user.id,
+      action: "UPDATE",
+      entity: "AirBookingMemberWorkflow",
+      entityId: updated.id,
+      details: {
+        status: "RATE_SENT",
+        memberLocalId: updated.memberLocalId,
+        recipientEmail: contactEmail,
+        rateAmount: parsed.data.rateAmount,
+        travellerCount: parsed.data.travellers.length,
+      },
+    });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
 
-  return { success: true, workflow: serializeWorkflow(updated) };
+  return {
+    success: true,
+    workflows: updatedWorkflows.map(serializeWorkflow),
+    travellerCount: parsed.data.travellers.length,
+  };
 }
 
 export async function markAirBookingMemberPaid(

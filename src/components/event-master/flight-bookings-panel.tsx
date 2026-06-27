@@ -260,6 +260,19 @@ type CompanyBookingGroup = {
   rows: BookingRow[];
 };
 
+type RateTargetMember = {
+  memberLocalId: string;
+  travellerName: string;
+  travellerEmail: string | null;
+  travelDate: string;
+};
+
+type RateTarget = {
+  eventExhibitorId: string;
+  companyName: string;
+  members: RateTargetMember[];
+};
+
 type SendBatch = {
   request: SerializedAirBookingRequest;
   memberIds: string[];
@@ -312,14 +325,7 @@ export default function FlightBookingsPanel({
   const [message, setMessage] = useState("");
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [rateSubmitting, setRateSubmitting] = useState(false);
-  const [rateTarget, setRateTarget] = useState<{
-    eventExhibitorId: string;
-    memberLocalId: string;
-    travelDate: string;
-    travellerName: string;
-    travellerEmail: string | null;
-    contactEmail: string | null;
-  } | null>(null);
+  const [rateTarget, setRateTarget] = useState<RateTarget | null>(null);
   const [rateForm, setRateForm] = useState({
     amount: "",
     currency: "KES",
@@ -399,6 +405,34 @@ export default function FlightBookingsPanel({
     return canSendMemberToTravelAgent(workflowFor(eventExhibitorId, memberId)?.status);
   };
 
+  const rateEligibleRows = (group: CompanyBookingGroup) =>
+    group.rows.filter((row) => {
+      const workflow = workflowFor(row.request.eventExhibitorId, row.member.id);
+      const dispatched = memberWasDispatched(row.member.id, requests);
+      return canSendMemberRate(workflow?.status, dispatched);
+    });
+
+  const openRateModalForGroup = (group: CompanyBookingGroup) => {
+    const eligible = rateEligibleRows(group);
+    if (eligible.length === 0) {
+      notify.error("No travellers are ready for a rate quote");
+      return;
+    }
+
+    setRateTarget({
+      eventExhibitorId: group.eventExhibitorId,
+      companyName: group.companyName,
+      members: eligible.map(({ request, member }) => ({
+        memberLocalId: member.id,
+        travellerName: `${member.fn} ${member.ln}`,
+        travellerEmail: member.email?.trim() || null,
+        travelDate: request.travelDate,
+      })),
+    });
+    setRateForm({ amount: "", currency: "KES", details: "" });
+    setRateModalOpen(true);
+  };
+
   const handleVerify = async (eventExhibitorId: string, memberId: string) => {
     const key = `${eventExhibitorId}:${memberId}:verify`;
     setWorkflowBusyKey(key);
@@ -415,24 +449,6 @@ export default function FlightBookingsPanel({
     }
   };
 
-  const openRateModal = (
-    eventExhibitorId: string,
-    member: TeamMember,
-    travelDate: string,
-    contactEmail: string | null
-  ) => {
-    setRateTarget({
-      eventExhibitorId,
-      memberLocalId: member.id,
-      travelDate,
-      travellerName: `${member.fn} ${member.ln}`,
-      travellerEmail: member.email?.trim() || null,
-      contactEmail,
-    });
-    setRateForm({ amount: "", currency: "KES", details: "" });
-    setRateModalOpen(true);
-  };
-
   const submitRate = async () => {
     if (!rateTarget) return;
     const amount = Number(rateForm.amount);
@@ -445,8 +461,10 @@ export default function FlightBookingsPanel({
     try {
       const result = await sendAirBookingRateToExhibitor({
         eventExhibitorId: rateTarget.eventExhibitorId,
-        memberLocalId: rateTarget.memberLocalId,
-        travelDate: rateTarget.travelDate,
+        travellers: rateTarget.members.map((member) => ({
+          memberLocalId: member.memberLocalId,
+          travelDate: member.travelDate,
+        })),
         rateAmount: amount,
         rateCurrency: rateForm.currency.trim() || "KES",
         rateDetails: rateForm.details.trim() || undefined,
@@ -455,7 +473,12 @@ export default function FlightBookingsPanel({
         notify.error(result.error);
         return;
       }
-      notify.success("Flight rate emailed to exhibitor contact");
+      const count = rateTarget.members.length;
+      notify.success(
+        count === 1
+          ? "Flight rate emailed to exhibitor contact"
+          : `Flight rate emailed for ${count} travellers`
+      );
       setRateModalOpen(false);
       setRateTarget(null);
       router.refresh();
@@ -660,6 +683,7 @@ export default function FlightBookingsPanel({
             const allSelected =
               allRowKeys.length > 0 && allRowKeys.every((key) => selectedKeys.has(key));
             const someSelected = selectedCount > 0 && !allSelected;
+            const rateEligible = rateEligibleRows(group);
 
             return (
               <article
@@ -694,16 +718,29 @@ export default function FlightBookingsPanel({
                       ))}
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    className="shrink-0 gap-1.5"
-                    disabled={selectedCount === 0}
-                    onClick={() => openSendForCompanyGroup(group)}
-                  >
-                    <Mail className="h-4 w-4" />
-                    Send to travel agent
-                    {selectedCount > 0 ? ` (${selectedCount})` : ""}
-                  </Button>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={rateEligible.length === 0}
+                      onClick={() => openRateModalForGroup(group)}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Send rate
+                      {rateEligible.length > 0 ? ` (${rateEligible.length})` : ""}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={selectedCount === 0}
+                      onClick={() => openSendForCompanyGroup(group)}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Send to travel agent
+                      {selectedCount > 0 ? ` (${selectedCount})` : ""}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto px-4 py-3 sm:px-5">
@@ -746,7 +783,6 @@ export default function FlightBookingsPanel({
                           requests,
                           docs.hasPassport
                         );
-                        const exhibitorRecord = exhibitorMap.get(request.eventExhibitorId);
                         const sendAllowed = canSendToAgent(request.eventExhibitorId, member.id);
                         const alreadySent = memberWasDispatched(member.id, requests);
                         const busyVerify = workflowBusyKey === `${request.eventExhibitorId}:${member.id}:verify`;
@@ -823,14 +859,7 @@ export default function FlightBookingsPanel({
                                 onVerify={() =>
                                   void handleVerify(request.eventExhibitorId, member.id)
                                 }
-                                onSendRate={() =>
-                                  openRateModal(
-                                    request.eventExhibitorId,
-                                    member,
-                                    request.travelDate,
-                                    exhibitorRecord?.contactEmail ?? request.contactEmail
-                                  )
-                                }
+                                onSendRate={() => openRateModalForGroup(group)}
                                 onMarkPaid={() =>
                                   void handleMarkPaid(request.eventExhibitorId, member.id)
                                 }
@@ -876,45 +905,31 @@ export default function FlightBookingsPanel({
         >
           <div className="space-y-4">
             <div className="rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm">
-              <div className="flex flex-wrap gap-x-6 gap-y-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Traveller
-                  </p>
-                  <p className="mt-0.5 font-medium">{rateTarget.travellerName}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Email
-                  </p>
-                  <p className="mt-0.5 font-medium">
-                    {rateTarget.travellerEmail || "—"}
-                  </p>
-                </div>
-              </div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {rateTarget.companyName} · {rateTarget.members.length} traveller
+                {rateTarget.members.length === 1 ? "" : "s"}
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {rateTarget.members.map((member) => (
+                  <li key={member.memberLocalId} className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    <span className="font-medium">{member.travellerName}</span>
+                    <span className="text-muted-foreground">
+                      {member.travellerEmail || "No email"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="text-sm text-muted-foreground">
-              The rate quote will be emailed to the exhibitor&apos;s main contact
-              {rateTarget.contactEmail ? (
-                <>
-                  {" "}
-                  (<span className="font-medium text-foreground">{rateTarget.contactEmail}</span>)
-                </>
-              ) : (
-                " on file"
-              )}
-              . Payment is handled outside the portal.
-            </p>
             <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
               <div className="space-y-2">
-                <Label>Rate amount</Label>
+                <Label>Rate per person</Label>
                 <Input
                   type="number"
                   min={0}
                   step="0.01"
                   value={rateForm.amount}
                   onChange={(e) => setRateForm({ ...rateForm, amount: e.target.value })}
-                  placeholder="45000"
+                  placeholder="1500"
                 />
               </div>
               <div className="space-y-2">
@@ -926,6 +941,17 @@ export default function FlightBookingsPanel({
                 />
               </div>
             </div>
+            {rateForm.amount && Number(rateForm.amount) > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Combined total:{" "}
+                <span className="font-semibold text-foreground">
+                  {rateForm.currency}{" "}
+                  {(Number(rateForm.amount) * rateTarget.members.length).toLocaleString()}
+                </span>{" "}
+                ({rateTarget.members.length} × {rateForm.currency}{" "}
+                {Number(rateForm.amount).toLocaleString()} per person)
+              </p>
+            )}
             <div className="space-y-2">
               <Label>Flight details (optional)</Label>
               <Textarea
@@ -935,6 +961,9 @@ export default function FlightBookingsPanel({
                 placeholder="Airline, route, class, baggage…"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Email is sent via Postmark to the exhibitor&apos;s main contact.
+            </p>
           </div>
         </ModalShell>
       )}

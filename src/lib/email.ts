@@ -329,31 +329,32 @@ export async function sendFlightBookingRateEmail({
   to,
   companyName,
   eventTitle,
-  travellerName,
-  travelDate,
-  rateAmount,
+  travellers,
+  rateAmountPerPerson,
   rateCurrency,
   rateDetails,
 }: {
   to: string;
   companyName: string;
   eventTitle: string;
-  travellerName: string;
-  travelDate: string;
-  rateAmount: number;
+  travellers: {
+    name: string;
+    email: string;
+    travelDate: string;
+  }[];
+  rateAmountPerPerson: number;
   rateCurrency: string;
   rateDetails?: string;
 }) {
   return sendEmail({
     to,
     tag: "flight-booking-rate",
-    subject: flightBookingRateEmailSubject(companyName, travellerName),
+    subject: flightBookingRateEmailSubject(companyName, travellers.length),
     html: flightBookingRateEmailHtml({
       companyName,
       eventTitle,
-      travellerName,
-      travelDate,
-      rateAmount,
+      travellers,
+      rateAmountPerPerson,
       rateCurrency,
       rateDetails,
     }),

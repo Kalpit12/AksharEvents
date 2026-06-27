@@ -1,27 +1,11 @@
-import { BRAND } from "@/lib/utils";
-import { flightBookingShortEventName } from "@/lib/email-templates/flight-booking-package";
-
-export type FlightBookingRateTraveller = {
-  name: string;
-  email: string;
-  travelDate: string;
-};
-
-export type FlightBookingRateEmailParams = {
-  companyName: string;
-  eventTitle: string;
-  travellers: FlightBookingRateTraveller[];
-  rateAmountPerPerson: number;
-  rateCurrency: string;
-  rateDetails?: string;
-};
-
-const EMAIL_TEMPLATE = `<!DOCTYPE html>
+<!DOCTYPE html>
+<!-- AksharEvents browser preview — flight rate quote email to exhibitor.
+     Production template lives in flight-booking-rate.ts (keep styles in sync). -->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AksharEvents: Flight rate quote ({{shortEventName}})</title>
+  <title>AksharEvents: Flight rate quote (Career Expo 2026)</title>
 </head>
 <body style="margin: 0; padding: 0; background: #f9f6f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9f6f0; padding: 32px 16px;">
@@ -35,7 +19,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                   <td style="width: 44px; height: 44px; background: #c5a880; border-radius: 11px; text-align: center; vertical-align: middle; font-size: 20px; font-weight: 700; color: #1c1a17;">A</td>
                 </tr>
               </table>
-              <p style="margin: 0 0 4px; font-size: 24px; font-weight: 700; color: #f9f6f0; letter-spacing: -0.02em;">{{brandName}}</p>
+              <p style="margin: 0 0 4px; font-size: 24px; font-weight: 700; color: #f9f6f0; letter-spacing: -0.02em;">AksharEvents</p>
               <p style="margin: 0; font-size: 12px; color: #d9c9a8; letter-spacing: 0.04em; text-transform: uppercase;">Flight Rate Quote</p>
             </td>
           </tr>
@@ -43,10 +27,10 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
             <td style="padding: 32px 32px 24px; background: #ffffff;">
               <h1 style="margin: 0 0 8px; font-size: 21px; font-weight: 700; color: #1c1a17; line-height: 1.35;">Flight rate quote</h1>
               <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b6560;">
-                Please find the quoted flight rates for your team travelling to <strong style="color: #1c1a17;">{{eventTitle}}</strong> on behalf of <strong style="color: #1c1a17;">{{companyName}}</strong>.
+                Please find the quoted flight rates for your team travelling to <strong style="color: #1c1a17;">Career Expo 2026</strong> on behalf of <strong style="color: #1c1a17;">Maxpro Infotech Ltd</strong>.
               </p>
 
-              <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travellers ({{travellerCount}})</p>
+              <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Travellers (2)</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e5dfd4; border-radius: 12px; overflow: hidden; margin: 0 0 24px;">
                 <tr style="background: #efece6;">
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">#</th>
@@ -54,17 +38,27 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Email</th>
                   <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6560; border-bottom: 1px solid #e5dfd4;">Travel date</th>
                 </tr>
-                {{travellerRows}}
+                <tr>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #6b6560; font-size: 13px;">1</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; font-weight: 600; color: #1c1a17; font-size: 13px;">Kapz Patel</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">kalpitpatel12@yahoo.com</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">Jun 30, 2026</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #6b6560; font-size: 13px;">2</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; font-weight: 600; color: #1c1a17; font-size: 13px;">Ronald Misiko</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">ronald@example.com</td>
+                  <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">Jun 30, 2026</td>
+                </tr>
               </table>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
                 <tr>
                   <td style="background: #f9f6f0; border: 1px solid #e5dfd4; border-radius: 12px; padding: 20px 22px;">
                     <p style="margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Rate per person</p>
-                    <p style="margin: 0 0 14px; font-size: 28px; font-weight: 700; color: #1c1a17; line-height: 1.2;">{{perPersonRate}}</p>
-                    <p style="margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Combined total ({{travellerCount}} travellers)</p>
-                    <p style="margin: 0; font-size: 20px; font-weight: 700; color: #1c1a17;">{{totalRate}}</p>
-                    {{detailsBlock}}
+                    <p style="margin: 0 0 14px; font-size: 28px; font-weight: 700; color: #1c1a17; line-height: 1.2;">USD 1,500</p>
+                    <p style="margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #b3966e;">Combined total (2 travellers)</p>
+                    <p style="margin: 0; font-size: 20px; font-weight: 700; color: #1c1a17;">USD 3,000</p>
                   </td>
                 </tr>
               </table>
@@ -83,7 +77,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
                 For any queries, contact us at <a href="mailto:info@aksharevents.com" style="color: #b3966e; text-decoration: none; font-weight: 600;">info@aksharevents.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #6b6560; text-align: center;">
-                © {{year}} {{brandName}}. All rights reserved.
+                © 2026 AksharEvents. All rights reserved.
               </p>
             </td>
           </tr>
@@ -92,62 +86,4 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
     </tr>
   </table>
 </body>
-</html>`;
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function fillTemplate(template: string, vars: Record<string, string>) {
-  return Object.entries(vars).reduce(
-    (html, [key, value]) => html.replaceAll(`{{${key}}}`, value),
-    template
-  );
-}
-
-function formatMoney(amount: number, currency: string) {
-  return `${currency} ${amount.toLocaleString()}`;
-}
-
-function buildTravellerRows(travellers: FlightBookingRateTraveller[]) {
-  return travellers
-    .map(
-      (traveller, index) => `
-      <tr>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #6b6560; font-size: 13px;">${index + 1}</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; font-weight: 600; color: #1c1a17; font-size: 13px;">${escapeHtml(traveller.name)}</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">${escapeHtml(traveller.email)}</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #e5dfd4; color: #1c1a17; font-size: 13px;">${escapeHtml(traveller.travelDate)}</td>
-      </tr>`
-    )
-    .join("");
-}
-
-export function flightBookingRateEmailSubject(companyName: string, travellerCount: number) {
-  const label = travellerCount === 1 ? "1 traveller" : `${travellerCount} travellers`;
-  return `Flight rate quote (${label}) — ${companyName}`;
-}
-
-export function flightBookingRateEmailHtml(params: FlightBookingRateEmailParams) {
-  const total = params.rateAmountPerPerson * params.travellers.length;
-  const detailsBlock = params.rateDetails?.trim()
-    ? `<p style="margin: 16px 0 0; padding-top: 14px; border-top: 1px solid #e5dfd4; font-size: 13px; line-height: 1.6; color: #4b5563; white-space: pre-wrap;">${escapeHtml(params.rateDetails.trim())}</p>`
-    : "";
-
-  return fillTemplate(EMAIL_TEMPLATE, {
-    brandName: escapeHtml(BRAND.name),
-    year: String(new Date().getFullYear()),
-    companyName: escapeHtml(params.companyName),
-    eventTitle: escapeHtml(params.eventTitle),
-    shortEventName: escapeHtml(flightBookingShortEventName(params.eventTitle)),
-    travellerCount: String(params.travellers.length),
-    travellerRows: buildTravellerRows(params.travellers),
-    perPersonRate: escapeHtml(formatMoney(params.rateAmountPerPerson, params.rateCurrency)),
-    totalRate: escapeHtml(formatMoney(total, params.rateCurrency)),
-    detailsBlock,
-  });
-}
+</html>
