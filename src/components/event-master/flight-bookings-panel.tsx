@@ -20,11 +20,6 @@ import type { TeamMember } from "@/components/exhibitor-portal/types";
 import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import { DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL } from "@/lib/flight-booking-config";
 import { sendCombinedAirBookingPackageToAgent } from "@/lib/air-booking-actions";
-import {
-  flightBookingPackageAttachmentName,
-  flightBookingPackageEmailHtml,
-  flightBookingPackageEmailSubject,
-} from "@/lib/email-templates/flight-booking-package";
 import { MEMBER_DOCUMENT_LABELS } from "@/lib/member-document-types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -32,7 +27,7 @@ import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { ModalShell } from "@/components/exhibitor-portal/exhibitor-portal-ui";
 import { cn, formatDate } from "@/lib/utils";
-import { Check, ChevronDown, ExternalLink, Eye, FileText, Mail, MoreHorizontal, Plane, Search, ShieldCheck } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, FileText, Mail, MoreHorizontal, Plane, Search, ShieldCheck } from "lucide-react";
 import { notify } from "@/lib/notify";
 import type { MemberDocumentType } from "@prisma/client";
 
@@ -322,7 +317,6 @@ export default function FlightBookingsPanel({
   const [companySelection, setCompanySelection] = useState<Record<string, Set<string>>>({});
   const [recipientEmail, setRecipientEmail] = useState(agentEmail);
   const [message, setMessage] = useState("");
-  const [showEmailPreview, setShowEmailPreview] = useState(true);
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [rateSubmitting, setRateSubmitting] = useState(false);
   const [rateTarget, setRateTarget] = useState<{
@@ -579,45 +573,6 @@ export default function FlightBookingsPanel({
       membersForRequest(batch.request).filter((m) => batch.memberIds.includes(m.id))
     );
   }, [sendBatches, activeRequest, exhibitorMap]);
-
-  const emailPreview = useMemo(() => {
-    if (!activeRequest || modalTravellers.length === 0) return null;
-
-    const members = modalTravellers.map((m) => ({
-      name: `${m.fn} ${m.ln}`,
-      email: m.email,
-      passportNumber: m.passportNumber?.trim() || "—",
-    }));
-
-    const previewTravelDate =
-      sendBatches[0]?.request.travelDate ?? activeRequest.travelDate;
-
-    return {
-      subject: flightBookingPackageEmailSubject(eventTitle),
-      to: recipientEmail.trim() || agentEmail,
-      cc: defaultCcEmail || undefined,
-      html: flightBookingPackageEmailHtml({
-        companyName: activeRequest.companyName,
-        eventTitle,
-        travelDate: formatDate(previewTravelDate, "MMM d, yyyy"),
-        ticketCount: members.length,
-        members,
-        message: message.trim() || undefined,
-        attachmentNames: members.map((m, i) =>
-          flightBookingPackageAttachmentName(m.name, i + 1)
-        ),
-      }),
-    };
-  }, [
-    activeRequest,
-    modalTravellers,
-    sendBatches,
-    recipientEmail,
-    message,
-    eventTitle,
-    agentEmail,
-    defaultCcEmail,
-  ]);
 
   const submitSend = async () => {
     const batches =
@@ -1054,7 +1009,7 @@ export default function FlightBookingsPanel({
         >
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Email is sent through Postmark with traveller PDFs attached. Review the preview before sending.
+              Email is sent through Postmark with traveller PDFs attached.
             </p>
             <div className="space-y-2">
               <Label>Travel agent</Label>
@@ -1105,47 +1060,6 @@ export default function FlightBookingsPanel({
               {modalTravellers.length > 1 && (
                 <p className="text-xs text-muted-foreground">
                   All {modalTravellers.length} travellers will be included in one email to the travel agent.
-                </p>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-border bg-muted/20">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                onClick={() => setShowEmailPreview((open) => !open)}
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Eye className="h-4 w-4 text-champagne-dark" />
-                  Email preview
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {showEmailPreview ? "Hide" : "Show"}
-                </span>
-              </button>
-              {showEmailPreview && emailPreview && (
-                <div className="space-y-3 border-t border-border px-4 pb-4 pt-3">
-                  <div className="rounded-lg bg-card px-3 py-2 text-xs text-muted-foreground">
-                    <p><span className="font-medium text-foreground">Subject:</span> {emailPreview.subject}</p>
-                    <p className="mt-1"><span className="font-medium text-foreground">To:</span> {emailPreview.to}</p>
-                    {emailPreview.cc && (
-                      <p className="mt-1"><span className="font-medium text-foreground">Cc:</span> {emailPreview.cc}</p>
-                    )}
-                    <p className="mt-1"><span className="font-medium text-foreground">Via:</span> Postmark</p>
-                  </div>
-                  <div className="overflow-hidden rounded-xl border border-border bg-[#f9f6f0]">
-                    <iframe
-                      title="Flight booking email preview"
-                      srcDoc={emailPreview.html}
-                      className="h-[420px] w-full border-0 bg-white"
-                      sandbox=""
-                    />
-                  </div>
-                </div>
-              )}
-              {showEmailPreview && !emailPreview && (
-                <p className="border-t border-border px-4 pb-4 pt-3 text-xs text-muted-foreground">
-                  Select at least one traveller to preview the email.
                 </p>
               )}
             </div>
