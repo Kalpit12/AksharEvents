@@ -92,6 +92,13 @@ export async function POST(request: Request) {
       console.error("Document audit log failed:", auditError);
     }
 
+    if (documentType === "PASSPORT") {
+      const { ensureMemberVerificationPending } = await import(
+        "@/lib/air-booking-workflow-actions"
+      );
+      await ensureMemberVerificationPending(eventExhibitorId, memberLocalId);
+    }
+
     return NextResponse.json({
       success: true,
       document: {

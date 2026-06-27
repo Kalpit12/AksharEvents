@@ -12,6 +12,7 @@ import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { listAirBookingRequestsForEvent } from "@/lib/air-booking-actions";
+import { listAirBookingMemberWorkflowsForEvent } from "@/lib/air-booking-workflow-actions";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
@@ -89,7 +90,7 @@ export default async function AdminEventMasterPage() {
     orderBy: { startAt: "asc" },
   });
 
-  const [eventHotels, eventRestaurants, scheduleItems, airBookingRequests, memberDocumentRows] =
+  const [eventHotels, eventRestaurants, scheduleItems, airBookingRequests, memberDocumentRows, memberWorkflows] =
     await Promise.all([
       prisma.eventHotel.findMany({
         where: { eventId: event.id },
@@ -108,6 +109,7 @@ export default async function AdminEventMasterPage() {
         where: { eventExhibitor: { eventId: event.id } },
         orderBy: { createdAt: "desc" },
       }),
+      listAirBookingMemberWorkflowsForEvent(event.id),
     ]);
 
   const memberDocuments: SerializedMemberDocument[] = memberDocumentRows.map((doc) => ({
@@ -154,6 +156,7 @@ export default async function AdminEventMasterPage() {
         scheduleItems={scheduleItems.map(serializeEventScheduleItem)}
         airBookingRequests={airBookingRequests}
         memberDocuments={memberDocuments}
+        memberWorkflows={memberWorkflows}
         flightBookingAgentEmail={getFlightBookingAgentEmail()}
         flightBookingCcEmail={
           process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""

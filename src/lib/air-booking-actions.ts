@@ -7,6 +7,7 @@ import type { SavedRegistrationData } from "@/components/exhibitor-portal/regist
 import { createAuditLog } from "@/lib/audit";
 import { buildMemberDocumentsPdf } from "@/lib/air-booking-pdf";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import { canSendMemberToTravelAgent } from "@/lib/air-booking-workflow-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import { sendFlightBookingPackageEmail, sendFlightBookingRequestNotification } from "@/lib/email";
 import { getEventExhibitorForUser, requireExhibitorAccess } from "@/lib/exhibitor";
@@ -114,6 +115,17 @@ export async function createAirBookingRequest(input: z.infer<typeof createReques
     return { error: "One or more selected team members were not found" };
   }
 
+  const existingRequests = await prisma.airBookingRequest.findMany({
+    where: { eventExhibitorId: parsed.data.eventExhibitorId },
+    select: { memberLocalIds: true },
+  });
+  const alreadyRequestedIds = new Set(existingRequests.flatMap((r) => r.memberLocalIds));
+  const duplicateMembers = selected.filter((m) => alreadyRequestedIds.has(m.id));
+  if (duplicateMembers.length > 0) {
+    const names = duplicateMembers.map((m) => `${m.fn} ${m.ln}`).join(", ");
+    return { error: `Flight booking already requested for: ${names}` };
+  }
+
   for (const member of selected) {
     if (!member.passportNumber?.trim()) {
       return { error: `${member.fn} ${member.ln} is missing a passport number` };
@@ -134,6 +146,11 @@ export async function createAirBookingRequest(input: z.infer<typeof createReques
 
   const travelDate = new Date(parsed.data.travelDate);
   if (Number.isNaN(travelDate.getTime())) return { error: "Invalid travel date" };
+
+  const { ensureMemberVerificationPending } = await import("@/lib/air-booking-workflow-actions");
+  for (const member of selected) {
+    await ensureMemberVerificationPending(parsed.data.eventExhibitorId, member.id);
+  }
 
   const request = await withDbRetry(() =>
     prisma.airBookingRequest.create({
@@ -249,6 +266,22 @@ export async function sendAirBookingPackageToAgent(input: z.infer<typeof sendPac
   const members = membersFromFormData(request.eventExhibitor.registration?.formData);
   const selectedMembers = members.filter((m) => parsed.data.memberLocalIds.includes(m.id));
   if (selectedMembers.length === 0) return { error: "No valid members selected" };
+
+  const workflows = await prisma.airBookingMemberWorkflow.findMany({
+    where: {
+      eventExhibitorId: request.eventExhibitorId,
+      memberLocalId: { in: selectedMembers.map((m) => m.id) },
+    },
+  });
+  const workflowByMember = new Map(workflows.map((w) => [w.memberLocalId, w.status]));
+  for (const member of selectedMembers) {
+    const status = workflowByMember.get(member.id);
+    if (!canSendMemberToTravelAgent(status)) {
+      return {
+        error: `${member.fn} ${member.ln} must be verified before sending to the travel agent`,
+      };
+    }
+  }
 
   const travelDateLabel = formatDate(request.travelDate.toISOString(), "MMM d, yyyy");
   const attachments: { name: string; content: string; contentType: string }[] = [];
@@ -390,6 +423,22 @@ export async function sendCombinedAirBookingPackageToAgent(
 
   if (orderedMembers.length === 0) {
     return { error: "No valid members selected" };
+  }
+
+  const workflows = await prisma.airBookingMemberWorkflow.findMany({
+    where: {
+      eventExhibitorId: parsed.data.eventExhibitorId,
+      memberLocalId: { in: orderedMembers.map((m) => m.id) },
+    },
+  });
+  const workflowByMember = new Map(workflows.map((w) => [w.memberLocalId, w.status]));
+  for (const member of orderedMembers) {
+    const status = workflowByMember.get(member.id);
+    if (!canSendMemberToTravelAgent(status)) {
+      return {
+        error: `${member.fn} ${member.ln} must be verified before sending to the travel agent`,
+      };
+    }
   }
 
   const eventExhibitor = requests[0]!.eventExhibitor;

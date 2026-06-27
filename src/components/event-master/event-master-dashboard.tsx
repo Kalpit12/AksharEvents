@@ -16,6 +16,7 @@ import {
 } from "@/components/event-master/event-config-panels";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import type { SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
@@ -76,6 +77,7 @@ type Props = {
   scheduleItems?: EventScheduleItemOption[];
   airBookingRequests?: SerializedAirBookingRequest[];
   memberDocuments?: SerializedMemberDocument[];
+  memberWorkflows?: SerializedAirBookingMemberWorkflow[];
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
 };
@@ -108,6 +110,7 @@ export default function EventMasterDashboard({
   scheduleItems = [],
   airBookingRequests = [],
   memberDocuments = [],
+  memberWorkflows = [],
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
 }: Props) {
@@ -225,6 +228,7 @@ export default function EventMasterDashboard({
           requests={airBookingRequests}
           exhibitors={exhibitors}
           memberDocuments={memberDocuments}
+          memberWorkflows={memberWorkflows}
           eventTitle={eventTitle}
           defaultAgentEmail={flightBookingAgentEmail}
           defaultCcEmail={flightBookingCcEmail}

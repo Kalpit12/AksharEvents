@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CustomSelect,
   fromAllValue,
@@ -17,11 +18,10 @@ import {
   type VisaDocuments,
 } from "@/components/exhibitor-portal/registration-travel-step";
 import {
-  AVATAR_COLORS,
-  BOOTH_SIZE_OPTIONS,
-  AV_OPTIONS,
   MEMBER_ROLES,
   ROLE_BADGE,
+  BOOTH_SIZE_OPTIONS,
+  AV_OPTIONS,
   SHUTTLE_OPTIONS,
   TRANSPORT_OPTIONS,
   VEHICLE_OPTIONS,
@@ -70,6 +70,7 @@ import {
   Calendar,
   CalendarDays,
   Check,
+  ChevronDown,
   ClipboardCheck,
   Clock,
   Coffee,
@@ -82,6 +83,7 @@ import {
   LayoutDashboard,
   Leaf,
   MapPin,
+  Pencil,
   Plane,
   Plus,
   Salad,
@@ -104,7 +106,15 @@ import {
   updateExhibitorMemberPassport,
 } from "@/lib/exhibitor-actions";
 import { createAirBookingRequest } from "@/lib/air-booking-actions";
-import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import {
+  memberIdsWithAirBookingRequest,
+  type SerializedAirBookingRequest,
+} from "@/lib/air-booking-types";
+import {
+  resolveExhibitorMemberFlightStatus,
+  type SerializedAirBookingMemberWorkflow,
+} from "@/lib/air-booking-workflow-types";
+import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter } from "next/navigation";
@@ -135,6 +145,7 @@ export type ExhibitorPortalProps = {
   openEvents?: OpenExhibitorEvent[];
   memberDocuments?: SerializedMemberDocument[];
   airBookingRequests?: SerializedAirBookingRequest[];
+  memberWorkflows?: SerializedAirBookingMemberWorkflow[];
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -144,10 +155,6 @@ const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ class
   { id: "tours", label: "Tours & travel", icon: MapPin },
   { id: "food", label: "Food outings", icon: ForkKnife },
 ];
-
-function initials(m: TeamMember) {
-  return (m.fn[0] + m.ln[0]).toUpperCase();
-}
 
 function defaultForm(props: ExhibitorPortalProps) {
   const setupOptions = buildSetupDateOptions(props.startDate);
@@ -215,8 +222,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [airBookingRequests, setAirBookingRequests] = useState<SerializedAirBookingRequest[]>(
     () => props.airBookingRequests ?? []
   );
+  const [memberWorkflows, setMemberWorkflows] = useState<SerializedAirBookingMemberWorkflow[]>(
+    () => props.memberWorkflows ?? []
+  );
   const [memberFilter, setMemberFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [airBookingModalOpen, setAirBookingModalOpen] = useState(false);
   const [airBookingForm, setAirBookingForm] = useState({ travelDate: "", notes: "" });
   const [airBookingMemberIds, setAirBookingMemberIds] = useState<string[]>([]);
@@ -269,6 +280,16 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const filteredMembers = useMemo(
     () => (memberFilter ? members.filter((m) => m.role === memberFilter) : members),
     [members, memberFilter]
+  );
+
+  const membersAlreadyRequested = useMemo(
+    () => memberIdsWithAirBookingRequest(airBookingRequests),
+    [airBookingRequests]
+  );
+
+  const membersAvailableForAirBooking = useMemo(
+    () => members.filter((m) => !membersAlreadyRequested.has(m.id)),
+    [members, membersAlreadyRequested]
   );
 
   const progressPct = useMemo(() => {
@@ -366,6 +387,18 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   );
 
   useEffect(() => {
+    setAirBookingRequests(props.airBookingRequests ?? []);
+  }, [props.airBookingRequests]);
+
+  useEffect(() => {
+    setMemberWorkflows(props.memberWorkflows ?? []);
+  }, [props.memberWorkflows]);
+
+  useEffect(() => {
+    setMemberDocuments(props.memberDocuments ?? []);
+  }, [props.memberDocuments]);
+
+  useEffect(() => {
     if (!props.eventExhibitorId || isSubmitted || !hasRegistrationProgress) return;
 
     const timer = setTimeout(() => {
@@ -420,13 +453,49 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       const finalSteps = { company: true, event: true, travel: true, transport: true, food: true };
       setFormSteps(finalSteps);
       const result = await persistRegistration({ formSteps: finalSteps, regStep }, "SUBMITTED");
-      if (result?.success) {
+      if (result && "success" in result && result.success) {
         setRegistrationStatus("SUBMITTED");
         notify.success("Registration submitted");
       }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openAddMemberModal = () => {
+    setEditingMemberId(null);
+    setMemberForm({
+      fn: "",
+      ln: "",
+      role: "Lead exhibitor",
+      email: "",
+      phone: "",
+      passportNumber: "",
+      transport: "",
+      hotel: "",
+      diet: "",
+      tours: "",
+      notes: "",
+    });
+    setModalOpen(true);
+  };
+
+  const openEditMemberModal = (member: TeamMember) => {
+    setEditingMemberId(member.id);
+    setMemberForm({
+      fn: member.fn,
+      ln: member.ln,
+      role: member.role,
+      email: member.email,
+      phone: member.phone,
+      passportNumber: member.passportNumber ?? "",
+      transport: member.transport,
+      hotel: member.hotel,
+      diet: member.diet,
+      tours: member.tours,
+      notes: member.notes,
+    });
+    setModalOpen(true);
   };
 
   const addMember = async () => {
@@ -443,7 +512,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       return;
     }
 
-    if (props.canManageMembers) {
+    if (props.canManageMembers && !editingMemberId) {
       setAddingMember(true);
       try {
         const fd = new FormData();
@@ -460,6 +529,46 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       } finally {
         setAddingMember(false);
       }
+    }
+
+    if (editingMemberId) {
+      const nextMembers = members.map((m) =>
+        m.id === editingMemberId
+          ? {
+              ...m,
+              fn: memberForm.fn.trim(),
+              ln: memberForm.ln.trim(),
+              role: memberForm.role,
+              email: memberForm.email.trim(),
+              phone: memberForm.phone.trim(),
+              passportNumber: memberForm.passportNumber.trim(),
+              transport: memberForm.transport,
+              hotel: memberForm.hotel,
+              diet: memberForm.diet.trim(),
+              tours: memberForm.tours,
+              notes: memberForm.notes,
+            }
+          : m
+      );
+      setMembers(nextMembers);
+      setEditingMemberId(null);
+      setMemberForm({
+        fn: "",
+        ln: "",
+        role: "Lead exhibitor",
+        email: "",
+        phone: "",
+        passportNumber: "",
+        transport: "",
+        hotel: "",
+        diet: "",
+        tours: "",
+        notes: "",
+      });
+      setModalOpen(false);
+      await persistRegistration({ members: nextMembers });
+      notify.success("Member updated");
+      return;
     }
 
     const nextMembers = [
@@ -631,11 +740,15 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   };
 
   const openAirBookingModal = () => {
-    if (members.length === 0) {
-      notify.error("Add team members first");
+    if (membersAvailableForAirBooking.length === 0) {
+      if (members.length === 0) {
+        notify.error("Add team members first");
+      } else {
+        notify.info("All team members already have a flight booking request");
+      }
       return;
     }
-    setAirBookingMemberIds(members.map((m) => m.id));
+    setAirBookingMemberIds(membersAvailableForAirBooking.map((m) => m.id));
     setAirBookingModalOpen(true);
   };
 
@@ -807,7 +920,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           <Panel title="Quick actions" icon={LayoutDashboard}>
             <QuickActionsRow>
               <QuickAction highlight label="Complete registration" sub="Fill in company, travel & food details" onClick={() => { setTab("registration"); goStep(1); }} />
-              <QuickAction label="Add team members" sub="Manage passes, transport & meals" onClick={() => { setTab("members"); setModalOpen(true); }} />
+              <QuickAction label="Add team members" sub="Manage passes, transport & meals" onClick={() => { setTab("members"); openAddMemberModal(); }} />
               <QuickAction label="Book tours" sub="Safari, city tours & excursions" onClick={() => setTab("tours")} />
               <QuickAction label="Plan food outings" sub="Vegetarian meals & dining" onClick={() => setTab("food")} />
             </QuickActionsRow>
@@ -839,7 +952,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                     done={item.done}
                     onAction={
                       item.key === "members"
-                        ? () => setModalOpen(true)
+                        ? () => openAddMemberModal()
                         : () => {
                             setTab("registration");
                             const stepMap: Record<string, number> = {
@@ -902,7 +1015,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 >
                   <Plane className="h-4 w-4" /> Request air booking
                 </Button>
-                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
+                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={openAddMemberModal}>
                   <Plus className="h-4 w-4" /> Add member
                 </Button>
               </div>
@@ -916,7 +1029,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   description="Add your team to manage passes, transport and food."
                   compact
                   action={
-                    <Button onClick={() => setModalOpen(true)} className="gap-1">
+                    <Button onClick={openAddMemberModal} className="gap-1">
                       <Plus className="h-4 w-4" /> Add member
                     </Button>
                   }
@@ -928,6 +1041,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 members={filteredMembers.slice(0, 5)}
                 overview
                 airBookingRequests={airBookingRequests}
+                memberWorkflows={memberWorkflows}
               />
             )}
           </Panel>
@@ -1168,7 +1282,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 >
                   <Plane className="h-4 w-4" /> Request air booking
                 </Button>
-                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={() => setModalOpen(true)}>
+                <Button size="sm" className="shrink-0 gap-1 whitespace-nowrap" onClick={openAddMemberModal}>
                   <Plus className="h-4 w-4" /> Add member
                 </Button>
               </div>
@@ -1181,7 +1295,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   title="No team members yet"
                   description="Add your team members to manage passes, transport and food."
                   action={
-                    <Button onClick={() => setModalOpen(true)} className="gap-1">
+                    <Button onClick={openAddMemberModal} className="gap-1">
                       <Plus className="h-4 w-4" /> Add first member
                     </Button>
                   }
@@ -1192,8 +1306,10 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               <MemberTable
                 members={filteredMembers}
                 onRemove={removeMember}
+                onEdit={openEditMemberModal}
                 full
                 airBookingRequests={airBookingRequests}
+                memberWorkflows={memberWorkflows}
                 onOpenDocuments={openDocumentsModal}
                 memberDocCount={memberDocCount}
                 memberHasPassportDoc={memberHasPassportDoc}
@@ -1312,15 +1428,27 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
       {modalOpen && (
         <ModalShell
-          title="Add team member"
-          icon={UserPlus}
-          onClose={() => setModalOpen(false)}
+          title={editingMemberId ? "Edit team member" : "Add team member"}
+          icon={editingMemberId ? Pencil : UserPlus}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingMemberId(null);
+          }}
           wide
           footer={
             <>
-              <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setModalOpen(false);
+                  setEditingMemberId(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button onClick={addMember} disabled={addingMember} className="gap-1 bg-primary hover:bg-champagne-dark">
-                <Check className="h-4 w-4" /> {addingMember ? "Adding…" : "Add member"}
+                <Check className="h-4 w-4" />{" "}
+                {addingMember ? "Saving…" : editingMemberId ? "Save changes" : "Add member"}
               </Button>
             </>
           }
@@ -1339,7 +1467,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 <Field label="Passport number"><Input value={memberForm.passportNumber} onChange={(e) => setMemberForm({ ...memberForm, passportNumber: e.target.value })} placeholder="Required for flight booking" /></Field>
               </div>
             </div>
-            {props.canManageMembers && (
+            {props.canManageMembers && !editingMemberId && (
               <p className="rounded-lg bg-teal-50 px-3 py-2 text-xs text-teal-900 dark:bg-teal-900/20 dark:text-teal-200">
                 A welcome email with exhibitor portal login credentials will be sent to this member.
               </p>
@@ -1461,8 +1589,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             </Field>
             <div className="space-y-2">
               <Label>Travellers</Label>
+              {membersAvailableForAirBooking.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+                  All team members already have a flight booking request.
+                </p>
+              ) : (
               <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border p-2">
-                {members.map((member) => {
+                {membersAvailableForAirBooking.map((member) => {
                   const selected = airBookingMemberIds.includes(member.id);
                   const ready =
                     Boolean(member.passportNumber?.trim()) && memberHasPassportDoc(member.id);
@@ -1501,6 +1634,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   );
                 })}
               </div>
+              )}
             </div>
           </div>
         </ModalShell>
@@ -1588,7 +1722,9 @@ function MemberTable({
   overview,
   full,
   onRemove,
+  onEdit,
   airBookingRequests = [],
+  memberWorkflows = [],
   onOpenDocuments,
   memberDocCount,
   memberHasPassportDoc,
@@ -1598,7 +1734,9 @@ function MemberTable({
   overview?: boolean;
   full?: boolean;
   onRemove?: (id: string) => void;
+  onEdit?: (member: TeamMember) => void;
   airBookingRequests?: SerializedAirBookingRequest[];
+  memberWorkflows?: SerializedAirBookingMemberWorkflow[];
   onOpenDocuments?: (member: TeamMember) => void;
   memberDocCount?: (memberId: string) => number;
   memberHasPassportDoc?: (memberId: string) => boolean;
@@ -1608,41 +1746,34 @@ function MemberTable({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-xl border border-border/60">
-        <table className="w-full min-w-[720px] text-sm">
+      <div className="overflow-x-auto overflow-y-visible rounded-xl border border-border/60">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               <th className="px-3 py-2.5">Name</th>
               <th className="px-3 py-2.5">Role</th>
-              <th className="px-3 py-2.5">Email</th>
-              <th className="px-3 py-2.5">Phone</th>
               {!overview && <th className="px-3 py-2.5">Passport</th>}
               {full && <th className="px-3 py-2.5">Documents</th>}
+              {full && <th className="px-3 py-2.5">Status</th>}
               {(showStatus || full) && (
                 <th className="px-3 py-2.5 text-right">{full ? "Action" : "Status"}</th>
               )}
             </tr>
           </thead>
           <tbody>
-            {members.map((m, i) => {
+            {members.map((m) => {
               const uploadedCount = docCount(m.id);
               const passportReady = hasPassport(m.id);
+              const flightStatus = resolveExhibitorMemberFlightStatus(
+                m.id,
+                memberWorkflows,
+                airBookingRequests,
+                passportReady
+              );
               return (
                 <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                   <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
-                          AVATAR_COLORS[i % AVATAR_COLORS.length]
-                        )}
-                      >
-                        {initials(m)}
-                      </span>
-                      <span className="font-medium whitespace-nowrap">
-                        {m.fn} {m.ln}
-                      </span>
-                    </div>
+                    <MemberNameWithTooltip member={m} />
                   </td>
                   <td className="px-3 py-3">
                     <span
@@ -1653,12 +1784,6 @@ function MemberTable({
                     >
                       {m.role}
                     </span>
-                  </td>
-                  <td className="max-w-[10rem] truncate px-3 py-3 text-xs text-muted-foreground">
-                    {m.email || "—"}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
-                    {m.phone || "—"}
                   </td>
                   {!overview && (
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
@@ -1683,6 +1808,11 @@ function MemberTable({
                       </Button>
                     </td>
                   )}
+                  {full && (
+                    <td className="px-3 py-3">
+                      <MemberBookingStatusBadge status={flightStatus} />
+                    </td>
+                  )}
                   {showStatus && (
                     <td className="px-3 py-3 text-right">
                       <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
@@ -1690,17 +1820,15 @@ function MemberTable({
                       </span>
                     </td>
                   )}
-                  {full && onRemove && (
-                    <td className="px-3 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onRemove(m.id)}
-                        className="text-destructive hover:text-destructive"
-                        aria-label={`Remove ${m.fn} ${m.ln}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {full && (onRemove || onEdit) && (
+                    <td className="relative overflow-visible px-3 py-3 text-right">
+                      <div className="flex justify-end">
+                        <MemberActionMenu
+                          member={m}
+                          onEdit={onEdit ? () => onEdit(m) : undefined}
+                          onDelete={onRemove ? () => onRemove(m.id) : undefined}
+                        />
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -1711,6 +1839,193 @@ function MemberTable({
       </div>
       {airBookingRequests.length > 0 && <AirBookingRequestsList requests={airBookingRequests} />}
     </div>
+  );
+}
+
+function MemberBookingStatusBadge({
+  status,
+}: {
+  status: ReturnType<typeof resolveExhibitorMemberFlightStatus>;
+}) {
+  if (status.key === "not_requested") {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+
+  const badgeClass = {
+    sent: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
+    paid: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
+    rate_sent: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
+    verified: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+    verification_pending: "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
+    pending: "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
+  }[status.key];
+
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-[10rem] whitespace-normal rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight",
+        badgeClass
+      )}
+    >
+      {status.label}
+    </span>
+  );
+}
+
+function MemberActionMenu({
+  member,
+  onEdit,
+  onDelete,
+}: {
+  member: TeamMember;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return null;
+
+    const rect = trigger.getBoundingClientRect();
+    const width = Math.max(rect.width, 168);
+    let left = rect.left;
+    if (left + width > window.innerWidth - 8) {
+      left = rect.right - width;
+    }
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+
+    const panelHeight = panelRef.current?.offsetHeight ?? 88;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openAbove = spaceBelow < panelHeight + 8 && rect.top > spaceBelow;
+    const top = openAbove ? rect.top - panelHeight - 4 : rect.bottom + 4;
+
+    const next = { top, left, width };
+    setMenuStyle(next);
+    return next;
+  }, []);
+
+  const closeMenu = () => {
+    setOpen(false);
+    setMenuStyle(null);
+  };
+
+  const toggleMenu = () => {
+    if (open) {
+      closeMenu();
+      return;
+    }
+    setOpen(true);
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const frame = requestAnimationFrame(() => updateMenuPosition());
+    return () => cancelAnimationFrame(frame);
+  }, [open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      closeMenu();
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    const onScrollOrResize = () => updateMenuPosition();
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [open, updateMenuPosition]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={toggleMenu}
+        aria-label={`Actions for ${member.fn} ${member.ln}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn(
+          "inline-flex min-w-[5.5rem] items-center justify-between gap-2 rounded-lg border border-border/80 bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm transition-colors hover:bg-muted/40",
+          open && "border-primary/40 ring-1 ring-primary/20"
+        )}
+      >
+        <span>Actions</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="menu"
+            className="fixed z-[250] min-w-[10.5rem] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-lg ring-1 ring-black/5"
+            style={
+              menuStyle
+                ? { top: menuStyle.top, left: menuStyle.left, width: menuStyle.width }
+                : { top: -9999, left: -9999, visibility: "hidden" as const }
+            }
+          >
+            {onEdit && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60"
+                onClick={() => {
+                  closeMenu();
+                  onEdit();
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit member
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
+                onClick={() => {
+                  closeMenu();
+                  onDelete();
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 

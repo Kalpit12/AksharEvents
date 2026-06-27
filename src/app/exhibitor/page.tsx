@@ -11,7 +11,9 @@ import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
 import { listAirBookingRequestsForExhibitor } from "@/lib/air-booking-actions";
+import { listAirBookingMemberWorkflowsForExhibitor } from "@/lib/air-booking-workflow-actions";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import type { SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import ExhibitorPortalDashboard from "@/components/exhibitor-portal/exhibitor-portal-dashboard";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
@@ -134,10 +136,15 @@ export default async function ExhibitorDashboardPage() {
     : [];
 
   let airBookingRequests: SerializedAirBookingRequest[] = [];
+  let memberWorkflows: SerializedAirBookingMemberWorkflow[] = [];
   if (eventEntry) {
     const airBookingResult = await listAirBookingRequestsForExhibitor(eventEntry.id);
     if (airBookingResult.success && airBookingResult.requests) {
       airBookingRequests = airBookingResult.requests;
+    }
+    const workflowResult = await listAirBookingMemberWorkflowsForExhibitor(eventEntry.id);
+    if (workflowResult.success && workflowResult.workflows) {
+      memberWorkflows = workflowResult.workflows;
     }
   }
 
@@ -167,6 +174,7 @@ export default async function ExhibitorDashboardPage() {
       openEvents={openEvents}
       memberDocuments={memberDocuments}
       airBookingRequests={airBookingRequests}
+      memberWorkflows={memberWorkflows}
     />
   );
 }

@@ -130,6 +130,13 @@ enum AirBookingRequestStatus {
   CANCELLED
 }
 
+enum AirBookingMemberWorkflowStatus {
+  VERIFICATION_PENDING
+  VERIFIED
+  RATE_SENT
+  PAID
+}
+
 enum MemberDocumentType {
   PASSPORT
   VISA
@@ -484,6 +491,7 @@ model EventExhibitor {
   registration   ExhibitorRegistration?
   airBookingRequests AirBookingRequest[]
   memberDocuments    ExhibitorMemberDocument[]
+  memberWorkflows    AirBookingMemberWorkflow[]
 
   @@unique([eventId, exhibitorId])
 }
@@ -553,6 +561,27 @@ model AirBookingDispatch {
   sentAt DateTime @default(now())
 
   @@index([airBookingRequestId])
+}
+
+model AirBookingMemberWorkflow {
+  id               String                         @id @default(cuid())
+  eventExhibitorId String
+  eventExhibitor   EventExhibitor                 @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  memberLocalId    String
+  status           AirBookingMemberWorkflowStatus @default(VERIFICATION_PENDING)
+  rateAmount       Decimal?                       @db.Decimal(12, 2)
+  rateCurrency     String                         @default("KES")
+  rateDetails      String?                        @db.Text
+  verifiedAt       DateTime?
+  rateSentAt       DateTime?
+  paidAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventExhibitorId, memberLocalId])
+  @@index([eventExhibitorId])
+  @@index([status])
 }
 
 model ExhibitorMember {

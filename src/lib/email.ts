@@ -3,6 +3,10 @@ import {
   flightBookingPackageEmailHtml,
   flightBookingPackageEmailSubject,
 } from "@/lib/email-templates/flight-booking-package";
+import {
+  flightBookingRateEmailHtml,
+  flightBookingRateEmailSubject,
+} from "@/lib/email-templates/flight-booking-rate";
 import { BRAND } from "./utils";
 
 function getPostmarkClient() {
@@ -317,6 +321,41 @@ export async function sendFlightBookingPackageEmail({
       members,
       message,
       attachmentNames,
+    }),
+  });
+}
+
+export async function sendFlightBookingRateEmail({
+  to,
+  companyName,
+  eventTitle,
+  travellerName,
+  travelDate,
+  rateAmount,
+  rateCurrency,
+  rateDetails,
+}: {
+  to: string;
+  companyName: string;
+  eventTitle: string;
+  travellerName: string;
+  travelDate: string;
+  rateAmount: number;
+  rateCurrency: string;
+  rateDetails?: string;
+}) {
+  return sendEmail({
+    to,
+    tag: "flight-booking-rate",
+    subject: flightBookingRateEmailSubject(companyName, travellerName),
+    html: flightBookingRateEmailHtml({
+      companyName,
+      eventTitle,
+      travellerName,
+      travelDate,
+      rateAmount,
+      rateCurrency,
+      rateDetails,
     }),
   });
 }
