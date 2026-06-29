@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import {
   AVATAR_COLORS,
@@ -7,23 +8,28 @@ import {
   type AdminExhibitorRecord,
   type EventMasterTab,
 } from "@/components/event-master/types";
+import { useUrlEnumState, useUrlStringState } from "@/hooks/use-dashboard-url-state";
+import {
+  CustomSelect,
+  fromAllValue,
+  toAllValue,
+  toSelectOptionsWithAll,
+} from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
-import FlightBookingsPanel from "@/components/event-master/flight-bookings-panel";
+import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
+import type { EventActivityOption } from "@/lib/event-activity-types";
+import type {
+  EventHotelOption,
+  EventItemMasterOption,
+  EventRestaurantOption,
+  EventScheduleItemOption,
+} from "@/lib/event-config-types";
 import {
   EventHotelsManager,
   EventRestaurantsManager,
   EventScheduleManager,
+  ItemMasterManager,
 } from "@/components/event-master/event-config-panels";
-import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
-import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
-import type { SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
-import type { SerializedMemberDocument } from "@/lib/member-document-types";
-import type { EventActivityOption } from "@/lib/event-activity-types";
-import type {
-  EventHotelOption,
-  EventRestaurantOption,
-  EventScheduleItemOption,
-} from "@/lib/event-config-types";
 import {
   aggregateDietary,
   aggregateHotelAssignments,
@@ -53,6 +59,7 @@ import {
   Info,
   Leaf,
   Link2,
+  ListOrdered,
   MapPin,
   Package,
   Pencil,
@@ -63,6 +70,18 @@ import {
   Users,
   UtensilsCrossed,
 } from "lucide-react";
+
+const FlightBookingsPanelLazy = dynamic(
+  () => import("@/components/event-master/flight-bookings-panel-lazy"),
+  {
+    loading: () => (
+      <div className="space-y-3 rounded-2xl border border-border bg-card p-5">
+        <div className="h-5 w-48 animate-pulse rounded bg-muted" />
+        <div className="h-32 animate-pulse rounded-xl bg-muted/60" />
+      </div>
+    ),
+  }
+);
 
 type Props = {
   eventId: string;
@@ -75,18 +94,29 @@ type Props = {
   eventHotels?: EventHotelOption[];
   eventRestaurants?: EventRestaurantOption[];
   scheduleItems?: EventScheduleItemOption[];
-  airBookingRequests?: SerializedAirBookingRequest[];
-  memberDocuments?: SerializedMemberDocument[];
-  memberWorkflows?: SerializedAirBookingMemberWorkflow[];
+  itemMaster?: EventItemMasterOption[];
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
 };
+
+const EVENT_MASTER_TAB_IDS = [
+  "exhibitors",
+  "members",
+  "flights",
+  "supplies",
+  "items",
+  "transport",
+  "hotels",
+  "food",
+  "schedule",
+] as const satisfies readonly EventMasterTab[];
 
 const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "exhibitors", label: "Exhibitors", icon: Store },
   { id: "members", label: "Members", icon: Users },
   { id: "flights", label: "Flight bookings", icon: Plane },
   { id: "supplies", label: "Supplies", icon: Package },
+  { id: "items", label: "Item master", icon: ListOrdered },
   { id: "transport", label: "Transport", icon: Bus },
   { id: "hotels", label: "Hotels", icon: Building2 },
   { id: "food", label: "Food", icon: ForkKnife },
@@ -108,14 +138,12 @@ export default function EventMasterDashboard({
   eventHotels = [],
   eventRestaurants = [],
   scheduleItems = [],
-  airBookingRequests = [],
-  memberDocuments = [],
-  memberWorkflows = [],
+  itemMaster = [],
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
 }: Props) {
-  const [tab, setTab] = useState<EventMasterTab>("exhibitors");
-  const [roleFilter, setRoleFilter] = useState("");
+  const [tab, setTab] = useUrlEnumState("tab", EVENT_MASTER_TAB_IDS, "exhibitors");
+  const [roleFilter, setRoleFilter] = useUrlStringState("role", "");
   const [bottlesPerDay, setBottlesPerDay] = useState(2);
   const [bufferPct, setBufferPct] = useState(10);
 
@@ -224,11 +252,9 @@ export default function EventMasterDashboard({
       {tab === "exhibitors" && <ExhibitorRegistrationsPanel exhibitors={exhibitors} activities={activities} />}
 
       {tab === "flights" && (
-        <FlightBookingsPanel
-          requests={airBookingRequests}
+        <FlightBookingsPanelLazy
+          eventId={eventId}
           exhibitors={exhibitors}
-          memberDocuments={memberDocuments}
-          memberWorkflows={memberWorkflows}
           eventTitle={eventTitle}
           defaultAgentEmail={flightBookingAgentEmail}
           defaultCcEmail={flightBookingCcEmail}
@@ -242,16 +268,15 @@ export default function EventMasterDashboard({
           ) : (
             <>
               <div className="mb-3 flex justify-end">
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="h-9 w-40 rounded-lg border border-input bg-background px-2 text-sm"
-                >
-                  <option value="">All roles</option>
-                  {memberRoles.map((role) => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
+                <div className="w-48">
+                  <CustomSelect
+                    value={toAllValue(roleFilter)}
+                    onChange={(value) => setRoleFilter(fromAllValue(value))}
+                    placeholder="All roles"
+                    size="sm"
+                    options={toSelectOptionsWithAll(memberRoles, "All roles")}
+                  />
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] text-sm">
@@ -376,6 +401,8 @@ export default function EventMasterDashboard({
           )}
         </div>
       )}
+
+      {tab === "items" && <ItemMasterManager eventId={eventId} items={itemMaster} />}
 
       {tab === "transport" && (
         <Panel title="Transport requests from exhibitors" icon={Bus}>

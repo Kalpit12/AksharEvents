@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export type CustomSelectOption = {
   value: string;
   label: string;
+  /** Shorter label for the closed trigger; full `label` is shown in the menu */
+  triggerLabel?: string;
 };
 
 type Props = {
@@ -38,16 +40,19 @@ export function CustomSelect({
       <SelectPrimitive.Trigger
         id={id}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-background text-left text-sm shadow-sm transition-colors",
+          "flex w-full min-h-10 items-center justify-between gap-2 rounded-lg border border-input bg-background text-left text-sm shadow-sm transition-colors",
           "focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20",
           "data-[placeholder]:text-muted-foreground",
-          size === "sm" ? "h-9 px-3" : "h-10 px-3",
+          size === "sm" ? "h-9 px-3" : "px-3 py-2",
           triggerClassName,
           className
         )}
       >
-        <SelectPrimitive.Value placeholder={placeholder}>
-          {selected?.label ?? (value || placeholder)}
+        <SelectPrimitive.Value
+          placeholder={placeholder}
+          className="min-w-0 flex-1 truncate leading-snug"
+        >
+          {selected?.triggerLabel ?? selected?.label}
         </SelectPrimitive.Value>
         <SelectPrimitive.Icon asChild>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground opacity-70" />
@@ -57,29 +62,32 @@ export function CustomSelect({
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
           className={cn(
-            "relative z-[9999] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-border",
+            "relative z-[9999] max-h-[min(24rem,70vh)] w-[var(--radix-select-trigger-width)] max-w-[min(100vw-2rem,36rem)] overflow-hidden rounded-xl border border-border",
             "bg-card text-foreground shadow-xl"
           )}
           position="popper"
           sideOffset={4}
         >
-          <SelectPrimitive.Viewport className="bg-card p-1">
+          <SelectPrimitive.Viewport className="max-h-[min(24rem,70vh)] overflow-y-auto bg-card p-1">
             {options.map((option) => (
               <SelectPrimitive.Item
                 key={option.value}
                 value={option.value}
+                textValue={option.triggerLabel ?? option.label}
                 className={cn(
-                  "relative flex cursor-pointer select-none items-center rounded-lg bg-card py-2 pl-8 pr-3 text-sm text-foreground outline-none",
+                  "relative flex cursor-pointer select-none items-start rounded-lg bg-card py-2.5 pl-8 pr-3 text-sm text-foreground outline-none",
                   "data-[highlighted]:bg-champagne/10 data-[highlighted]:text-espresso",
                   "dark:data-[highlighted]:bg-champagne/15 dark:data-[highlighted]:text-champagne-light"
                 )}
               >
-                <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
+                <span className="absolute left-2 top-2.5 flex h-4 w-4 items-center justify-center">
                   <SelectPrimitive.ItemIndicator>
                     <Check className="h-4 w-4 text-primary" />
                   </SelectPrimitive.ItemIndicator>
                 </span>
-                <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                <SelectPrimitive.ItemText className="whitespace-normal leading-snug">
+                  {option.label}
+                </SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
             ))}
           </SelectPrimitive.Viewport>

@@ -28,6 +28,16 @@ export type EventScheduleItemOption = {
   sortOrder: number;
 };
 
+export type EventItemMasterOption = {
+  id: string;
+  name: string;
+  category: string;
+  unitOfMeasure: string;
+  unitCost: number;
+  currency: string;
+  sortOrder: number;
+};
+
 export function serializeEventHotel(hotel: {
   id: string;
   name: string;
@@ -84,6 +94,26 @@ export function serializeEventScheduleItem(item: {
     endAt: item.endAt?.toISOString() ?? null,
     location: item.location,
     isActive: item.isActive,
+    sortOrder: item.sortOrder,
+  };
+}
+
+export function serializeEventItemMaster(item: {
+  id: string;
+  name: string;
+  category: string;
+  unitOfMeasure: string;
+  unitCost: { toNumber(): number };
+  currency: string;
+  sortOrder: number;
+}): EventItemMasterOption {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    unitOfMeasure: item.unitOfMeasure,
+    unitCost: item.unitCost.toNumber(),
+    currency: item.currency,
     sortOrder: item.sortOrder,
   };
 }

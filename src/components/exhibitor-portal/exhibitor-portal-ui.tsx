@@ -146,16 +146,18 @@ export function PortalNav<T extends string>({
                 : "border-border bg-card text-muted-foreground hover:border-champagne/30 hover:text-foreground"
             )}
           >
-            <Icon className="h-4 w-4" />
-            {label}
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">{label}</span>
           </button>
         ))}
       </div>
 
       {/* Desktop: sidebar */}
-      <nav className="hidden lg:block lg:w-56 lg:shrink-0">
+      <nav className="hidden lg:block lg:w-64 lg:shrink-0">
         <div className="sticky top-24 space-y-1 rounded-2xl border border-border bg-card p-2 shadow-sm">
-          <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Menu</p>
+          <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Menu
+          </p>
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -169,7 +171,7 @@ export function PortalNav<T extends string>({
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {label}
+              <span className="whitespace-nowrap">{label}</span>
             </button>
           ))}
         </div>

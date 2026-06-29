@@ -1,5 +1,5 @@
 import type { EventFormat } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 
 export const EXHIBITOR_EVENT_FORMATS: EventFormat[] = [
   "EXPO",
@@ -24,17 +24,19 @@ export type OpenExhibitorEvent = {
 };
 
 export async function getOpenExhibitorEvents(): Promise<OpenExhibitorEvent[]> {
-  const events = await prisma.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      format: { in: EXHIBITOR_EVENT_FORMATS },
-      endDate: { gte: new Date() },
-    },
-    orderBy: [{ isFeatured: "desc" }, { startDate: "asc" }],
-    include: {
-      venue: { select: { name: true, city: true } },
-    },
-  });
+  const events = await withDbRetry(() =>
+    prisma.event.findMany({
+      where: {
+        status: "PUBLISHED",
+        format: { in: EXHIBITOR_EVENT_FORMATS },
+        endDate: { gte: new Date() },
+      },
+      orderBy: [{ isFeatured: "desc" }, { startDate: "asc" }],
+      include: {
+        venue: { select: { name: true, city: true } },
+      },
+    })
+  );
 
   return events.map((event) => ({
     id: event.id,

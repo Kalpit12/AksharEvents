@@ -1,4 +1,10 @@
-export type ExhibitorTab = "overview" | "registration" | "members" | "tours" | "food";
+export type ExhibitorTab =
+  | "overview"
+  | "registration"
+  | "additional"
+  | "members"
+  | "tours"
+  | "food";
 
 export type TeamMember = {
   id: string;

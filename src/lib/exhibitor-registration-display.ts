@@ -111,12 +111,20 @@ export function companyFormFields(data: SavedRegistrationData): [string, string]
 
 export function eventFormFields(data: SavedRegistrationData): [string, string][] {
   const { form } = data;
-  return [
-    ["Booth size preference", form.booth || "—"],
+  const additionalCount = (
+    data.selectedAdditionalItemIds ??
+    data.selectedEquipmentIds ??
+    []
+  ).length;
+  const fields: [string, string][] = [
+    ["Booth package", form.booth || "—"],
     ["Booth setup date", form.setup || "—"],
-    ["AV / presentation equipment", form.av || "—"],
     ["Accessibility / setup requirements", form.access || "—"],
   ];
+  if (additionalCount > 0) {
+    fields.push(["Additional requirements", `${additionalCount} item(s) selected`]);
+  }
+  return fields;
 }
 
 export function transportFormFields(

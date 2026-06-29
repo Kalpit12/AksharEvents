@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useDashboardUrlState } from "@/hooks/use-dashboard-url-state";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import {
@@ -224,7 +225,14 @@ type Props = {
 
 export default function ExhibitorRegistrationsPanel({ exhibitors, activities = [] }: Props) {
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(exhibitors[0]?.id ?? null);
+  const { getParam, setParams } = useDashboardUrlState();
+  const exhibitorParam = getParam("exhibitor");
+  const selectedId = useMemo(() => {
+    if (exhibitorParam && exhibitors.some((e) => e.id === exhibitorParam)) return exhibitorParam;
+    return exhibitors[0]?.id ?? null;
+  }, [exhibitorParam, exhibitors]);
+
+  const selectExhibitor = (id: string) => setParams({ exhibitor: id });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -275,7 +283,7 @@ export default function ExhibitorRegistrationsPanel({ exhibitors, activities = [
               <li key={record.id}>
                 <button
                   type="button"
-                  onClick={() => setSelectedId(record.id)}
+                  onClick={() => selectExhibitor(record.id)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
                     active ? "bg-primary text-primary-foreground" : "hover:bg-muted"

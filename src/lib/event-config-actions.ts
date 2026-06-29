@@ -5,6 +5,8 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   createEventHotelSchema,
+  createEventItemMasterSchema,
+  updateEventItemMasterSchema,
   createEventRestaurantSchema,
   createEventScheduleItemSchema,
 } from "@/lib/validations";
@@ -171,5 +173,91 @@ export async function toggleEventScheduleItem(itemId: string, eventId: string) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
+  return { success: true };
+}
+
+export async function createEventItemMaster(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const parsed = createEventItemMasterSchema.safeParse({
+    eventId: formData.get("eventId"),
+    name: formData.get("name"),
+    category: formData.get("category"),
+    unitOfMeasure: formData.get("unitOfMeasure"),
+    unitCost: formData.get("unitCost"),
+    currency: formData.get("currency") || "KES",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const event = await prisma.event.findFirst({ where: { id: parsed.data.eventId } });
+  if (!event) return { error: "Event not found" };
+
+  const count = await prisma.eventItemMaster.count({ where: { eventId: event.id } });
+
+  await prisma.eventItemMaster.create({
+    data: {
+      eventId: event.id,
+      name: parsed.data.name.trim(),
+      category: parsed.data.category.trim(),
+      unitOfMeasure: parsed.data.unitOfMeasure.trim(),
+      unitCost: parsed.data.unitCost,
+      currency: parsed.data.currency,
+      sortOrder: count,
+    },
+  });
+
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+export async function updateEventItemMaster(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const parsed = updateEventItemMasterSchema.safeParse({
+    itemId: formData.get("itemId"),
+    eventId: formData.get("eventId"),
+    name: formData.get("name"),
+    category: formData.get("category"),
+    unitOfMeasure: formData.get("unitOfMeasure"),
+    unitCost: formData.get("unitCost"),
+    currency: formData.get("currency") || "KES",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const item = await prisma.eventItemMaster.findFirst({
+    where: { id: parsed.data.itemId, eventId: parsed.data.eventId },
+  });
+  if (!item) return { error: "Item not found" };
+
+  await prisma.eventItemMaster.update({
+    where: { id: parsed.data.itemId },
+    data: {
+      name: parsed.data.name.trim(),
+      category: parsed.data.category.trim(),
+      unitOfMeasure: parsed.data.unitOfMeasure.trim(),
+      unitCost: parsed.data.unitCost,
+      currency: parsed.data.currency,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+  return { success: true };
+}
+
+export async function deleteEventItemMaster(itemId: string, eventId: string) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const item = await prisma.eventItemMaster.findFirst({
+    where: { id: itemId, eventId },
+  });
+  if (!item) return { error: "Item not found" };
+
+  await prisma.eventItemMaster.delete({ where: { id: itemId } });
+
+  revalidatePath("/admin");
   return { success: true };
 }

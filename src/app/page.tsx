@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { getPublishedEvents } from "@/lib/events";
 import { isFrontendOnly } from "@/lib/frontend-only";
 import {
@@ -40,21 +40,19 @@ function serializeEventsForCarousel(
 }
 
 export default async function HomePage() {
-  const [
-    featured,
-    upcoming,
-    venues,
-    testimonials,
-  ] = await Promise.all([
-    getPublishedEvents({ featured: true, limit: 5 }),
-    getPublishedEvents({ sort: "upcoming", limit: 12 }),
-    isFrontendOnly()
-      ? Promise.resolve(getMockPopularVenues(4))
-      : prisma.venue.findMany({ where: { isPopular: true }, take: 4 }),
-    isFrontendOnly()
-      ? Promise.resolve(getMockTestimonials())
-      : prisma.testimonial.findMany({ where: { isActive: true }, take: 3 }),
-  ]);
+  const [featured, upcoming, venues, testimonials] = await withDbRetry(async () => {
+    const featuredResult = await getPublishedEvents({ featured: true, limit: 5 });
+    const upcomingResult = await getPublishedEvents({ sort: "upcoming", limit: 12 });
+    const [venuesResult, testimonialsResult] = await Promise.all([
+      isFrontendOnly()
+        ? Promise.resolve(getMockPopularVenues(4))
+        : prisma.venue.findMany({ where: { isPopular: true }, take: 4 }),
+      isFrontendOnly()
+        ? Promise.resolve(getMockTestimonials())
+        : prisma.testimonial.findMany({ where: { isActive: true }, take: 3 }),
+    ]);
+    return [featuredResult, upcomingResult, venuesResult, testimonialsResult] as const;
+  });
 
   const heroSlides = featured.events.length > 0
     ? featured.events.map((e, i) => ({

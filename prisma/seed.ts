@@ -103,12 +103,12 @@ async function main() {
   const venues = await Promise.all(
     [
       {
-        name: "BAPS Swaminarayan Mandir",
+        name: "BAPS Community Hall",
         slug: "baps-swaminarayan-mandir",
         description: "Stunning Hindu mandir and cultural venue in Nairobi.",
         address: "Prof. Wangari Maathai Rd",
         city: "Nairobi",
-        capacity: 1500,
+        capacity: 3000,
         images: ["/BAPS_Nairobi_Mandir.jpg"],
         facilities: ["Parking", "Assembly Hall"],
         parkingInfo: "On-site parking available",
@@ -149,6 +149,8 @@ async function main() {
       prisma.venue.upsert({
         where: { slug: v.slug },
         update: {
+          name: v.name,
+          capacity: v.capacity,
           address: v.address,
           latitude: v.latitude,
           longitude: v.longitude,
@@ -536,6 +538,58 @@ async function main() {
       ],
       skipDuplicates: true,
     });
+
+    const boothCount = await prisma.eventItemMaster.count({
+      where: {
+        eventId: careerExpoEventId,
+        category: { in: ["Booth", "Booth preference"] },
+      },
+    });
+    if (boothCount === 0) {
+      const { DEFAULT_BOOTH_ITEMS, ITEM_MASTER_CATEGORY_BOOTH } = await import(
+        "../src/lib/item-master-catalog"
+      );
+      await prisma.eventItemMaster.createMany({
+        data: DEFAULT_BOOTH_ITEMS.map((booth, index) => ({
+          eventId: careerExpoEventId,
+          name: booth.name,
+          category: ITEM_MASTER_CATEGORY_BOOTH,
+          unitOfMeasure: "each",
+          unitCost: booth.unitCost,
+          currency: "KES",
+          sortOrder: index,
+        })),
+      });
+      console.log(`  → Seeded ${DEFAULT_BOOTH_ITEMS.length} booth packages for Career Expo`);
+    }
+
+    const catalogCount = await prisma.eventItemMaster.count({
+      where: {
+        eventId: careerExpoEventId,
+        category: { notIn: ["Booth", "Booth preference"] },
+      },
+    });
+    if (catalogCount === 0) {
+      let sortOffset = await prisma.eventItemMaster.count({
+        where: { eventId: careerExpoEventId },
+      });
+      const { DEFAULT_ADDITIONAL_CATALOG_GROUPS } = await import("../src/lib/item-master-catalog");
+      for (const group of DEFAULT_ADDITIONAL_CATALOG_GROUPS) {
+        await prisma.eventItemMaster.createMany({
+          data: group.items.map((item, index) => ({
+            eventId: careerExpoEventId,
+            name: item.name,
+            category: group.category,
+            unitOfMeasure: "each",
+            unitCost: item.unitCost,
+            currency: "KES",
+            sortOrder: sortOffset + index,
+          })),
+        });
+        sortOffset += group.items.length;
+      }
+      console.log(`  → Seeded additional catalog items for Career Expo`);
+    }
   }
 
   // Coupon

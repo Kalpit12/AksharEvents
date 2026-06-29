@@ -190,6 +190,19 @@ export const createEventScheduleItemSchema = z.object({
   location: z.string().optional(),
 });
 
+export const createEventItemMasterSchema = z.object({
+  eventId: z.string().min(1),
+  name: z.string().min(2, "Item name is required"),
+  category: z.string().min(1, "Category is required"),
+  unitOfMeasure: z.string().min(1, "Unit of measure is required"),
+  unitCost: z.coerce.number().min(0, "Unit cost must be zero or greater"),
+  currency: z.string().min(3).max(3).default("KES"),
+});
+
+export const updateEventItemMasterSchema = createEventItemMasterSchema.extend({
+  itemId: z.string().min(1),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ExhibitorRegisterInput = z.infer<typeof exhibitorRegisterSchema>;

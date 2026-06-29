@@ -1,19 +1,18 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import {
   serializeEventHotel,
+  serializeEventItemMaster,
   serializeEventRestaurant,
   serializeEventScheduleItem,
 } from "@/lib/event-config-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
-import { listAirBookingRequestsForEvent } from "@/lib/air-booking-actions";
-import { listAirBookingMemberWorkflowsForEvent } from "@/lib/air-booking-workflow-actions";
-import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 
@@ -76,52 +75,43 @@ export default async function AdminEventMasterPage() {
 
   const location = event.venue?.city ?? "Kenya";
 
-  const eventExhibitors = await prisma.eventExhibitor.findMany({
-    where: { eventId: event.id },
-    include: {
-      exhibitor: true,
-      registration: true,
-    },
-    orderBy: { exhibitor: { companyName: "asc" } },
-  });
-
-  const activities = await prisma.eventActivity.findMany({
-    where: { eventId: event.id, isActive: true },
-    orderBy: { startAt: "asc" },
-  });
-
-  const [eventHotels, eventRestaurants, scheduleItems, airBookingRequests, memberDocumentRows, memberWorkflows] =
-    await Promise.all([
-      prisma.eventHotel.findMany({
-        where: { eventId: event.id },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.eventRestaurant.findMany({
-        where: { eventId: event.id },
-        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      }),
-      prisma.eventScheduleItem.findMany({
-        where: { eventId: event.id },
-        orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
-      }),
-      listAirBookingRequestsForEvent(event.id),
-      prisma.exhibitorMemberDocument.findMany({
-        where: { eventExhibitor: { eventId: event.id } },
-        orderBy: { createdAt: "desc" },
-      }),
-      listAirBookingMemberWorkflowsForEvent(event.id),
-    ]);
-
-  const memberDocuments: SerializedMemberDocument[] = memberDocumentRows.map((doc) => ({
-    id: doc.id,
-    eventExhibitorId: doc.eventExhibitorId,
-    memberLocalId: doc.memberLocalId,
-    documentType: doc.documentType,
-    originalFileName: doc.originalFileName,
-    mimeType: doc.mimeType,
-    fileSize: doc.fileSize,
-    uploadedAt: doc.createdAt.toISOString(),
-  }));
+  const [
+    eventExhibitors,
+    activities,
+    eventHotels,
+    eventRestaurants,
+    scheduleItems,
+    itemMasterRows,
+  ] = await Promise.all([
+    prisma.eventExhibitor.findMany({
+      where: { eventId: event.id },
+      include: {
+        exhibitor: true,
+        registration: true,
+      },
+      orderBy: { exhibitor: { companyName: "asc" } },
+    }),
+    prisma.eventActivity.findMany({
+      where: { eventId: event.id, isActive: true },
+      orderBy: { startAt: "asc" },
+    }),
+    prisma.eventHotel.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.eventRestaurant.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.eventScheduleItem.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
+    }),
+    prisma.eventItemMaster.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
     id: entry.id,
@@ -143,7 +133,12 @@ export default async function AdminEventMasterPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <EventMasterDashboard
+      <Suspense
+        fallback={
+          <div className="h-96 animate-pulse rounded-2xl border border-border bg-muted/40" aria-hidden />
+        }
+      >
+        <EventMasterDashboard
         eventId={event.id}
         eventTitle={event.title}
         eventLocation={location}
@@ -154,14 +149,13 @@ export default async function AdminEventMasterPage() {
         eventHotels={eventHotels.map(serializeEventHotel)}
         eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
         scheduleItems={scheduleItems.map(serializeEventScheduleItem)}
-        airBookingRequests={airBookingRequests}
-        memberDocuments={memberDocuments}
-        memberWorkflows={memberWorkflows}
+        itemMaster={itemMasterRows.map(serializeEventItemMaster)}
         flightBookingAgentEmail={getFlightBookingAgentEmail()}
         flightBookingCcEmail={
           process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
         }
-      />
+        />
+      </Suspense>
     </div>
   );
 }

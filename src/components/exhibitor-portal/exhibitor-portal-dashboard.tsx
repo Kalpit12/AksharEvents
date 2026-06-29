@@ -20,8 +20,6 @@ import {
 import {
   MEMBER_ROLES,
   ROLE_BADGE,
-  BOOTH_SIZE_OPTIONS,
-  AV_OPTIONS,
   SHUTTLE_OPTIONS,
   TRANSPORT_OPTIONS,
   VEHICLE_OPTIONS,
@@ -31,9 +29,15 @@ import {
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
   EventHotelOption,
+  EventItemMasterOption,
   EventRestaurantOption,
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
+import { EventPreferencesStep } from "@/components/exhibitor-portal/event-preferences-step";
+import { AdditionalRequirementsPanel } from "@/components/exhibitor-portal/additional-requirements-panel";
+import { RegistrationInvoicePanel } from "@/components/exhibitor-portal/registration-invoice-panel";
+import { buildFullExhibitorInvoice } from "@/lib/registration-invoice";
+import { getBoothCatalogItems } from "@/lib/item-master-catalog";
 import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import {
   activityToTourOption,
@@ -85,6 +89,7 @@ import {
   MapPin,
   Pencil,
   Plane,
+  PackagePlus,
   Plus,
   Salad,
   Send,
@@ -117,7 +122,8 @@ import {
 import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
 import { notify } from "@/lib/notify";
 
 export type ExhibitorPortalProps = {
@@ -141,6 +147,7 @@ export type ExhibitorPortalProps = {
   eventHotels?: EventHotelOption[];
   eventRestaurants?: EventRestaurantOption[];
   eventSchedule?: EventScheduleItemOption[];
+  itemCatalog?: EventItemMasterOption[];
   canManageMembers?: boolean;
   openEvents?: OpenExhibitorEvent[];
   memberDocuments?: SerializedMemberDocument[];
@@ -151,10 +158,22 @@ export type ExhibitorPortalProps = {
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "registration", label: "Registration form", icon: FileText },
+  { id: "additional", label: "Additional requirements", icon: PackagePlus },
   { id: "members", label: "Team members", icon: Users },
   { id: "tours", label: "Tours & travel", icon: MapPin },
   { id: "food", label: "Food outings", icon: ForkKnife },
 ];
+
+const EXHIBITOR_TAB_IDS = [
+  "overview",
+  "registration",
+  "additional",
+  "members",
+  "tours",
+  "food",
+] as const satisfies readonly ExhibitorTab[];
+
+const REGISTRATION_STEP_COUNT = 6;
 
 function defaultForm(props: ExhibitorPortalProps) {
   const setupOptions = buildSetupDateOptions(props.startDate);
@@ -184,6 +203,9 @@ function defaultForm(props: ExhibitorPortalProps) {
 export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const saved = props.savedRegistration;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setParams } = useDashboardUrlState();
+  const [tab, setTabRaw] = useUrlEnumState("tab", EXHIBITOR_TAB_IDS, "overview");
 
   const setupOptions = useMemo(() => buildSetupDateOptions(props.startDate), [props.startDate]);
   const departureOptions = useMemo(() => buildDepartureOptions(props.endDate), [props.endDate]);
@@ -214,7 +236,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     [props.eventSchedule]
   );
 
-  const [tab, setTab] = useState<ExhibitorTab>("overview");
   const [members, setMembers] = useState<TeamMember[]>(() => saved?.members ?? []);
   const [memberDocuments, setMemberDocuments] = useState<SerializedMemberDocument[]>(
     () => props.memberDocuments ?? []
@@ -235,7 +256,26 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [documentsPassportDraft, setDocumentsPassportDraft] = useState("");
   const [savingPassport, setSavingPassport] = useState(false);
   const [submittingAirBooking, setSubmittingAirBooking] = useState(false);
-  const [regStep, setRegStep] = useState(() => saved?.regStep ?? 1);
+  const [regStep, setRegStep] = useState(() => {
+    const fromUrl = Number(searchParams.get("step"));
+    if (fromUrl >= 1 && fromUrl <= REGISTRATION_STEP_COUNT) return fromUrl;
+    return saved?.regStep ?? 1;
+  });
+
+  const setTab = useCallback(
+    (next: ExhibitorTab) => {
+      setTabRaw(next, next === "registration" ? { step: String(regStep) } : { step: null });
+    },
+    [setTabRaw, regStep]
+  );
+
+  useEffect(() => {
+    const step = Number(searchParams.get("step"));
+    if (tab === "registration" && step >= 1 && step <= REGISTRATION_STEP_COUNT) {
+      setRegStep(step);
+    }
+  }, [searchParams, tab]);
+
   const [formSteps, setFormSteps] = useState(
     () => saved?.formSteps ?? { company: false, event: false, travel: false, transport: false, food: false }
   );
@@ -245,6 +285,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [selectedMeals, setSelectedMeals] = useState<Set<string>>(() => new Set(saved?.selectedMeals ?? []));
   const [selectedFoodExp, setSelectedFoodExp] = useState<Set<string>>(() => new Set(saved?.selectedFoodExp ?? []));
   const [shuttles, setShuttles] = useState<Set<string>>(() => new Set(saved?.shuttles ?? []));
+  const itemCatalog = useMemo(() => props.itemCatalog ?? [], [props.itemCatalog]);
+  const boothCatalog = useMemo(() => getBoothCatalogItems(itemCatalog), [itemCatalog]);
+  const [selectedBoothItemId, setSelectedBoothItemId] = useState<string | null>(
+    () => saved?.selectedBoothItemId ?? null
+  );
+  const [selectedAdditionalItemIds, setSelectedAdditionalItemIds] = useState<Set<string>>(
+    () => new Set(saved?.selectedAdditionalItemIds ?? saved?.selectedEquipmentIds ?? [])
+  );
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState<"DRAFT" | "SUBMITTED" | null>(
@@ -305,6 +353,22 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const dateRange = `${formatDate(props.startDate, "MMM d")}–${formatDate(props.endDate, "d, yyyy")}`;
 
+  const boothInvoiceIds = useMemo(
+    () => (selectedBoothItemId ? [selectedBoothItemId] : []),
+    [selectedBoothItemId]
+  );
+
+  const registrationInvoice = useMemo(
+    () => buildFullExhibitorInvoice(itemCatalog, selectedBoothItemId, [...selectedAdditionalItemIds]),
+    [itemCatalog, selectedBoothItemId, selectedAdditionalItemIds]
+  );
+
+  useEffect(() => {
+    if (selectedBoothItemId || !saved?.form.booth || boothCatalog.length === 0) return;
+    const match = boothCatalog.find((item) => item.name === saved.form.booth);
+    if (match) setSelectedBoothItemId(match.id);
+  }, [boothCatalog, saved?.form.booth, selectedBoothItemId]);
+
   const buildPayload = useCallback(
     (overrides: Partial<SavedRegistrationData> = {}): SavedRegistrationData => ({
       form: overrides.form ?? form,
@@ -319,10 +383,26 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       selectedMeals: overrides.selectedMeals ?? [...selectedMeals],
       selectedFoodExp: overrides.selectedFoodExp ?? [...selectedFoodExp],
       shuttles: overrides.shuttles ?? [...shuttles],
+      selectedBoothItemId: overrides.selectedBoothItemId ?? selectedBoothItemId,
+      selectedAdditionalItemIds:
+        overrides.selectedAdditionalItemIds ?? [...selectedAdditionalItemIds],
       formSteps: overrides.formSteps ?? formSteps,
       regStep: overrides.regStep ?? regStep,
     }),
-    [form, travel, visaDocs, members, selectedTours, selectedMeals, selectedFoodExp, shuttles, formSteps, regStep]
+    [
+      form,
+      travel,
+      visaDocs,
+      members,
+      selectedTours,
+      selectedMeals,
+      selectedFoodExp,
+      shuttles,
+      selectedBoothItemId,
+      selectedAdditionalItemIds,
+      formSteps,
+      regStep,
+    ]
   );
 
   const isSubmitted = registrationStatus === "SUBMITTED";
@@ -365,9 +445,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             notify.error(result.error);
           } else if (result.success) {
             setLastSavedAt(new Date());
-            router.refresh();
             if (saveStatus === "SUBMITTED") {
               setRegistrationStatus("SUBMITTED");
+              router.refresh();
             }
           }
           return result;
@@ -385,6 +465,39 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     },
     [props.eventExhibitorId, buildPayload, isSubmitted, router]
   );
+
+  const handleBoothItemChange = (itemId: string) => {
+    const item = boothCatalog.find((entry) => entry.id === itemId);
+    const nextId = itemId || null;
+    setSelectedBoothItemId(nextId);
+    const nextForm = { ...form, booth: item?.name ?? "" };
+    setForm(nextForm);
+    if (!isSubmitted) {
+      void persistRegistration({
+        selectedBoothItemId: nextId,
+        form: nextForm,
+      });
+    }
+  };
+
+  const handleAdditionalItemToggle = (itemId: string) => {
+    const next = new Set(selectedAdditionalItemIds);
+    if (next.has(itemId)) next.delete(itemId);
+    else next.add(itemId);
+    setSelectedAdditionalItemIds(next);
+    if (!isSubmitted) {
+      void persistRegistration({
+        selectedAdditionalItemIds: [...next],
+      });
+    }
+  };
+
+  const handleAdditionalInvoiceDownload = useCallback(async () => {
+    setSelectedAdditionalItemIds(new Set());
+    if (!isSubmitted) {
+      await persistRegistration({ selectedAdditionalItemIds: [] });
+    }
+  }, [isSubmitted, persistRegistration]);
 
   useEffect(() => {
     setAirBookingRequests(props.airBookingRequests ?? []);
@@ -414,6 +527,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     selectedMeals,
     selectedFoodExp,
     shuttles,
+    selectedBoothItemId,
+    selectedAdditionalItemIds,
     formSteps,
     regStep,
     props.eventExhibitorId,
@@ -433,6 +548,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     };
     setFormSteps(nextFormSteps);
     setRegStep(n);
+    setParams({ tab: "registration", step: String(n) });
     if (!isSubmitted) {
       void persistRegistration({ formSteps: nextFormSteps, regStep: n });
     }
@@ -1051,6 +1167,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       {tab === "registration" && (
         <Panel title="" icon={FileText} noHeader>
           <StepBar step={regStep} onStepClick={goStep} />
+          <div className={cn(regStep === 2 && "grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,24rem)]")}>
+            <div className="min-w-0">
           {regStep === 1 && (
             <RegStep title="Company information" icon={Building2}>
               <FormRow>
@@ -1085,21 +1203,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           )}
           {regStep === 2 && (
             <RegStep title="Event preferences & requirements" icon={Calendar}>
-              <FormRow>
-                <Field label="Booth size preference">
-                  <Select value={form.booth} onChange={(v) => setForm({ ...form, booth: v })} options={[...BOOTH_SIZE_OPTIONS]} placeholder="Select…" />
-                </Field>
-                <Field label="Booth setup date">
-                  <Select value={form.setup} onChange={(v) => setForm({ ...form, setup: v })} options={setupOptions} placeholder="Select…" />
-                </Field>
-              </FormRow>
-              <Field label="Do you need AV / presentation equipment?">
-                <Select value={form.av} onChange={(v) => setForm({ ...form, av: v })} options={[...AV_OPTIONS]} />
-              </Field>
-              <p className="mb-3 text-xs text-muted-foreground">Standard booth power: 2 outlets (included).</p>
-              <Field label="Special accessibility or setup requirements">
-                <Textarea value={form.access} onChange={(e) => setForm({ ...form, access: e.target.value })} placeholder="e.g. wheelchair access, extra tables, signage needs…" rows={2} />
-              </Field>
+              <EventPreferencesStep
+                catalog={itemCatalog}
+                setupOptions={setupOptions}
+                selectedBoothItemId={selectedBoothItemId}
+                form={{ setup: form.setup, access: form.access }}
+                onBoothChange={handleBoothItemChange}
+                onFormChange={(patch) => setForm({ ...form, ...patch })}
+              />
               <NavButtons onBack={() => goStep(1)} onNext={() => goStep(3)} nextLabel="Next: Travel & logistics" />
             </RegStep>
           )}
@@ -1194,7 +1305,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   ["Email", form.email || "—"],
                   ["Team members", `${members.length} registered`],
                   ["Staff attending", form.staff || "0"],
-                  ["Booth size", form.booth],
+                  ["Booth package", form.booth || "—"],
+                  ["Setup date", form.setup || "—"],
+                  [
+                    "Additional requirements",
+                    selectedAdditionalItemIds.size > 0
+                      ? `${selectedAdditionalItemIds.size} item(s) — see Additional requirements tab`
+                      : "None selected",
+                  ],
                   ["Accommodation pickup", form.accommodationPickup],
                   ["Tours selected", String(selectedTours.size)],
                 ].map(([label, val]) => (
@@ -1204,6 +1322,23 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   </div>
                 ))}
               </div>
+              {registrationInvoice.lines.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Cost estimate (booth & additional items)
+                  </h4>
+                  <RegistrationInvoicePanel
+                    catalog={itemCatalog}
+                    selectedItemIds={[
+                      ...boothInvoiceIds,
+                      ...selectedAdditionalItemIds,
+                    ]}
+                    companyName={form.company || props.companyName}
+                    eventTitle={props.eventTitle}
+                    contactName={form.contact}
+                  />
+                </div>
+              )}
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Travel & logistics</h4>
               <div className="mb-4 grid gap-2.5 sm:grid-cols-2">
                 {formatTravelSummary(travel, visaDocs).map(([label, val]) => (
@@ -1245,7 +1380,32 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               </div>
             </RegStep>
           )}
+            </div>
+            {regStep === 2 && (
+              <RegistrationInvoicePanel
+                className="xl:sticky xl:top-4 xl:self-start"
+                catalog={itemCatalog}
+                selectedItemIds={boothInvoiceIds}
+                companyName={form.company || props.companyName}
+                eventTitle={props.eventTitle}
+                contactName={form.contact}
+                title="Booth invoice"
+              />
+            )}
+          </div>
         </Panel>
+      )}
+
+      {tab === "additional" && (
+        <AdditionalRequirementsPanel
+          catalog={itemCatalog}
+          selectedItemIds={selectedAdditionalItemIds}
+          onToggleItem={handleAdditionalItemToggle}
+          companyName={form.company || props.companyName}
+          eventTitle={props.eventTitle}
+          contactName={form.contact}
+          onInvoiceDownload={handleAdditionalInvoiceDownload}
+        />
       )}
 
       {/* Members */}

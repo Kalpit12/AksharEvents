@@ -1,60 +1,11 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { requireExhibitorAccess, canManageMembers } from "@/lib/exhibitor";
-import type { EventActivityOption } from "@/lib/event-activity-types";
-import {
-  serializeEventHotel,
-  serializeEventRestaurant,
-  serializeEventScheduleItem,
-} from "@/lib/event-config-types";
-import { getPrimaryPublishedEvent } from "@/lib/primary-event";
-import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
-import { prisma } from "@/lib/prisma";
-import { listAirBookingRequestsForExhibitor } from "@/lib/air-booking-actions";
-import { listAirBookingMemberWorkflowsForExhibitor } from "@/lib/air-booking-workflow-actions";
-import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
-import type { SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
-import type { SerializedMemberDocument } from "@/lib/member-document-types";
+import { loadExhibitorDashboardPageDataWithRetry } from "@/lib/exhibitor-page-data";
 import ExhibitorPortalDashboard from "@/components/exhibitor-portal/exhibitor-portal-dashboard";
-import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
-import { differenceInCalendarDays } from "date-fns";
 
 export const dynamic = "force-dynamic";
-
-function serializeActivity(activity: {
-  id: string;
-  kind: "TOUR" | "TRAVEL";
-  title: string;
-  description: string | null;
-  startAt: Date;
-  endAt: Date | null;
-  location: string | null;
-  price: { toNumber(): number };
-  currency: string;
-  maxSlots: number | null;
-}): EventActivityOption {
-  return {
-    id: activity.id,
-    kind: activity.kind,
-    title: activity.title,
-    description: activity.description,
-    startAt: activity.startAt.toISOString(),
-    endAt: activity.endAt?.toISOString() ?? null,
-    location: activity.location,
-    price: activity.price.toNumber(),
-    currency: activity.currency,
-    maxSlots: activity.maxSlots,
-  };
-}
-
-const eventExhibitorInclude = {
-  registration: true,
-  event: {
-    include: {
-      venue: { select: { name: true, city: true } },
-    },
-  },
-} as const;
 
 export default async function ExhibitorDashboardPage() {
   const user = await getCurrentUser();
@@ -63,118 +14,48 @@ export default async function ExhibitorDashboardPage() {
   const access = await requireExhibitorAccess(user.id);
   if (!access?.membership) redirect("/auth/exhibitor?mode=signup");
 
-  const primaryEvent = await getPrimaryPublishedEvent();
-  const openEvents = await getOpenExhibitorEvents();
-
-  let eventEntry = primaryEvent
-    ? await prisma.eventExhibitor.findFirst({
-        where: {
-          exhibitorId: access.exhibitor.id,
-          eventId: primaryEvent.id,
-        },
-        include: eventExhibitorInclude,
-      })
-    : null;
-
-  if (!eventEntry) {
-    eventEntry = await prisma.eventExhibitor.findFirst({
-      where: { exhibitorId: access.exhibitor.id },
-      orderBy: { event: { startDate: "asc" } },
-      include: eventExhibitorInclude,
-    });
-  }
-
-  const event = eventEntry?.event ?? primaryEvent;
-  const expoDays = event
-    ? Math.max(1, differenceInCalendarDays(event.endDate, event.startDate) + 1)
-    : 1;
-
-  const activities = event
-    ? await prisma.eventActivity.findMany({
-        where: { eventId: event.id, isActive: true },
-        orderBy: { startAt: "asc" },
-      })
-    : [];
-
-  const [eventHotels, eventRestaurants, eventSchedule] = event
-    ? await Promise.all([
-        prisma.eventHotel.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        }),
-        prisma.eventRestaurant.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        }),
-        prisma.eventScheduleItem.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
-        }),
-      ])
-    : [[], [], []];
-
-  const savedRegistration = eventEntry?.registration?.formData
-    ? (eventEntry.registration.formData as SavedRegistrationData)
-    : null;
-
-  const memberDocuments: SerializedMemberDocument[] = eventEntry
-    ? (
-        await prisma.exhibitorMemberDocument.findMany({
-          where: { eventExhibitorId: eventEntry.id },
-          orderBy: { createdAt: "desc" },
-        })
-      ).map((doc) => ({
-        id: doc.id,
-        eventExhibitorId: doc.eventExhibitorId,
-        memberLocalId: doc.memberLocalId,
-        documentType: doc.documentType,
-        originalFileName: doc.originalFileName,
-        mimeType: doc.mimeType,
-        fileSize: doc.fileSize,
-        uploadedAt: doc.createdAt.toISOString(),
-      }))
-    : [];
-
-  let airBookingRequests: SerializedAirBookingRequest[] = [];
-  let memberWorkflows: SerializedAirBookingMemberWorkflow[] = [];
-  if (eventEntry) {
-    const airBookingResult = await listAirBookingRequestsForExhibitor(eventEntry.id);
-    if (airBookingResult.success && airBookingResult.requests) {
-      airBookingRequests = airBookingResult.requests;
-    }
-    const workflowResult = await listAirBookingMemberWorkflowsForExhibitor(eventEntry.id);
-    if (workflowResult.success && workflowResult.workflows) {
-      memberWorkflows = workflowResult.workflows;
-    }
-  }
+  const data = await loadExhibitorDashboardPageDataWithRetry(
+    access.exhibitor,
+    access.membership.role
+  );
 
   return (
-    <ExhibitorPortalDashboard
-      eventExhibitorId={eventEntry?.id ?? null}
-      savedRegistration={savedRegistration}
-      registrationStatus={eventEntry?.registration?.status ?? null}
-      companyName={access.exhibitor.companyName}
-      contactName={access.exhibitor.contactName || user.name || ""}
-      contactEmail={access.exhibitor.contactEmail || user.email}
-      contactPhone={access.exhibitor.contactPhone}
-      description={access.exhibitor.description}
-      eventTitle={event?.title ?? "Upcoming event"}
-      eventVenue={event?.venue?.name ?? "Venue TBC"}
-      eventCity={event?.venue?.city ?? "Kenya"}
-      startDate={(event?.startDate ?? new Date()).toISOString()}
-      endDate={(event?.endDate ?? new Date()).toISOString()}
-      boothNumber={eventEntry?.boothNumber ?? null}
-      hall={eventEntry?.hall ?? null}
-      expoDays={expoDays}
-      eventActivities={activities.map(serializeActivity)}
-      eventHotels={eventHotels.map(serializeEventHotel)}
-      eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
-      eventSchedule={eventSchedule.map(serializeEventScheduleItem)}
-      canManageMembers={canManageMembers(access.membership.role)}
-      openEvents={openEvents}
-      memberDocuments={memberDocuments}
-      airBookingRequests={airBookingRequests}
-      memberWorkflows={memberWorkflows}
-    />
+    <Suspense
+      fallback={
+        <div
+          className="mx-auto h-96 max-w-7xl animate-pulse rounded-2xl border border-border bg-muted/40 px-4 py-6 sm:px-6 lg:px-8"
+          aria-hidden
+        />
+      }
+    >
+      <ExhibitorPortalDashboard
+        eventExhibitorId={data.eventExhibitorId}
+        savedRegistration={data.savedRegistration}
+        registrationStatus={data.registrationStatus}
+        companyName={data.exhibitor.companyName}
+        contactName={data.exhibitor.contactName || user.name || ""}
+        contactEmail={data.exhibitor.contactEmail || user.email}
+        contactPhone={data.exhibitor.contactPhone}
+        description={data.exhibitor.description}
+        eventTitle={data.eventTitle}
+        eventVenue={data.eventVenue}
+        eventCity={data.eventCity}
+        startDate={data.startDate}
+        endDate={data.endDate}
+        boothNumber={data.boothNumber}
+        hall={data.hall}
+        expoDays={data.expoDays}
+        eventActivities={data.eventActivities}
+        eventHotels={data.eventHotels}
+        eventRestaurants={data.eventRestaurants}
+        eventSchedule={data.eventSchedule}
+        itemCatalog={data.itemCatalog}
+        canManageMembers={canManageMembers(data.membershipRole)}
+        openEvents={data.openEvents}
+        memberDocuments={data.memberDocuments}
+        airBookingRequests={data.airBookingRequests}
+        memberWorkflows={data.memberWorkflows}
+      />
+    </Suspense>
   );
 }

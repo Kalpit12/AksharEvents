@@ -45,6 +45,12 @@ export type SavedRegistrationData = {
   selectedMeals: string[];
   selectedFoodExp: string[];
   shuttles: string[];
+  /** Item master — booth package (single) */
+  selectedBoothItemId?: string | null;
+  /** Item master — additional requirements (multi, all non-booth categories) */
+  selectedAdditionalItemIds?: string[];
+  /** @deprecated Migrated to selectedAdditionalItemIds */
+  selectedEquipmentIds?: string[];
   formSteps: RegistrationFormSteps;
   regStep: number;
 };

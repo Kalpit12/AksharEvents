@@ -13,6 +13,7 @@ export type EventMasterTab =
   | "members"
   | "flights"
   | "supplies"
+  | "items"
   | "transport"
   | "hotels"
   | "food"

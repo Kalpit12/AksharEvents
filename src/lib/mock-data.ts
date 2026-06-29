@@ -26,12 +26,12 @@ const mockCategories = [
 const mockVenues = [
   {
     id: "venue-baps",
-    name: "BAPS Swaminarayan Mandir",
+    name: "BAPS Community Hall",
     slug: "baps-swaminarayan-mandir",
     city: "Nairobi",
     country: "Kenya",
     address: "Prof. Wangari Maathai Rd, Nairobi",
-    capacity: 1500,
+    capacity: 3000,
     isPopular: true,
     images: ["/BAPS_Nairobi_Mandir.jpg"],
     description: "Stunning Hindu mandir and cultural venue in Nairobi.",
