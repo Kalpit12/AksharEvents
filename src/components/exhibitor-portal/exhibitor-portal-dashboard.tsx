@@ -508,6 +508,16 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     }
   }, [isSubmitted, persistRegistration, selectedAdditionalItemIds, brandingCatalog]);
 
+  const handleRemoveBrandingItem = useCallback(
+    async (itemMasterId: string) => {
+      const next = new Set(selectedAdditionalItemIds);
+      next.delete(itemMasterId);
+      setSelectedAdditionalItemIds(next);
+      await persistRegistration({ selectedAdditionalItemIds: [...next] });
+    },
+    [selectedAdditionalItemIds, persistRegistration]
+  );
+
   useEffect(() => {
     setAirBookingRequests(props.airBookingRequests ?? []);
   }, [props.airBookingRequests]);
@@ -1523,6 +1533,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           selectedBrandingItemIds={selectedBrandingItemIds}
           submissions={brandingSubmissions}
           onSubmissionsChange={setBrandingSubmissions}
+          onRemoveBrandingItem={handleRemoveBrandingItem}
         />
       )}
 

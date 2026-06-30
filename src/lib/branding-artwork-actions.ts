@@ -10,6 +10,8 @@ import {
 } from "@/lib/branding-artwork-types";
 import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 import { isBrandingCategory } from "@/lib/item-master-catalog";
+import { deleteAuthenticatedDocument } from "@/lib/cloudinary-server";
+import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -224,4 +226,80 @@ export async function ensureBrandingSubmissionRows(
     success: true,
     submissions: rows.map(serializeBrandingArtworkSubmission),
   };
+}
+
+export async function removeBrandingArtworkItem(
+  eventExhibitorId: string,
+  itemMasterId: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const access = await assertExhibitorEventAccess(user, eventExhibitorId);
+  if (!access.ok) return { error: access.error };
+
+  const item = await prisma.eventItemMaster.findUnique({ where: { id: itemMasterId } });
+  if (!item || !isBrandingCategory(item.category)) {
+    return { error: "Invalid branding item" };
+  }
+
+  const submission = await prisma.brandingArtworkSubmission.findUnique({
+    where: {
+      eventExhibitorId_itemMasterId: { eventExhibitorId, itemMasterId },
+    },
+  });
+
+  if (submission && !canExhibitorEditArtwork(submission.status)) {
+    return { error: "Submitted artwork cannot be removed. Contact the event team for help." };
+  }
+
+  if (submission?.cloudinaryPublicId) {
+    try {
+      await deleteAuthenticatedDocument(submission.cloudinaryPublicId);
+    } catch {
+      /* continue — DB row still removed */
+    }
+  }
+
+  if (submission) {
+    await prisma.brandingArtworkSubmission.delete({ where: { id: submission.id } });
+  }
+
+  const registration = await prisma.exhibitorRegistration.findUnique({
+    where: { eventExhibitorId },
+  });
+  if (registration?.formData && typeof registration.formData === "object") {
+    const formData = registration.formData as SavedRegistrationData;
+    const currentIds =
+      formData.selectedAdditionalItemIds ?? formData.selectedEquipmentIds ?? [];
+    const nextIds = currentIds.filter((id) => id !== itemMasterId);
+    if (nextIds.length !== currentIds.length) {
+      await prisma.exhibitorRegistration.update({
+        where: { eventExhibitorId },
+        data: {
+          formData: {
+            ...formData,
+            selectedAdditionalItemIds: nextIds,
+          },
+        },
+      });
+    }
+  }
+
+  try {
+    await createAuditLog({
+      userId: user.id,
+      action: "DELETE",
+      entity: "BrandingArtworkSubmission",
+      entityId: submission?.id ?? itemMasterId,
+      details: { eventExhibitorId, itemMasterId },
+    });
+  } catch {
+    /* non-blocking */
+  }
+
+  revalidatePath("/exhibitor");
+  revalidatePath("/printing");
+
+  return { success: true };
 }

@@ -10,11 +10,11 @@ import {
   type SerializedBrandingArtworkSubmission,
 } from "@/lib/branding-artwork-types";
 import { getBrandingCatalogItems, ITEM_MASTER_CATEGORY_BRANDINGS } from "@/lib/item-master-catalog";
-import { submitBrandingArtwork, ensureBrandingSubmissionRows } from "@/lib/branding-artwork-actions";
+import { submitBrandingArtwork, ensureBrandingSubmissionRows, removeBrandingArtworkItem } from "@/lib/branding-artwork-actions";
 import { EmptyState, ModalShell, Panel } from "@/components/exhibitor-portal/exhibitor-portal-ui";
 import { Button } from "@/components/ui/Button";
 import { cn, formatCurrency } from "@/lib/utils";
-import { AlertTriangle, Check, ExternalLink, FileUp, Loader2, Palette, Send } from "lucide-react";
+import { AlertTriangle, Check, ExternalLink, FileUp, Loader2, Palette, Send, Trash2 } from "lucide-react";
 import { notify } from "@/lib/notify";
 
 type Props = {
@@ -23,6 +23,7 @@ type Props = {
   selectedBrandingItemIds: string[];
   submissions: SerializedBrandingArtworkSubmission[];
   onSubmissionsChange: (submissions: SerializedBrandingArtworkSubmission[]) => void;
+  onRemoveBrandingItem: (itemMasterId: string) => void | Promise<void>;
 };
 
 export function BrandingsPanel({
@@ -31,8 +32,11 @@ export function BrandingsPanel({
   selectedBrandingItemIds,
   submissions,
   onSubmissionsChange,
+  onRemoveBrandingItem,
 }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<EventItemMasterOption | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -201,6 +205,29 @@ export function BrandingsPanel({
     }
   };
 
+  const canRemoveItem = (itemId: string) => {
+    const row = submissionByItemId.get(itemId);
+    return !row || canExhibitorEditArtwork(row.status);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !eventExhibitorId) return;
+    setDeleting(true);
+    try {
+      const result = await removeBrandingArtworkItem(eventExhibitorId, deleteTarget.id);
+      if (result.error) {
+        notify.error(result.error);
+        return;
+      }
+      onSubmissionsChange(submissions.filter((s) => s.itemMasterId !== deleteTarget.id));
+      await onRemoveBrandingItem(deleteTarget.id);
+      setDeleteTarget(null);
+      notify.success("Branding item removed");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (!eventExhibitorId) {
     return (
       <Panel title="Brandings" icon={Palette}>
@@ -250,16 +277,30 @@ export function BrandingsPanel({
                       {item.unitOfMeasure} · {formatCurrency(item.unitCost, item.currency)}
                     </p>
                   </div>
-                  {row ? (
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                        BRANDING_ARTWORK_STATUS_BADGE[row.status]
-                      )}
-                    >
-                      {BRANDING_ARTWORK_STATUS_LABELS[row.status]}
-                    </span>
-                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {row ? (
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                          BRANDING_ARTWORK_STATUS_BADGE[row.status]
+                        )}
+                      >
+                        {BRANDING_ARTWORK_STATUS_LABELS[row.status]}
+                      </span>
+                    ) : null}
+                    {canRemoveItem(item.id) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(item)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {row?.status === "NOT_VERIFIED" && row.rejectionReason ? (
@@ -370,6 +411,39 @@ export function BrandingsPanel({
           </div>
         ) : null}
       </Panel>
+
+      {deleteTarget && (
+        <ModalShell
+          title="Remove branding item?"
+          icon={Trash2}
+          onClose={() => !deleting && setDeleteTarget(null)}
+          footer={
+            <>
+              <Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                disabled={deleting}
+                className="gap-1 text-destructive hover:text-destructive"
+                onClick={() => void handleDelete()}
+              >
+                {deleting ? "Removing…" : "Yes, remove"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            <p>
+              Remove <strong>{deleteTarget.name}</strong> from your branding list? Any draft
+              artwork for this item will be deleted.
+            </p>
+            <p className="text-muted-foreground">
+              You can add it again from Additional requirements if needed.
+            </p>
+          </div>
+        </ModalShell>
+      )}
 
       {confirmOpen && (
         <ModalShell

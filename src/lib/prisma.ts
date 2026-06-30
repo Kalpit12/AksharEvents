@@ -23,7 +23,7 @@ function createPrismaClient() {
           // Allow a few concurrent queries in dev without exhausting Neon's pooler.
           connection_limit: "3",
           pool_timeout: "60",
-          connect_timeout: "30",
+          connect_timeout: "60",
         })
       : databaseUrl;
 
@@ -70,6 +70,10 @@ export function isTransientConnectionError(error: unknown): boolean {
   );
 }
 
+export let prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
 export async function refreshPrismaConnection(): Promise<void> {
   try {
     await prisma.$disconnect();
@@ -79,28 +83,44 @@ export async function refreshPrismaConnection(): Promise<void> {
   await prisma.$connect();
 }
 
-export async function withDbRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
+function isInitializationError(error: unknown): boolean {
+  return error instanceof Error && error.name === "PrismaClientInitializationError";
+}
+
+export function recreatePrismaClient(): PrismaClient {
+  const previous = globalForPrisma.prisma;
+  const next = createPrismaClient();
+  globalForPrisma.prisma = next;
+  prisma = next;
+  void previous?.$disconnect().catch(() => {});
+  return next;
+}
+
+export async function withDbRetry<T>(fn: () => Promise<T>, maxAttempts?: number): Promise<T> {
+  const attempts =
+    maxAttempts ?? (process.env.NODE_ENV === "development" ? 8 : 5);
   let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (!isTransientConnectionError(error) || attempt === maxAttempts) {
+      if (!isTransientConnectionError(error) || attempt === attempts) {
         throw error;
       }
-      try {
-        await refreshPrismaConnection();
-      } catch {
-        // Next attempt may still succeed after pool recreation.
+      if (isInitializationError(error)) {
+        recreatePrismaClient();
+      } else {
+        try {
+          await refreshPrismaConnection();
+        } catch {
+          // Next attempt may still succeed after pool recreation.
+        }
       }
-      // Neon free tier can take 15–20s to wake from suspend.
-      await new Promise((resolve) => setTimeout(resolve, attempt * 3000));
+      // Neon free tier can take 15–25s to wake from suspend.
+      const delayMs = Math.min(attempt * 4000, 20000);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
   throw lastError;
 }
-
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
