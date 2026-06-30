@@ -17,7 +17,8 @@ export type EventMasterTab =
   | "transport"
   | "hotels"
   | "food"
-  | "schedule";
+  | "schedule"
+  | "floorplan";
 
 export type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 

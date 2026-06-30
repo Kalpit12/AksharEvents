@@ -11,6 +11,7 @@ import { serializeAirBookingRequest } from "@/lib/air-booking-types";
 import { serializeWorkflow, type SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
 import { serializeBrandingArtworkSubmission, type SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
+import { standLabelForBoothCode } from "@/lib/booth-allocation";
 import { redactRegistrationForClient } from "@/lib/registration-pii";
 import { getOpenExhibitorEvents, type OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
@@ -80,6 +81,7 @@ export type ExhibitorDashboardPageData = {
   startDate: string;
   endDate: string;
   boothNumber: string | null;
+  boothStandLabel: string | null;
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -124,7 +126,25 @@ export async function loadExhibitorDashboardPageData(
   const eventExhibitorId = eventEntry?.id;
   const canLoadDocuments = membershipRole !== "STAFF";
 
-  const [eventConfig, memberDocuments, airBookingRows, memberWorkflowRows, brandingArtworkRows] =
+  const boothLookupEventId = eventEntry?.eventId ?? eventId;
+  const assignedBoothWhere =
+    eventExhibitorId || boothLookupEventId
+      ? {
+          OR: [
+            ...(eventExhibitorId ? [{ eventExhibitorId }] : []),
+            ...(boothLookupEventId
+              ? [
+                  {
+                    eventId: boothLookupEventId,
+                    companyName: { equals: exhibitor.companyName, mode: "insensitive" as const },
+                  },
+                ]
+              : []),
+          ],
+        }
+      : null;
+
+  const [eventConfig, memberDocuments, airBookingRows, memberWorkflowRows, brandingArtworkRows, assignedBoothRow] =
     await Promise.all([
     eventId
       ? prisma.$transaction([
@@ -179,6 +199,12 @@ export async function loadExhibitorDashboardPageData(
           orderBy: { updatedAt: "desc" },
         })
       : Promise.resolve([]),
+    assignedBoothWhere
+      ? prisma.eventBooth.findFirst({
+          where: assignedBoothWhere,
+          select: { code: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   const [activities, eventHotels, eventRestaurants, eventSchedule, itemCatalogRows] = eventConfig;
@@ -203,6 +229,10 @@ export async function loadExhibitorDashboardPageData(
   const serializedMemberWorkflows = memberWorkflowRows.map(serializeWorkflow);
   const serializedBrandingArtwork = brandingArtworkRows.map(serializeBrandingArtworkSubmission);
 
+  const boothNumber =
+    assignedBoothRow?.code?.toUpperCase() ?? eventEntry?.boothNumber?.toUpperCase() ?? null;
+  const boothStandLabel = boothNumber ? standLabelForBoothCode(boothNumber) : null;
+
   return {
     exhibitor,
     membershipRole,
@@ -214,7 +244,8 @@ export async function loadExhibitorDashboardPageData(
     eventCity: event?.venue?.city ?? "Kenya",
     startDate: (event?.startDate ?? new Date()).toISOString(),
     endDate: (event?.endDate ?? new Date()).toISOString(),
-    boothNumber: eventEntry?.boothNumber ?? null,
+    boothNumber,
+    boothStandLabel,
     hall: eventEntry?.hall ?? null,
     expoDays,
     eventActivities: activities.map(serializeActivity),

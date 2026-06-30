@@ -22,6 +22,17 @@ type Props = {
   id?: string;
 };
 
+/** Radix Select requires a non-empty controlled value; map "" to this sentinel. */
+const EMPTY_SELECT_VALUE = "__empty__";
+
+function normalizeSelectValue(value: string) {
+  return value === "" ? EMPTY_SELECT_VALUE : value;
+}
+
+function denormalizeSelectValue(value: string) {
+  return value === EMPTY_SELECT_VALUE ? "" : value;
+}
+
 export function CustomSelect({
   value,
   onChange,
@@ -32,11 +43,18 @@ export function CustomSelect({
   size = "default",
   id,
 }: Props) {
-  const selected = options.find((o) => o.value === value);
-  const radixValue = value || undefined;
+  const normalizedOptions = options.map((option) => ({
+    ...option,
+    value: normalizeSelectValue(option.value),
+  }));
+  const radixValue = normalizeSelectValue(value);
+  const selected = normalizedOptions.find((o) => o.value === radixValue);
 
   return (
-    <SelectPrimitive.Root value={radixValue} onValueChange={onChange}>
+    <SelectPrimitive.Root
+      value={radixValue}
+      onValueChange={(next) => onChange(denormalizeSelectValue(next))}
+    >
       <SelectPrimitive.Trigger
         id={id}
         className={cn(
@@ -69,7 +87,7 @@ export function CustomSelect({
           sideOffset={4}
         >
           <SelectPrimitive.Viewport className="max-h-[min(24rem,70vh)] overflow-y-auto bg-card p-1">
-            {options.map((option) => (
+            {normalizedOptions.map((option) => (
               <SelectPrimitive.Item
                 key={option.value}
                 value={option.value}

@@ -16,6 +16,7 @@ import {
   toSelectOptionsWithAll,
 } from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
+import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
@@ -24,6 +25,7 @@ import type {
   EventRestaurantOption,
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
+import type { FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import {
   EventHotelsManager,
   EventRestaurantsManager,
@@ -61,6 +63,7 @@ import {
   Link2,
   ListOrdered,
   MapPin,
+  Map,
   Package,
   Pencil,
   Plane,
@@ -90,6 +93,7 @@ type Props = {
   startDate: string;
   endDate: string;
   exhibitors?: AdminExhibitorRecord[];
+  floorPlanBooths?: FloorPlanBoothRecord[];
   activities?: EventActivityOption[];
   eventHotels?: EventHotelOption[];
   eventRestaurants?: EventRestaurantOption[];
@@ -109,12 +113,14 @@ const EVENT_MASTER_TAB_IDS = [
   "hotels",
   "food",
   "schedule",
+  "floorplan",
 ] as const satisfies readonly EventMasterTab[];
 
 const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "exhibitors", label: "Exhibitors", icon: Store },
   { id: "members", label: "Members", icon: Users },
   { id: "flights", label: "Flight bookings", icon: Plane },
+  { id: "floorplan", label: "Floor plan", icon: Map },
   { id: "supplies", label: "Supplies", icon: Package },
   { id: "items", label: "Item master", icon: ListOrdered },
   { id: "transport", label: "Transport", icon: Bus },
@@ -134,6 +140,7 @@ export default function EventMasterDashboard({
   startDate,
   endDate,
   exhibitors = [],
+  floorPlanBooths = [],
   activities = [],
   eventHotels = [],
   eventRestaurants = [],
@@ -197,20 +204,30 @@ export default function EventMasterDashboard({
   const dateRange = `${formatDate(startDate, "MMM d")}–${formatDate(endDate, "d")}`;
 
   return (
-    <div className="space-y-5">
-      <EventMasterHero
-        eventId={eventId}
-        eventTitle={eventTitle}
-        eventLocation={eventLocation}
-        dateRange={dateRange}
-        exhibitorCount={exhibitors.length}
-        memberCount={memberCount}
-        expoDays={expoDays}
-      />
+    <div className={cn("space-y-5", tab === "floorplan" && "space-y-2")}>
+      {tab !== "floorplan" && (
+        <>
+          <EventMasterHero
+            eventId={eventId}
+            eventTitle={eventTitle}
+            eventLocation={eventLocation}
+            dateRange={dateRange}
+            exhibitorCount={exhibitors.length}
+            memberCount={memberCount}
+            expoDays={expoDays}
+          />
 
-      <EventMasterQuickNav active="dashboard" eventId={eventId} />
+          <EventMasterQuickNav active="dashboard" eventId={eventId} />
+        </>
+      )}
 
-      <div className="relative rounded-2xl bg-muted/40 p-4 sm:p-6">
+      <div
+        className={cn(
+          "relative",
+          tab === "floorplan" ? "" : "rounded-2xl bg-muted/40 p-4 sm:p-6"
+        )}
+      >
+      {tab !== "floorplan" && (
       <div className="mb-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
         {[
           { label: "Exhibitors", value: exhibitors.length, icon: Store },
@@ -229,8 +246,9 @@ export default function EventMasterDashboard({
           </div>
         ))}
       </div>
+      )}
 
-      <div className="mb-5 flex flex-wrap gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 pb-2 sm:overflow-visible sm:pb-1">
+      <div className={cn("flex flex-wrap gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 pb-2 sm:overflow-visible sm:pb-1", tab === "floorplan" ? "mb-2" : "mb-5")}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -250,6 +268,14 @@ export default function EventMasterDashboard({
       </div>
 
       {tab === "exhibitors" && <ExhibitorRegistrationsPanel exhibitors={exhibitors} activities={activities} />}
+
+      {tab === "floorplan" && (
+        <FloorPlanPanel
+          eventId={eventId}
+          initialBooths={floorPlanBooths}
+          exhibitors={exhibitors}
+        />
+      )}
 
       {tab === "flights" && (
         <FlightBookingsPanelLazy

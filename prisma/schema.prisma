@@ -67,6 +67,13 @@ enum SponsorLevel {
   BRONZE
 }
 
+enum BoothStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  PREMIUM
+}
+
 enum ReviewStatus {
   PENDING
   APPROVED
@@ -317,6 +324,7 @@ model Event {
   restaurants     EventRestaurant[]
   scheduleItems   EventScheduleItem[]
   itemMaster      EventItemMaster[]
+  booths          EventBooth[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -327,6 +335,27 @@ model Event {
   @@index([organizerId])
   @@index([format])
   @@index([isFeatured])
+}
+
+model EventBooth {
+  id               String          @id @default(cuid())
+  eventId          String
+  event            Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  code             String
+  status           BoothStatus     @default(AVAILABLE)
+  eventExhibitorId String?         @unique
+  eventExhibitor   EventExhibitor? @relation(fields: [eventExhibitorId], references: [id], onDelete: SetNull)
+  companyName      String?
+  contactName      String?
+  contactPhone     String?
+  contactEmail     String?
+  notes            String?         @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, code])
+  @@index([eventId])
 }
 
 model TicketType {
@@ -509,6 +538,7 @@ model EventExhibitor {
   memberDocuments    ExhibitorMemberDocument[]
   memberWorkflows    AirBookingMemberWorkflow[]
   brandingArtworkSubmissions BrandingArtworkSubmission[]
+  eventBooth                 EventBooth?
 
   @@unique([eventId, exhibitorId])
 }

@@ -13,8 +13,10 @@ import {
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
+import { getEventFloorPlanBooths } from "@/lib/floor-plan-actions";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -44,9 +46,16 @@ function serializeActivity(activity: {
   };
 }
 
-export default async function AdminEventMasterPage() {
+export default async function AdminEventMasterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const user = await requireRole("ADMIN");
   if (!user) redirect("/auth/login");
+
+  const { tab: urlTab } = await searchParams;
+  const isFloorPlan = urlTab === "floorplan";
 
   const event = await getPrimaryPublishedEvent();
 
@@ -82,6 +91,7 @@ export default async function AdminEventMasterPage() {
     eventRestaurants,
     scheduleItems,
     itemMasterRows,
+    floorPlanResult,
   ] = await Promise.all([
     prisma.eventExhibitor.findMany({
       where: { eventId: event.id },
@@ -111,6 +121,7 @@ export default async function AdminEventMasterPage() {
       where: { eventId: event.id },
       orderBy: [{ category: "asc" }, { name: "asc" }],
     }),
+    getEventFloorPlanBooths(event.id),
   ]);
 
   const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
@@ -132,7 +143,12 @@ export default async function AdminEventMasterPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div
+      className={cn(
+        "mx-auto px-4 sm:px-6 lg:px-8",
+        isFloorPlan ? "max-w-[100rem] py-3" : "max-w-7xl py-6"
+      )}
+    >
       <Suspense
         fallback={
           <div className="h-96 animate-pulse rounded-2xl border border-border bg-muted/40" aria-hidden />
@@ -145,6 +161,7 @@ export default async function AdminEventMasterPage() {
         startDate={event.startDate.toISOString()}
         endDate={event.endDate.toISOString()}
         exhibitors={exhibitors}
+        floorPlanBooths={floorPlanResult.booths ?? []}
         activities={activities.map(serializeActivity)}
         eventHotels={eventHotels.map(serializeEventHotel)}
         eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
@@ -155,11 +172,6 @@ export default async function AdminEventMasterPage() {
           process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
         }
         />
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          <a href="/printing" className="font-medium text-primary hover:underline">
-            Open Printing &amp; artwork dashboard →
-          </a>
-        </p>
       </Suspense>
     </div>
   );

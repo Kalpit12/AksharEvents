@@ -63,6 +63,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
+import { formatExhibitorBoothLabel } from "@/lib/booth-allocation";
 import { cn, formatDate } from "@/lib/utils";
 import {
   AlertCircle,
@@ -145,6 +146,7 @@ export type ExhibitorPortalProps = {
   startDate: string;
   endDate: string;
   boothNumber: string | null;
+  boothStandLabel?: string | null;
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -1037,9 +1039,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     return map;
   }, [members]);
 
-  const boothLabel = props.boothNumber
-    ? `Booth #${props.boothNumber}${props.hall ? ` · ${props.hall}` : ""}`
-    : "Booth TBC";
+  const boothLabel = formatExhibitorBoothLabel(props.boothNumber, props.hall);
+  const boothSubline =
+    props.boothNumber && props.boothStandLabel
+      ? `Allocated by Event Master · ${props.boothStandLabel}`
+      : props.boothNumber
+        ? "Allocated by Event Master"
+        : form.booth || "Booth package not selected yet";
 
   const heroStatus: PortalHeroStatus = !props.eventExhibitorId
     ? "not_linked"
@@ -1265,8 +1271,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               <GlanceRow icon={Calendar} title={dateRange} sub={`${props.expoDays} days · Setup from day before`} />
               <GlanceRow
                 icon={Building2}
-                title={props.boothNumber ? `Booth #${props.boothNumber}${props.hall ? ` · ${props.hall}` : ""}` : "Booth assignment pending"}
-                sub={form.booth || "Booth size not selected yet"}
+                title={props.boothNumber ? boothLabel : "Booth assignment pending"}
+                sub={boothSubline}
               />
               {props.eventVenue && (
                 <GlanceRow icon={Clock} title={`${props.expoDays}-day event`} sub={`${props.eventVenue}, ${props.eventCity}`} />
