@@ -195,7 +195,7 @@ export default function PrintingArtworkDashboard({
               { label: "Companies", value: totals.companies },
               { label: "Artwork items", value: totals.submissions },
               { label: "Awaiting review", value: totals.awaiting },
-              { label: "Affixed", value: totals.completed },
+              { label: "Affixed", value: totals.affixed },
             ].map((m) => (
               <div
                 key={m.label}
