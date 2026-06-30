@@ -1,11 +1,14 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getAuthenticatedDocumentUrl } from "@/lib/cloudinary-server";
+import {
+  getAuthenticatedBrandingArtworkUrl,
+  resolveBrandingArtworkResourceType,
+} from "@/lib/cloudinary-server";
 import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 import { isPrintingStaffRole } from "@/lib/printing-access";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ submissionId: string }> }
 ) {
   const user = await getCurrentUser();
@@ -28,12 +31,18 @@ export async function GET(
     }
   }
 
-  const resourceType =
-    submission.mimeType === "application/pdf" ||
-    submission.mimeType === "application/postscript" ||
-    submission.mimeType === "application/illustrator"
-      ? "raw"
-      : "image";
-  const url = getAuthenticatedDocumentUrl(submission.cloudinaryPublicId, resourceType);
+  const download = new URL(request.url).searchParams.get("download") === "1";
+  const resourceType = await resolveBrandingArtworkResourceType(
+    submission.cloudinaryPublicId,
+    submission.cloudinaryResourceType,
+    submission.mimeType
+  );
+
+  const url = getAuthenticatedBrandingArtworkUrl(submission.cloudinaryPublicId, {
+    resourceType,
+    download,
+    fileName: submission.originalFileName ?? undefined,
+  });
+
   return Response.redirect(url, 302);
 }

@@ -198,6 +198,7 @@ export function BrandingsPanel({
           eventExhibitorId,
           itemMasterId,
           cloudinaryPublicId: cloudResult.public_id,
+          cloudinaryResourceType: cloudResult.resource_type,
           originalFileName: file.name,
           mimeType: file.type,
           fileSize: cloudResult.bytes,

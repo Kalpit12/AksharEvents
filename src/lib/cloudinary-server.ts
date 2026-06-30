@@ -119,6 +119,69 @@ export function getAuthenticatedDocumentUrl(publicId: string, resourceType: "ima
   });
 }
 
+function sanitizeAttachmentFileName(fileName: string) {
+  const base = fileName.split(/[/\\]/).pop()?.trim() || "artwork";
+  const sanitized = base.replace(/[^\w.\- ()[\]]+/g, "_");
+  return sanitized || "artwork";
+}
+
+/** Original authenticated asset — no transforms; optional attachment for download. */
+export function getAuthenticatedBrandingArtworkUrl(
+  publicId: string,
+  options: {
+    resourceType: "image" | "raw" | "video";
+    download?: boolean;
+    fileName?: string;
+    expiresInSeconds?: number;
+  }
+) {
+  ensureCloudinaryConfig();
+  const flags = options.download
+    ? options.fileName
+      ? `attachment:${sanitizeAttachmentFileName(options.fileName)}`
+      : "attachment"
+    : undefined;
+
+  return cloudinary.url(publicId, {
+    type: "authenticated",
+    sign_url: true,
+    secure: true,
+    resource_type: options.resourceType,
+    flags,
+    expires_at: Math.floor(Date.now() / 1000) + (options.expiresInSeconds ?? 600),
+  });
+}
+
+export async function resolveBrandingArtworkResourceType(
+  publicId: string,
+  stored: string | null | undefined,
+  mimeType: string | null | undefined
+): Promise<"image" | "raw"> {
+  if (stored === "image" || stored === "raw") return stored;
+
+  ensureCloudinaryConfig();
+  const preferred =
+    mimeType === "application/pdf" ||
+    mimeType === "application/postscript" ||
+    mimeType === "application/illustrator"
+      ? "raw"
+      : "image";
+
+  for (const resourceType of [preferred, preferred === "image" ? "raw" : "image"] as const) {
+    try {
+      await cloudinary.api.resource(publicId, {
+        type: "authenticated",
+        resource_type: resourceType,
+      });
+      return resourceType;
+    } catch {
+      /* try alternate */
+    }
+  }
+
+  return preferred;
+}
+
 export async function fetchAuthenticatedDocumentBuffer(publicId: string, resourceType: "image" | "raw" | "video" = "image") {
   const url = getAuthenticatedDocumentUrl(publicId, resourceType);
   const response = await fetch(url);

@@ -6,6 +6,7 @@ import {
   ALLOWED_BRANDING_MIME_TYPES,
   MAX_BRANDING_ARTWORK_BYTES,
   canExhibitorEditArtwork,
+  parseCloudinaryResourceType,
   serializeBrandingArtworkSubmission,
 } from "@/lib/branding-artwork-types";
 import { isBrandingCategory } from "@/lib/item-master-catalog";
@@ -29,6 +30,9 @@ export async function POST(request: Request) {
     const originalFileName = String(body.originalFileName ?? "");
     const mimeType = String(body.mimeType ?? "");
     const fileSize = Number(body.fileSize ?? 0);
+    const cloudinaryResourceType = parseCloudinaryResourceType(
+      typeof body.cloudinaryResourceType === "string" ? body.cloudinaryResourceType : null
+    );
 
     if (!eventExhibitorId || !itemMasterId) {
       return NextResponse.json({ error: "Invalid upload parameters" }, { status: 400 });
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
           eventExhibitorId,
           itemMasterId,
           cloudinaryPublicId,
+          cloudinaryResourceType,
           originalFileName,
           mimeType,
           fileSize,
@@ -93,6 +98,7 @@ export async function POST(request: Request) {
         },
         update: {
           cloudinaryPublicId,
+          cloudinaryResourceType,
           originalFileName,
           mimeType,
           fileSize,

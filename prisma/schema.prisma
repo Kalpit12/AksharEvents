@@ -571,6 +571,7 @@ model BrandingArtworkSubmission {
   itemMasterId       String
   itemMaster         EventItemMaster       @relation(fields: [itemMasterId], references: [id], onDelete: Cascade)
   cloudinaryPublicId String?
+  cloudinaryResourceType String?
   originalFileName   String?
   mimeType           String?
   fileSize           Int?

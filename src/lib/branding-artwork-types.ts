@@ -35,6 +35,29 @@ export const ALLOWED_BRANDING_MIME_TYPES = new Set([
 
 export const MAX_BRANDING_ARTWORK_BYTES = 25 * 1024 * 1024;
 
+export type CloudinaryResourceType = "image" | "raw" | "video";
+
+export function brandingArtworkResourceTypeFromMime(
+  mimeType: string | null | undefined
+): "image" | "raw" {
+  if (!mimeType) return "image";
+  if (
+    mimeType === "application/pdf" ||
+    mimeType === "application/postscript" ||
+    mimeType === "application/illustrator"
+  ) {
+    return "raw";
+  }
+  return "image";
+}
+
+export function parseCloudinaryResourceType(
+  value: string | null | undefined
+): CloudinaryResourceType | null {
+  if (value === "image" || value === "raw" || value === "video") return value;
+  return null;
+}
+
 export type SerializedBrandingArtworkSubmission = {
   id: string;
   eventExhibitorId: string;

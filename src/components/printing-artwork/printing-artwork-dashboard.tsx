@@ -25,6 +25,7 @@ import {
   Building2,
   Check,
   ChevronDown,
+  Download,
   ExternalLink,
   History,
   Mail,
@@ -48,6 +49,13 @@ type CompanyGroup = {
   inProduction: number;
   completed: number;
 };
+
+function formatArtworkFileSize(bytes: number | null | undefined) {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function groupByCompany(records: AdminBrandingArtworkRecord[]): CompanyGroup[] {
   const map = new Map<string, CompanyGroup>();
@@ -409,22 +417,41 @@ function CompanyArtworkPanel({
                 </span>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 {row.originalFileName && row.cloudinaryPublicId ? (
-                  <a
-                    href={`/api/exhibitor/branding-artwork/${row.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    {row.originalFileName}
-                  </a>
+                  <>
+                    <span className="min-w-0 truncate font-medium text-foreground">
+                      {row.originalFileName}
+                    </span>
+                    {formatArtworkFileSize(row.fileSize) ? (
+                      <span className="text-muted-foreground">
+                        ({formatArtworkFileSize(row.fileSize)})
+                      </span>
+                    ) : null}
+                    <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" asChild>
+                      <a
+                        href={`/api/exhibitor/branding-artwork/${row.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View
+                      </a>
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" asChild>
+                      <a href={`/api/exhibitor/branding-artwork/${row.id}?download=1`}>
+                        <Download className="h-3.5 w-3.5" />
+                        Download original
+                      </a>
+                    </Button>
+                  </>
                 ) : (
-                  <span>No file</span>
+                  <span className="text-muted-foreground">No file</span>
                 )}
                 {row.submittedAt ? (
-                  <span>Submitted {formatDate(row.submittedAt, "MMM d, yyyy")}</span>
+                  <span className="text-muted-foreground">
+                    Submitted {formatDate(row.submittedAt, "MMM d, yyyy")}
+                  </span>
                 ) : null}
               </div>
 
