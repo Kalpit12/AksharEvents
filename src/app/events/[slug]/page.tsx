@@ -16,6 +16,14 @@ import {
   Mic, Building2, HelpCircle, Star,
 } from "lucide-react";
 import type { Metadata } from "next";
+import {
+  descriptionWithoutShortLead,
+  uniqueAgendaItems,
+  uniqueFaqs,
+  uniqueGalleryImages,
+  uniqueSpeakers,
+  uniqueTicketTypes,
+} from "@/lib/event-detail-utils";
 
 interface EventDetailPageProps {
   params: Promise<{ slug: string }>;
@@ -53,11 +61,17 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   }
 
   const similar = await getSimilarEvents(event.id, event.categoryId);
+  const speakers = uniqueSpeakers(event.speakers);
+  const agenda = uniqueAgendaItems(event.agenda);
+  const gallery = uniqueGalleryImages(event.gallery, event.banner);
+  const faqs = uniqueFaqs(event.faqs);
+  const description = descriptionWithoutShortLead(event.description, event.shortDescription);
+
   const avgRating = event.reviews.length
     ? event.reviews.reduce((s, r) => s + r.rating, 0) / event.reviews.length
     : 0;
 
-  const ticketTypes = event.ticketTypes.map((t) => ({
+  const ticketTypes = uniqueTicketTypes(event.ticketTypes).map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description ?? null,
@@ -150,16 +164,16 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             <section>
               <h2 className="text-xl font-bold mb-3">About This Event</h2>
               <div className="prose dark:prose-invert max-w-none text-muted-foreground whitespace-pre-line">
-                {event.description}
+                {description}
               </div>
             </section>
 
             {/* Agenda */}
-            {event.agenda.length > 0 && (
+            {agenda.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" />Schedule</h2>
                 <div className="space-y-3">
-                  {event.agenda.map((item) => (
+                  {agenda.map((item) => (
                     <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-border p-4 sm:flex-row sm:gap-4">
                       <div className="shrink-0 text-sm font-mono text-primary sm:w-28">
                         {item.startTime} — {item.endTime}
@@ -176,11 +190,11 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             )}
 
             {/* Speakers */}
-            {event.speakers.length > 0 && (
+            {speakers.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Mic className="h-5 w-5 text-primary" />Speakers</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {event.speakers.map((speaker) => (
+                  {speakers.map((speaker) => (
                     <div key={speaker.id} className="flex gap-4 rounded-xl border p-4 border-border">
                       <div className="relative h-16 w-16 rounded-full overflow-hidden shrink-0 bg-muted">
                         <SafeImage src={speaker.image} alt={speaker.name} fill />
@@ -227,11 +241,11 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             )}
 
             {/* Gallery */}
-            {event.gallery.length > 0 && (
+            {gallery.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold mb-4">Gallery</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {event.gallery.map((img) => (
+                  {gallery.map((img) => (
                     <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden">
                       <SafeImage src={img.url} alt={img.caption || ""} fill />
                     </div>
@@ -241,11 +255,11 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             )}
 
             {/* FAQs */}
-            {event.faqs.length > 0 && (
+            {faqs.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><HelpCircle className="h-5 w-5 text-primary" />FAQs</h2>
                 <div className="space-y-3">
-                  {event.faqs.map((faq) => (
+                  {faqs.map((faq) => (
                     <div key={faq.id} className="rounded-xl border p-4 border-border">
                       <p className="font-medium">{faq.question}</p>
                       <p className="text-sm text-muted-foreground mt-2">{faq.answer}</p>

@@ -431,6 +431,14 @@ async function main() {
       careerExpoEventId = event.id;
     }
 
+    await prisma.speaker.deleteMany({ where: { eventId: event.id } });
+    await prisma.agendaItem.deleteMany({ where: { eventId: event.id } });
+    await prisma.fAQ.deleteMany({ where: { eventId: event.id } });
+    await prisma.galleryImage.deleteMany({ where: { eventId: event.id } });
+    await prisma.ticketType.deleteMany({
+      where: { eventId: event.id, sold: 0, bookingItems: { none: {} } },
+    });
+
     // Ticket types
     await prisma.ticketType.createMany({
       data: [

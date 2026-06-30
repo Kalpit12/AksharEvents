@@ -22,9 +22,10 @@ interface EventCardProps {
   };
   variant?: "grid" | "list";
   className?: string;
+  imagePriority?: boolean;
 }
 
-export function EventCard({ event, variant = "grid", className }: EventCardProps) {
+export function EventCard({ event, variant = "grid", className, imagePriority = false }: EventCardProps) {
   const minPrice = event.ticketTypes.length
     ? Math.min(...event.ticketTypes.map((t) => {
         const p = t.price;
@@ -40,7 +41,13 @@ export function EventCard({ event, variant = "grid", className }: EventCardProps
         <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300">
           <div className="flex flex-col sm:flex-row">
             <div className="relative h-48 sm:h-auto sm:w-72 shrink-0">
-              <SafeImage src={event.banner} alt={event.title} fill className="group-hover:scale-105 transition-transform duration-500" />
+              <SafeImage
+                src={event.banner}
+                alt={event.title}
+                fill
+                priority={imagePriority}
+                className="group-hover:scale-105 transition-transform duration-500"
+              />
               {event.isFeatured && (
                 <Badge variant="accent" className="absolute top-3 left-3">Featured</Badge>
               )}
@@ -82,6 +89,7 @@ export function EventCard({ event, variant = "grid", className }: EventCardProps
             src={event.banner}
             alt={event.title}
             fill
+            priority={imagePriority}
             className="group-hover:scale-105 transition-transform duration-500"
           />
           {event.isFeatured && (

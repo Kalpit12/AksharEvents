@@ -83,8 +83,13 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         </div>
       ) : (
         <div className={`mt-6 ${view === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col gap-4"}`}>
-          {result.events.map((event) => (
-            <EventCard key={event.id} event={event} variant={view} />
+          {result.events.map((event, index) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              variant={view}
+              imagePriority={page === 1 && index === 0}
+            />
           ))}
         </div>
       )}
