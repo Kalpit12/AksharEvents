@@ -97,7 +97,9 @@ export function AdditionalRequirementsPanel({
         companyName={companyName}
         eventTitle={eventTitle}
         contactName={contactName}
-        title="Additional requirements invoice"
+        title="Additional requirements estimate"
+        downloadLabel="Download estimate"
+        emptyHint="Select items to see your estimate."
         onAfterDownload={onInvoiceDownload}
       />
     </div>

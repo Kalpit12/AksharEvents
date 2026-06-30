@@ -14,6 +14,8 @@ type Props = {
   eventTitle: string;
   contactName?: string;
   title?: string;
+  downloadLabel?: string;
+  emptyHint?: string;
   className?: string;
   onAfterDownload?: () => void | Promise<void>;
 };
@@ -25,6 +27,8 @@ export function RegistrationInvoicePanel({
   eventTitle,
   contactName,
   title = "Invoice",
+  downloadLabel = "Download invoice",
+  emptyHint = "Select items to see your invoice.",
   className,
   onAfterDownload,
 }: Props) {
@@ -51,9 +55,7 @@ export function RegistrationInvoicePanel({
         </p>
 
         {invoice.lines.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Select items to see your invoice.
-          </p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{emptyHint}</p>
         ) : (
           <div className="space-y-4">
             <div className="overflow-x-auto rounded-lg border border-border">
@@ -120,7 +122,7 @@ export function RegistrationInvoicePanel({
           }}
         >
           <Download className="h-4 w-4" />
-          Download invoice
+          {downloadLabel}
         </Button>
 
         <p className="mt-3 text-center text-[10px] text-muted-foreground">
