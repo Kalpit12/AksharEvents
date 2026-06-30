@@ -512,8 +512,10 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     async (itemMasterId: string) => {
       const next = new Set(selectedAdditionalItemIds);
       next.delete(itemMasterId);
+      const nextIds = [...next];
+      skipAutosaveRef.current = true;
       setSelectedAdditionalItemIds(next);
-      await persistRegistration({ selectedAdditionalItemIds: [...next] });
+      await persistRegistration({ selectedAdditionalItemIds: nextIds });
     },
     [selectedAdditionalItemIds, persistRegistration]
   );

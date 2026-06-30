@@ -95,7 +95,8 @@ export async function POST(request: Request) {
         mimeType,
         fileSize,
         uploadedById: user.id,
-        status: existing?.status === "NOT_VERIFIED" ? "NOT_VERIFIED" : "DRAFT",
+        // New upload must be submitted again; keep rejectionReason until submit clears it.
+        status: "DRAFT",
       },
       include: { itemMaster: true },
     });

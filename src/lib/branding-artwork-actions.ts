@@ -41,17 +41,21 @@ export async function submitBrandingArtwork(eventExhibitorId: string, itemMaster
     include: { itemMaster: true },
   });
 
+  if (submissions.length !== itemMasterIds.length) {
+    return { error: "One or more branding items were not found" };
+  }
+
   const missingUpload = itemMasterIds.filter((id) => {
     const row = submissions.find((s) => s.itemMasterId === id);
     return !row?.cloudinaryPublicId;
   });
   if (missingUpload.length > 0) {
-    return { error: "Upload artwork for every selected branding item before submitting" };
+    return { error: "Upload artwork before submitting this item" };
   }
 
   const notEditable = submissions.filter((s) => !canExhibitorEditArtwork(s.status));
   if (notEditable.length > 0) {
-    return { error: "Some artwork is already submitted and cannot be changed" };
+    return { error: "This artwork has already been submitted and cannot be changed" };
   }
 
   const now = new Date();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import type { EventItemMasterOption } from "@/lib/event-config-types";
 import {
   BRANDING_ARTWORK_STATUS_BADGE,
@@ -22,7 +22,7 @@ type Props = {
   catalog: EventItemMasterOption[];
   selectedBrandingItemIds: string[];
   submissions: SerializedBrandingArtworkSubmission[];
-  onSubmissionsChange: (submissions: SerializedBrandingArtworkSubmission[]) => void;
+  onSubmissionsChange: (value: SetStateAction<SerializedBrandingArtworkSubmission[]>) => void;
   onRemoveBrandingItem: (itemMasterId: string) => void | Promise<void>;
 };
 
@@ -35,11 +35,13 @@ export function BrandingsPanel({
   onRemoveBrandingItem,
 }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitTarget, setSubmitTarget] = useState<EventItemMasterOption | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EventItemMasterOption | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const skipSyncRef = useRef(false);
 
   const brandingCatalog = useMemo(() => getBrandingCatalogItems(catalog), [catalog]);
 
@@ -80,12 +82,30 @@ export function BrandingsPanel({
   }, [submissions]);
 
   const syncRows = useCallback(async () => {
-    if (!eventExhibitorId || displayBrandingItemIds.length === 0) return;
-    const result = await ensureBrandingSubmissionRows(eventExhibitorId, displayBrandingItemIds);
-    if (result.success && result.submissions) {
-      onSubmissionsChange(result.submissions);
+    if (!eventExhibitorId || skipSyncRef.current) return;
+
+    const selectedSet = new Set(selectedBrandingItemIds);
+
+    if (selectedBrandingItemIds.length === 0) {
+      onSubmissionsChange((prev) =>
+        prev.filter((s) => !canExhibitorEditArtwork(s.status))
+      );
+      return;
     }
-  }, [eventExhibitorId, displayBrandingItemIds, onSubmissionsChange]);
+
+    const result = await ensureBrandingSubmissionRows(
+      eventExhibitorId,
+      selectedBrandingItemIds
+    );
+    if (result.success && result.submissions) {
+      onSubmissionsChange((prev) => {
+        const orphans = prev.filter((s) => !selectedSet.has(s.itemMasterId));
+        const merged = new Map(orphans.map((s) => [s.itemMasterId, s]));
+        for (const row of result.submissions!) merged.set(row.itemMasterId, row);
+        return [...merged.values()];
+      });
+    }
+  }, [eventExhibitorId, selectedBrandingItemIds, onSubmissionsChange]);
 
   useEffect(() => {
     void syncRows();
@@ -100,14 +120,27 @@ export function BrandingsPanel({
     [displayBrandingItems, submissionByItemId]
   );
 
-  const allEditableUploaded = editableItems.every((item) => {
-    const row = submissionByItemId.get(item.id);
-    return Boolean(row?.cloudinaryPublicId);
-  });
+  const canSubmitItem = (itemId: string) => {
+    const row = submissionByItemId.get(itemId);
+    return Boolean(row && canExhibitorEditArtwork(row.status) && row.cloudinaryPublicId);
+  };
 
-  const canSubmit = editableItems.length > 0 && allEditableUploaded;
+  const readyToSubmitItems = useMemo(
+    () =>
+      editableItems.filter((item) => {
+        const row = submissionByItemId.get(item.id);
+        return Boolean(row && canExhibitorEditArtwork(row.status) && row.cloudinaryPublicId);
+      }),
+    [editableItems, submissionByItemId]
+  );
 
   const hasSubmittedArtwork = submissions.some((row) => row.status !== "DRAFT");
+
+  const showRejectionFeedback = (row: SerializedBrandingArtworkSubmission | undefined) =>
+    Boolean(
+      row?.rejectionReason &&
+        (row.status === "NOT_VERIFIED" || row.status === "DRAFT")
+    );
 
   const uploadArtwork = async (itemMasterId: string, file: File) => {
     if (!eventExhibitorId) {
@@ -171,8 +204,10 @@ export function BrandingsPanel({
         return;
       }
 
-      const next = submissions.filter((s) => s.itemMasterId !== itemMasterId);
-      onSubmissionsChange([...next, registerResult.submission]);
+      onSubmissionsChange((prev) => [
+        ...prev.filter((s) => s.itemMasterId !== itemMasterId),
+        registerResult.submission,
+      ]);
       notify.success("Artwork uploaded");
     } catch {
       notify.error("Upload failed");
@@ -181,25 +216,30 @@ export function BrandingsPanel({
     }
   };
 
-  const handleSubmit = async () => {
-    if (!eventExhibitorId) return;
+  const handleSubmit = async (items: EventItemMasterOption[]) => {
+    if (!eventExhibitorId || items.length === 0) return;
     setSubmitting(true);
     try {
       const result = await submitBrandingArtwork(
         eventExhibitorId,
-        editableItems.map((i) => i.id)
+        items.map((i) => i.id)
       );
       if (result.error) {
         notify.error(result.error);
         return;
       }
       if (result.submissions) {
-        const merged = new Map(submissions.map((s) => [s.itemMasterId, s]));
-        for (const row of result.submissions) merged.set(row.itemMasterId, row);
-        onSubmissionsChange([...merged.values()]);
+        onSubmissionsChange((prev) => {
+          const merged = new Map(prev.map((s) => [s.itemMasterId, s]));
+          for (const row of result.submissions!) merged.set(row.itemMasterId, row);
+          return [...merged.values()];
+        });
       }
       setConfirmOpen(false);
-      notify.success("Artwork submitted for review");
+      setSubmitTarget(null);
+      const label =
+        items.length === 1 ? items[0]!.name : `${items.length} branding items`;
+      notify.success(`${label} submitted for review`);
     } finally {
       setSubmitting(false);
     }
@@ -213,17 +253,21 @@ export function BrandingsPanel({
   const handleDelete = async () => {
     if (!deleteTarget || !eventExhibitorId) return;
     setDeleting(true);
+    skipSyncRef.current = true;
     try {
       const result = await removeBrandingArtworkItem(eventExhibitorId, deleteTarget.id);
       if (result.error) {
         notify.error(result.error);
         return;
       }
-      onSubmissionsChange(submissions.filter((s) => s.itemMasterId !== deleteTarget.id));
       await onRemoveBrandingItem(deleteTarget.id);
+      onSubmissionsChange((prev) =>
+        prev.filter((s) => s.itemMasterId !== deleteTarget.id)
+      );
       setDeleteTarget(null);
       notify.success("Branding item removed");
     } finally {
+      skipSyncRef.current = false;
       setDeleting(false);
     }
   };
@@ -254,8 +298,8 @@ export function BrandingsPanel({
       <Panel title="Branding artwork" icon={Palette}>
         <p className="mb-4 text-sm text-muted-foreground">
           {hasSubmittedArtwork
-            ? "Your submitted branding artwork and current production status are shown below. Contact the event team if you need changes after submission."
-            : "Upload print-ready artwork for each branding item you selected. Once submitted, files cannot be changed unless the printing team marks them as not verified."}
+            ? "Upload and submit each branding item separately. If the printing team marks artwork as not verified, their feedback is shown below — upload a corrected file and submit that item again."
+            : "Upload print-ready artwork for each branding item you selected, then submit each item when it is ready. Once submitted, files cannot be changed unless the printing team marks them as not verified."}
         </p>
 
         <div className="space-y-3">
@@ -303,14 +347,26 @@ export function BrandingsPanel({
                   </div>
                 </div>
 
-                {row?.status === "NOT_VERIFIED" && row.rejectionReason ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-900 dark:bg-red-900/20 dark:text-red-200">
+                {showRejectionFeedback(row) ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">Artwork not verified — feedback from printing team</p>
+                      <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed">
+                        {row!.rejectionReason}
+                      </p>
+                      <p className="mt-2 text-xs opacity-90">
+                        Upload a corrected file for this item, then submit it again for review.
+                      </p>
+                    </div>
+                  </div>
+                ) : row?.status === "NOT_VERIFIED" ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div>
                       <p className="font-medium">Artwork not verified</p>
-                      <p className="mt-1 text-xs">{row.rejectionReason}</p>
-                      <p className="mt-2 text-xs opacity-90">
-                        Please upload corrected artwork and submit again.
+                      <p className="mt-1 text-xs">
+                        Upload a corrected file for this item, then submit it again for review.
                       </p>
                     </div>
                   </div>
@@ -347,7 +403,21 @@ export function BrandingsPanel({
                             ) : (
                               <FileUp className="h-3.5 w-3.5" />
                             )}
-                            Replace
+                            {row.status === "NOT_VERIFIED" || row.rejectionReason
+                              ? "Upload corrected file"
+                              : "Replace"}
+                          </Button>
+                        ) : null}
+                        {canSubmitItem(item.id) ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 gap-1 bg-primary text-xs hover:bg-champagne-dark"
+                            disabled={submitting}
+                            onClick={() => setSubmitTarget(item)}
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Submit
                           </Button>
                         ) : null}
                       </div>
@@ -372,6 +442,18 @@ export function BrandingsPanel({
                         )}
                         Upload artwork
                       </Button>
+                      {canSubmitItem(item.id) ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-1 bg-primary text-xs hover:bg-champagne-dark"
+                          disabled={submitting}
+                          onClick={() => setSubmitTarget(item)}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Submit
+                        </Button>
+                      ) : null}
                     </div>
                   )}
                   <input
@@ -393,20 +475,18 @@ export function BrandingsPanel({
           })}
         </div>
 
-        {editableItems.length > 0 ? (
+        {readyToSubmitItems.length > 1 ? (
           <div className="mt-5 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              {canSubmit
-                ? "All branding items have artwork uploaded and are ready to submit."
-                : "Upload artwork for every branding item before submitting."}
+              {readyToSubmitItems.length} items have artwork uploaded and are ready to submit.
             </p>
             <Button
               className="gap-1 bg-primary hover:bg-champagne-dark sm:shrink-0"
-              disabled={!canSubmit || submitting}
+              disabled={submitting}
               onClick={() => setConfirmOpen(true)}
             >
               <Send className="h-4 w-4" />
-              Submit artwork
+              Submit all ready ({readyToSubmitItems.length})
             </Button>
           </div>
         ) : null}
@@ -445,20 +525,35 @@ export function BrandingsPanel({
         </ModalShell>
       )}
 
-      {confirmOpen && (
+      {(confirmOpen || submitTarget) && (
         <ModalShell
-          title="Submit branding artwork?"
+          title={
+            submitTarget
+              ? `Submit ${submitTarget.name}?`
+              : `Submit ${readyToSubmitItems.length} items?`
+          }
           icon={AlertTriangle}
-          onClose={() => !submitting && setConfirmOpen(false)}
+          onClose={() => !submitting && (setConfirmOpen(false), setSubmitTarget(null))}
           footer={
             <>
-              <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
+              <Button
+                variant="outline"
+                disabled={submitting}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setSubmitTarget(null);
+                }}
+              >
                 No, go back
               </Button>
               <Button
                 disabled={submitting}
                 className="gap-1 bg-primary hover:bg-champagne-dark"
-                onClick={() => void handleSubmit()}
+                onClick={() =>
+                  void handleSubmit(
+                    submitTarget ? [submitTarget] : readyToSubmitItems
+                  )
+                }
               >
                 {submitting ? "Submitting…" : "Yes, submit"}
               </Button>
@@ -467,11 +562,14 @@ export function BrandingsPanel({
         >
           <div className="space-y-3 text-sm">
             <p>
-              Once your artwork is submitted it <strong>cannot be changed</strong>. Please recheck
-              every file — correct dimensions, resolution, spelling, and branding colours — before
-              you continue.
+              Once submitted, artwork for{" "}
+              <strong>{submitTarget ? submitTarget.name : "these items"}</strong> cannot be
+              changed unless the printing team marks it as not verified.
             </p>
-            <p className="text-muted-foreground">Are you sure you want to submit?</p>
+            <p className="text-muted-foreground">
+              Please recheck dimensions, resolution, spelling, and branding colours before you
+              continue.
+            </p>
           </div>
         </ModalShell>
       )}
