@@ -84,14 +84,12 @@ export function BrandingsPanel({
   const syncRows = useCallback(async () => {
     if (!eventExhibitorId || skipSyncRef.current) return;
 
-    const selectedSet = new Set(selectedBrandingItemIds);
-
     if (selectedBrandingItemIds.length === 0) {
-      onSubmissionsChange((prev) =>
-        prev.filter((s) => !canExhibitorEditArtwork(s.status))
-      );
+      // Keep all submissions — rejected (NOT_VERIFIED) items must stay visible for re-upload.
       return;
     }
+
+    const selectedSet = new Set(selectedBrandingItemIds);
 
     const result = await ensureBrandingSubmissionRows(
       eventExhibitorId,
@@ -99,6 +97,7 @@ export function BrandingsPanel({
     );
     if (result.success && result.submissions) {
       onSubmissionsChange((prev) => {
+        // Preserve submissions not in current selection (e.g. rejected items cleared from invoice).
         const orphans = prev.filter((s) => !selectedSet.has(s.itemMasterId));
         const merged = new Map(orphans.map((s) => [s.itemMasterId, s]));
         for (const row of result.submissions!) merged.set(row.itemMasterId, row);
@@ -136,11 +135,8 @@ export function BrandingsPanel({
 
   const hasSubmittedArtwork = submissions.some((row) => row.status !== "DRAFT");
 
-  const showRejectionFeedback = (row: SerializedBrandingArtworkSubmission | undefined) =>
-    Boolean(
-      row?.rejectionReason &&
-        (row.status === "NOT_VERIFIED" || row.status === "DRAFT")
-    );
+  const hasRejectedArtwork = (row: SerializedBrandingArtworkSubmission | undefined) =>
+    Boolean(row && (row.status === "NOT_VERIFIED" || (row.status === "DRAFT" && row.rejectionReason)));
 
   const uploadArtwork = async (itemMasterId: string, file: File) => {
     if (!eventExhibitorId) {
@@ -347,27 +343,37 @@ export function BrandingsPanel({
                   </div>
                 </div>
 
-                {showRejectionFeedback(row) ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div>
-                      <p className="font-medium">Artwork not verified — feedback from printing team</p>
-                      <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed">
-                        {row!.rejectionReason}
-                      </p>
-                      <p className="mt-2 text-xs opacity-90">
-                        Upload a corrected file for this item, then submit it again for review.
-                      </p>
-                    </div>
-                  </div>
-                ) : row?.status === "NOT_VERIFIED" ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div>
-                      <p className="font-medium">Artwork not verified</p>
-                      <p className="mt-1 text-xs">
-                        Upload a corrected file for this item, then submit it again for review.
-                      </p>
+                {hasRejectedArtwork(row) ? (
+                  <div
+                    className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3.5 dark:border-red-800 dark:bg-red-950/40"
+                    role="alert"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+                          Artwork not verified — action required
+                        </p>
+                        {row!.rejectionReason ? (
+                          <div className="rounded-md border border-red-200 bg-white px-3 py-2.5 dark:border-red-900/50 dark:bg-red-950/60">
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-red-700/80 dark:text-red-300/80">
+                              Issue to fix
+                            </p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-red-950 dark:text-red-50">
+                              {row.rejectionReason}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-800 dark:text-red-200">
+                            The printing team could not verify this file. Upload a corrected version
+                            and submit again.
+                          </p>
+                        )}
+                        <p className="text-xs leading-relaxed text-red-800/90 dark:text-red-200/90">
+                          Upload a corrected file for <strong>{item.name}</strong> below, then
+                          click <strong>Submit</strong> to send it back for review.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -376,8 +382,19 @@ export function BrandingsPanel({
                   {row?.originalFileName ? (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs">
-                        <Check className="mr-1 inline h-3.5 w-3.5 text-emerald-600" />
-                        {row.originalFileName}
+                        {hasRejectedArtwork(row) ? (
+                          <>
+                            <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-red-600" />
+                            <span className="text-red-800 dark:text-red-200">
+                              Previous file (needs correction): {row.originalFileName}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="mr-1 inline h-3.5 w-3.5 text-emerald-600" />
+                            {row.originalFileName}
+                          </>
+                        )}
                       </p>
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" asChild>

@@ -532,6 +532,27 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     setBrandingSubmissions(props.brandingArtworkSubmissions ?? []);
   }, [props.brandingArtworkSubmissions]);
 
+  // Keep rejected branding items in additional-requirements selection so they stay on Brandings tab.
+  useEffect(() => {
+    const rejectedIds = (props.brandingArtworkSubmissions ?? [])
+      .filter((s) => s.status === "NOT_VERIFIED")
+      .map((s) => s.itemMasterId)
+      .filter((id) => brandingCatalog.some((item) => item.id === id));
+
+    if (rejectedIds.length === 0) return;
+
+    setSelectedAdditionalItemIds((prev) => {
+      const missing = rejectedIds.filter((id) => !prev.has(id));
+      if (missing.length === 0) return prev;
+
+      const next = new Set(prev);
+      for (const id of missing) next.add(id);
+      skipAutosaveRef.current = true;
+      void persistRegistration({ selectedAdditionalItemIds: [...next] });
+      return next;
+    });
+  }, [props.brandingArtworkSubmissions, brandingCatalog, persistRegistration]);
+
   useEffect(() => {
     setMemberDocuments(props.memberDocuments ?? []);
   }, [props.memberDocuments]);
