@@ -267,7 +267,7 @@ function buildMockEvent(seed: MockEventSeed, index: number) {
       {
         id: `${seed.id}-ticket`,
         name: seed.price === 0 ? "Free Entry" : "General Admission",
-        description: null,
+        description: null as string | null,
         tier: seed.price === 0 ? ("FREE" as const) : ("PAID" as const),
         price: price(seed.price),
         quantity: 500,

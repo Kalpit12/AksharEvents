@@ -71,7 +71,10 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
     ? event.reviews.reduce((s, r) => s + r.rating, 0) / event.reviews.length
     : 0;
 
-  const ticketTypes = uniqueTicketTypes(event.ticketTypes).map((t) => ({
+  type EventTicketType = (typeof event.ticketTypes)[number];
+  const ticketTypes = uniqueTicketTypes(
+    event.ticketTypes as EventTicketType[]
+  ).map((t) => ({
     id: t.id,
     name: t.name,
     description: t.description ?? null,
