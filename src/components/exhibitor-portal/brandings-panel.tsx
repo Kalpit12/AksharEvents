@@ -135,8 +135,17 @@ export function BrandingsPanel({
 
   const hasSubmittedArtwork = submissions.some((row) => row.status !== "DRAFT");
 
-  const hasRejectedArtwork = (row: SerializedBrandingArtworkSubmission | undefined) =>
-    Boolean(row && (row.status === "NOT_VERIFIED" || (row.status === "DRAFT" && row.rejectionReason)));
+  const isNotVerified = (row: SerializedBrandingArtworkSubmission | undefined) =>
+    row?.status === "NOT_VERIFIED";
+
+  /** Re-uploaded after rejection — new file saved, awaiting submit. */
+  const hasCorrectedUploadReady = (row: SerializedBrandingArtworkSubmission | undefined) =>
+    Boolean(
+      row?.status === "DRAFT" &&
+        row.rejectionReason &&
+        row.cloudinaryPublicId &&
+        row.originalFileName
+    );
 
   const uploadArtwork = async (itemMasterId: string, file: File) => {
     if (!eventExhibitorId) {
@@ -200,11 +209,12 @@ export function BrandingsPanel({
         return;
       }
 
+      skipSyncRef.current = true;
       onSubmissionsChange((prev) => [
         ...prev.filter((s) => s.itemMasterId !== itemMasterId),
         registerResult.submission,
       ]);
-      notify.success("Artwork uploaded");
+      notify.success(`Uploaded ${file.name}`);
     } catch {
       notify.error("Upload failed");
     } finally {
@@ -343,7 +353,7 @@ export function BrandingsPanel({
                   </div>
                 </div>
 
-                {hasRejectedArtwork(row) ? (
+                {isNotVerified(row) ? (
                   <div
                     className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3.5 dark:border-red-800 dark:bg-red-950/40"
                     role="alert"
@@ -376,17 +386,44 @@ export function BrandingsPanel({
                       </div>
                     </div>
                   </div>
+                ) : hasCorrectedUploadReady(row) ? (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                    <div className="flex items-start gap-2.5">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <p className="text-sm font-medium text-emerald-950 dark:text-emerald-100">
+                          Corrected file uploaded — ready to submit
+                        </p>
+                        <p className="text-xs text-emerald-900/90 dark:text-emerald-200/90">
+                          <strong>{row!.originalFileName}</strong> is saved for {item.name}. Click{" "}
+                          <strong>Submit</strong> below to send it back to the printing team.
+                        </p>
+                        {row!.rejectionReason ? (
+                          <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80">
+                            Previous issue addressed: {row!.rejectionReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 ) : null}
 
                 <div className="mt-3 rounded-lg border border-dashed border-border bg-card/80 p-3">
                   {row?.originalFileName ? (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs">
-                        {hasRejectedArtwork(row) ? (
+                        {isNotVerified(row) ? (
                           <>
                             <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-red-600" />
                             <span className="text-red-800 dark:text-red-200">
                               Previous file (needs correction): {row.originalFileName}
+                            </span>
+                          </>
+                        ) : hasCorrectedUploadReady(row) ? (
+                          <>
+                            <Check className="mr-1 inline h-3.5 w-3.5 text-emerald-600" />
+                            <span className="font-medium text-emerald-900 dark:text-emerald-100">
+                              Corrected file uploaded: {row.originalFileName}
                             </span>
                           </>
                         ) : (
