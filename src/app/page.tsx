@@ -12,6 +12,7 @@ import { NewsletterSignup } from "@/components/home/newsletter-signup";
 import { TrustedOrganizations } from "@/components/home/trusted-organizations";
 import { CategoryIcon } from "@/components/categories/category-icon";
 import { getHeroImageForEvent, DEFAULT_HERO_SLIDES } from "@/lib/hero-images";
+import type { HeroSlide } from "@/components/home/home-hero";
 import { Button } from "@/components/ui/Button";
 import { CATEGORIES } from "@/lib/utils";
 import { ArrowRight, Star, Building2 } from "lucide-react";
@@ -39,9 +40,51 @@ function serializeEventsForCarousel(
   }));
 }
 
+function buildHeroSlides(
+  featuredEvents: Awaited<ReturnType<typeof getPublishedEvents>>["events"],
+  upcomingEvents: Awaited<ReturnType<typeof getPublishedEvents>>["events"]
+): HeroSlide[] {
+  const seen = new Set<string>();
+  const ordered = [...featuredEvents, ...upcomingEvents].filter((event) => {
+    if (seen.has(event.id)) return false;
+    seen.add(event.id);
+    return true;
+  });
+
+  const fromEvents: HeroSlide[] = ordered.slice(0, 8).map((event, index) => ({
+    id: event.id,
+    title: event.title,
+    subtitle:
+      event.shortDescription ||
+      `${event.category.name} event in ${event.venue?.city || "Kenya"}`,
+    image: event.banner || getHeroImageForEvent(event.category.slug, index),
+    href: `/events/${event.slug}`,
+    cta: "View Event",
+  }));
+
+  if (fromEvents.length >= 4) return fromEvents;
+
+  const seenTitles = new Set(fromEvents.map((slide) => slide.title.toLowerCase()));
+  const padded = [...fromEvents];
+  for (const [index, fallback] of DEFAULT_HERO_SLIDES.entries()) {
+    if (padded.length >= 4) break;
+    if (seenTitles.has(fallback.title.toLowerCase())) continue;
+    padded.push({
+      ...fallback,
+      id: `default-${index}`,
+    });
+    seenTitles.add(fallback.title.toLowerCase());
+  }
+
+  return padded.length > 0 ? padded : DEFAULT_HERO_SLIDES.map((slide, index) => ({
+    ...slide,
+    id: `default-${index}`,
+  }));
+}
+
 export default async function HomePage() {
   const [featured, upcoming, venues, testimonials] = await withDbRetry(async () => {
-    const featuredResult = await getPublishedEvents({ featured: true, limit: 5 });
+    const featuredResult = await getPublishedEvents({ featured: true, limit: 8 });
     const upcomingResult = await getPublishedEvents({ sort: "upcoming", limit: 12 });
     const [venuesResult, testimonialsResult] = await Promise.all([
       isFrontendOnly()
@@ -54,15 +97,7 @@ export default async function HomePage() {
     return [featuredResult, upcomingResult, venuesResult, testimonialsResult] as const;
   });
 
-  const heroSlides = featured.events.length > 0
-    ? featured.events.map((e, i) => ({
-        title: e.title,
-        subtitle: e.shortDescription || e.category.name + " event in " + (e.venue?.city || "Kenya"),
-        image: getHeroImageForEvent(e.category.slug, i),
-        href: `/events/${e.slug}`,
-        cta: "View Event",
-      }))
-    : [...DEFAULT_HERO_SLIDES];
+  const heroSlides = buildHeroSlides(featured.events, upcoming.events);
 
   return (
     <>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { EventCard } from "@/components/events/event-card";
+import { cn } from "@/lib/utils";
 import type { EventFormat } from "@prisma/client";
 
 type CarouselEvent = {
@@ -23,6 +24,13 @@ function getItemsPerView(width: number) {
   if (width < 640) return 1;
   if (width < 1024) return 2;
   return 4;
+}
+
+function gridColumnsClass(count: number) {
+  if (count <= 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-2";
+  if (count === 3) return "grid-cols-3";
+  return "grid-cols-4";
 }
 
 export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) {
@@ -63,41 +71,36 @@ export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) 
   if (events.length === 0) return null;
 
   const page = pages[currentPage] ?? pages[0];
+  const columnCount = Math.min(itemsPerView, page.length);
 
   return (
-    <div className="relative px-10 sm:px-12 lg:px-0">
-      <div className="overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentPage}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.4 }}
-            className={`grid gap-6 ${
-              itemsPerView === 1
-                ? "grid-cols-1"
-                : itemsPerView === 2
-                  ? "grid-cols-2"
-                  : "grid-cols-4"
-            }`}
-          >
-            {page.map((event) => (
-              <EventCard
-                key={event.id}
-                event={{ ...event, startDate: new Date(event.startDate) }}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+    <div className="relative">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentPage}
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -24 }}
+          transition={{ duration: 0.35 }}
+          className={cn("grid gap-6", gridColumnsClass(columnCount))}
+        >
+          {page.map((event) => (
+            <EventCard
+              key={event.id}
+              event={{ ...event, startDate: new Date(event.startDate) }}
+              variant="grid"
+              className="h-full"
+            />
+          ))}
+        </motion.div>
+      </AnimatePresence>
 
-      {pages.length > 1 && (
+      {pages.length > 1 ? (
         <>
           <button
             type="button"
             onClick={() => goTo(currentPage - 1)}
-            className="absolute left-0 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card shadow-md transition-colors hover:bg-muted sm:h-10 sm:w-10 sm:-translate-x-4"
+            className="absolute -left-3 top-[calc(50%-1.5rem)] z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/95 shadow-sm transition-colors hover:bg-muted sm:-left-5 sm:h-10 sm:w-10"
             aria-label="Previous events"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -105,27 +108,13 @@ export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) 
           <button
             type="button"
             onClick={() => goTo(currentPage + 1)}
-            className="absolute right-0 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card shadow-md transition-colors hover:bg-muted sm:h-10 sm:w-10 sm:translate-x-4"
+            className="absolute -right-3 top-[calc(50%-1.5rem)] z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/95 shadow-sm transition-colors hover:bg-muted sm:-right-5 sm:h-10 sm:w-10"
             aria-label="Next events"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
-
-          <div className="mt-8 flex justify-center gap-2">
-            {pages.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setCurrentPage(i)}
-                className={`h-2 rounded-full transition-all ${
-                  i === currentPage ? "w-8 bg-primary" : "w-2 bg-champagne/40"
-                }`}
-                aria-label={`Go to slide ${i + 1}`}
-              />
-            ))}
-          </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Calendar, MapPin, Heart, Users } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import type { EventFormat } from "@prisma/client";
 
 interface EventCardProps {
@@ -21,9 +21,10 @@ interface EventCardProps {
     _count?: { favorites: number; reviews: number };
   };
   variant?: "grid" | "list";
+  className?: string;
 }
 
-export function EventCard({ event, variant = "grid" }: EventCardProps) {
+export function EventCard({ event, variant = "grid", className }: EventCardProps) {
   const minPrice = event.ticketTypes.length
     ? Math.min(...event.ticketTypes.map((t) => {
         const p = t.price;
@@ -75,7 +76,7 @@ export function EventCard({ event, variant = "grid" }: EventCardProps) {
 
   return (
     <Link href={`/events/${event.slug}`}>
-      <Card className="group overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full">
+      <Card className={cn("group h-full overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl", className)}>
         <div className="relative aspect-[16/10] overflow-hidden">
           <SafeImage
             src={event.banner}

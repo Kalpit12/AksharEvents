@@ -17,6 +17,9 @@ export function downloadRegistrationInvoicePdf(invoice: RegistrationInvoice, met
   const doc = new jsPDF();
   const margin = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
+  const amountColRight = pageWidth - margin;
+  const qtyColRight = margin + 102;
+  const unitColLeft = margin + 108;
   let y = 34;
   const vatPercent = Math.round(invoice.vatRate * 100);
   const title = meta.invoiceTitle ?? "Invoice";
@@ -61,9 +64,9 @@ export function downloadRegistrationInvoicePdf(invoice: RegistrationInvoice, met
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("Item", margin, y);
-  doc.text("Qty", margin + 95, y);
-  doc.text("Unit", margin + 110, y);
-  doc.text("Amount (ex VAT)", margin + 145, y);
+  doc.text("Qty", qtyColRight, y, { align: "right" });
+  doc.text("Unit", unitColLeft, y);
+  doc.text("Amount (ex VAT)", amountColRight, y, { align: "right" });
   y += 4;
   doc.setDrawColor(BRAND_ACCENT_RGB.r, BRAND_ACCENT_RGB.g, BRAND_ACCENT_RGB.b);
   doc.line(margin, y, pageWidth - margin, y);
@@ -80,11 +83,14 @@ export function downloadRegistrationInvoicePdf(invoice: RegistrationInvoice, met
       }
       const label = `${line.name} (${line.category})`;
       const wrapped = doc.splitTextToSize(label, 88);
+      const rowHeight = Math.max(6, wrapped.length * 5);
       doc.text(wrapped, margin, y);
-      doc.text(String(line.quantity), margin + 95, y);
-      doc.text(line.unitOfMeasure, margin + 110, y);
-      doc.text(formatCurrency(line.lineTotal, line.currency), margin + 155, y);
-      y += Math.max(6, wrapped.length * 5);
+      doc.text(String(line.quantity), qtyColRight, y, { align: "right" });
+      doc.text(line.unitOfMeasure, unitColLeft, y);
+      doc.text(formatCurrency(line.lineTotal, line.currency), amountColRight, y, {
+        align: "right",
+      });
+      y += rowHeight;
     }
   }
 
@@ -92,14 +98,22 @@ export function downloadRegistrationInvoicePdf(invoice: RegistrationInvoice, met
   doc.line(margin, y, pageWidth - margin, y);
   y += 8;
 
-  doc.text(`VAT (${vatPercent}%): ${formatCurrency(invoice.vatAmount, invoice.currency)}`, margin, y);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    `VAT (${vatPercent}%): ${formatCurrency(invoice.vatAmount, invoice.currency)}`,
+    amountColRight,
+    y,
+    { align: "right" }
+  );
   y += 6;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.text(
     `Total (ex VAT): ${formatCurrency(invoice.subtotalExVat, invoice.currency)}`,
-    margin,
-    y
+    amountColRight,
+    y,
+    { align: "right" }
   );
 
   y += 14;

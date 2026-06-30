@@ -53,9 +53,13 @@ export function isTransientConnectionError(error: unknown): boolean {
   if (error instanceof Error && error.name === "PrismaClientInitializationError") {
     return true;
   }
+  if (error instanceof Error && error.name === "PrismaClientUnknownRequestError") {
+    return error.message.toLowerCase().includes("engine is not yet connected");
+  }
   if (!(error instanceof Error)) return false;
   const message = error.message.toLowerCase();
   return (
+    message.includes("engine is not yet connected") ||
     message.includes("terminating connection") ||
     message.includes("connection terminated") ||
     message.includes("can't reach database server") ||
@@ -102,13 +106,18 @@ export async function withDbRetry<T>(fn: () => Promise<T>, maxAttempts?: number)
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
+      await prisma.$connect();
       return await fn();
     } catch (error) {
       lastError = error;
       if (!isTransientConnectionError(error) || attempt === attempts) {
         throw error;
       }
-      if (isInitializationError(error)) {
+      if (
+        isInitializationError(error) ||
+        (error instanceof Error &&
+          error.message.toLowerCase().includes("engine is not yet connected"))
+      ) {
         recreatePrismaClient();
       } else {
         try {
