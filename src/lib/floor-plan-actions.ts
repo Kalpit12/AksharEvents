@@ -5,10 +5,13 @@ import type { BoothStatus } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
 import {
   FLOOR_PLAN_BOOTHS,
+  FLOOR_PLAN_IMAGE,
   FLOOR_PLAN_LAYOUT_BY_CODE,
+  FLOOR_PLAN_VIEWBOX,
   type BoothStatusValue,
 } from "@/lib/floor-plan-layout";
-import type { FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import { resolveFloorPlanViewBox, scaledLayoutForBoothCode } from "@/lib/floor-plan-scale";
+import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import { prisma } from "@/lib/prisma";
 
 async function requireEventMaster() {
@@ -40,27 +43,35 @@ async function resolveEventExhibitorForBooth(
   return entry?.id ?? null;
 }
 
-function serializeBooth(row: {
-  id: string;
-  code: string;
-  status: BoothStatus;
-  eventExhibitorId: string | null;
-  companyName: string | null;
-  contactName: string | null;
-  contactPhone: string | null;
-  contactEmail: string | null;
-  notes: string | null;
-  eventExhibitor: { exhibitor: { companyName: string } } | null;
-}): FloorPlanBoothRecord {
+function serializeBooth(
+  row: {
+    id: string;
+    code: string;
+    status: BoothStatus;
+    eventExhibitorId: string | null;
+    companyName: string | null;
+    contactName: string | null;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    notes: string | null;
+    layoutX: number | null;
+    layoutY: number | null;
+    layoutW: number | null;
+    layoutH: number | null;
+    eventExhibitor: { exhibitor: { companyName: string } } | null;
+  },
+  viewBox: { width: number; height: number }
+): FloorPlanBoothRecord {
   const layout = FLOOR_PLAN_LAYOUT_BY_CODE[row.code];
+  const geometry = scaledLayoutForBoothCode(row.code, viewBox, row);
   return {
     id: row.id,
     code: row.code,
     standType: layout?.standType ?? "A",
-    x: layout?.x ?? 0,
-    y: layout?.y ?? 0,
-    w: layout?.w ?? 0,
-    h: layout?.h ?? 0,
+    x: geometry.x,
+    y: geometry.y,
+    w: geometry.w,
+    h: geometry.h,
     status: toClientStatus(row.status),
     eventExhibitorId: row.eventExhibitorId,
     exhibitorName: row.eventExhibitor?.exhibitor.companyName ?? null,
@@ -72,12 +83,38 @@ function serializeBooth(row: {
   };
 }
 
+function buildFloorPlanConfig(event: {
+  floorPlanImageUrl: string | null;
+  floorPlanSvgUrl: string | null;
+  floorPlanWidth: number | null;
+  floorPlanHeight: number | null;
+}): EventFloorPlanConfig {
+  const viewBox = resolveFloorPlanViewBox(event.floorPlanWidth, event.floorPlanHeight);
+  const isCustom = Boolean(event.floorPlanImageUrl);
+
+  return {
+    imageUrl: event.floorPlanImageUrl ?? FLOOR_PLAN_IMAGE,
+    svgUrl: event.floorPlanSvgUrl,
+    viewBox,
+    isCustom,
+  };
+}
+
 export async function ensureEventFloorPlanBooths(eventId: string) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
 
-  const event = await prisma.event.findFirst({ where: { id: eventId } });
+  const event = await prisma.event.findFirst({
+    where: { id: eventId },
+    select: {
+      id: true,
+      floorPlanWidth: true,
+      floorPlanHeight: true,
+    },
+  });
   if (!event) return { error: "Event not found" };
+
+  const viewBox = resolveFloorPlanViewBox(event.floorPlanWidth, event.floorPlanHeight);
 
   const existing = await prisma.eventBooth.findMany({
     where: { eventId },
@@ -88,11 +125,18 @@ export async function ensureEventFloorPlanBooths(eventId: string) {
   const missing = FLOOR_PLAN_BOOTHS.filter((booth) => !existingCodes.has(booth.code));
   if (missing.length > 0) {
     await prisma.eventBooth.createMany({
-      data: missing.map((booth) => ({
-        eventId,
-        code: booth.code,
-        status: booth.defaultStatus ?? "AVAILABLE",
-      })),
+      data: missing.map((booth) => {
+        const geometry = scaledLayoutForBoothCode(booth.code, viewBox);
+        return {
+          eventId,
+          code: booth.code,
+          status: booth.defaultStatus ?? "AVAILABLE",
+          layoutX: geometry.x,
+          layoutY: geometry.y,
+          layoutW: geometry.w,
+          layoutH: geometry.h,
+        };
+      }),
     });
   }
 
@@ -123,9 +167,27 @@ export async function ensureEventFloorPlanBooths(eventId: string) {
 
 export async function getEventFloorPlanBooths(eventId: string) {
   const auth = await requireEventMaster();
-  if (auth.error) return { error: auth.error, booths: null as FloorPlanBoothRecord[] | null };
+  if (auth.error) {
+    return { error: auth.error, booths: null as FloorPlanBoothRecord[] | null, floorPlan: null };
+  }
 
   await ensureEventFloorPlanBooths(eventId);
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      floorPlanImageUrl: true,
+      floorPlanSvgUrl: true,
+      floorPlanWidth: true,
+      floorPlanHeight: true,
+    },
+  });
+  if (!event) {
+    return { error: "Event not found", booths: null, floorPlan: null };
+  }
+
+  const floorPlan = buildFloorPlanConfig(event);
+  const viewBox = floorPlan.viewBox;
 
   const rows = await prisma.eventBooth.findMany({
     where: { eventId },
@@ -141,14 +203,15 @@ export async function getEventFloorPlanBooths(eventId: string) {
   const booths = FLOOR_PLAN_BOOTHS.map((layout) => {
     const row = byCode.get(layout.code);
     if (!row) {
+      const geometry = scaledLayoutForBoothCode(layout.code, viewBox);
       return {
         id: layout.code,
         code: layout.code,
         standType: layout.standType,
-        x: layout.x,
-        y: layout.y,
-        w: layout.w,
-        h: layout.h,
+        x: geometry.x,
+        y: geometry.y,
+        w: geometry.w,
+        h: geometry.h,
         status: (layout.defaultStatus ?? "AVAILABLE") as BoothStatusValue,
         eventExhibitorId: null,
         exhibitorName: null,
@@ -159,10 +222,10 @@ export async function getEventFloorPlanBooths(eventId: string) {
         notes: null,
       } satisfies FloorPlanBoothRecord;
     }
-    return serializeBooth(row);
+    return serializeBooth(row, viewBox);
   });
 
-  return { booths, error: null };
+  return { booths, floorPlan, error: null };
 }
 
 export async function updateEventBooth(input: {

@@ -1,26 +1,27 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   BOOTH_STATUS_COLORS,
   BOOTH_STATUS_LABELS,
-  FLOOR_PLAN_IMAGE,
-  FLOOR_PLAN_VIEWBOX,
   STAND_TYPE_LABELS,
   type BoothStatusValue,
 } from "@/lib/floor-plan-layout";
 import { updateEventBooth } from "@/lib/floor-plan-actions";
-import type { FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import { scaledLayoutForBoothCode } from "@/lib/floor-plan-scale";
+import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import { CustomSelect } from "@/components/exhibitor-portal/custom-select";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import { Building2, Mail, MapPin, Phone, Search, User } from "lucide-react";
+import { Building2, Download, Mail, MapPin, Phone, Search, Upload, User } from "lucide-react";
 
 type Props = {
   eventId: string;
   initialBooths: FloorPlanBoothRecord[];
+  initialFloorPlan: EventFloorPlanConfig;
   exhibitors: AdminExhibitorRecord[];
 };
 
@@ -41,8 +42,14 @@ function boothFormFromRecord(booth: FloorPlanBoothRecord) {
   };
 }
 
-export default function FloorPlanPanel({ eventId, initialBooths, exhibitors }: Props) {
+export default function FloorPlanPanel({
+  eventId,
+  initialBooths,
+  initialFloorPlan,
+  exhibitors,
+}: Props) {
   const [booths, setBooths] = useState(initialBooths);
+  const [floorPlan, setFloorPlan] = useState(initialFloorPlan);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<BoothStatusValue>("AVAILABLE");
@@ -53,8 +60,11 @@ export default function FloorPlanPanel({ eventId, initialBooths, exhibitors }: P
   const [contactEmail, setContactEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const detailsRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = useMemo(
     () => booths.find((b) => b.code === selectedCode) ?? null,
@@ -179,10 +189,81 @@ export default function FloorPlanPanel({ eventId, initialBooths, exhibitors }: P
     setStatus("AVAILABLE");
   };
 
+  const rescaleBoothsForViewBox = (viewBox: EventFloorPlanConfig["viewBox"], current: FloorPlanBoothRecord[]) =>
+    current.map((booth) => {
+      const geometry = scaledLayoutForBoothCode(booth.code, viewBox);
+      return { ...booth, ...geometry };
+    });
+
+  const handleFloorPlanUpload = async (file: File) => {
+    setUploading(true);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append("eventId", eventId);
+      body.append("file", file);
+
+      const response = await fetch("/api/admin/floor-plan/upload", {
+        method: "POST",
+        body,
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setMessage(result.error ?? "Upload failed");
+        return;
+      }
+
+      const nextPlan = result.floorPlan as EventFloorPlanConfig;
+      setFloorPlan(nextPlan);
+      setBooths((current) => rescaleBoothsForViewBox(nextPlan.viewBox, current));
+      setMessage("Floor plan uploaded and converted to interactive SVG.");
+      router.refresh();
+    } catch {
+      setMessage("Could not upload floor plan. Try again.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="flex h-[calc(100dvh-10rem)] min-h-[400px] flex-col gap-2 overflow-hidden xl:flex-row xl:gap-4">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFloorPlanUpload(file);
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="mr-1.5 h-4 w-4" />
+            {uploading ? "Uploading…" : floorPlan.isCustom ? "Replace floor plan" : "Upload floor plan"}
+          </Button>
+          {floorPlan.svgUrl ? (
+            <Button type="button" variant="ghost" size="sm" asChild>
+              <a href={floorPlan.svgUrl} target="_blank" rel="noopener noreferrer" download>
+                <Download className="mr-1.5 h-4 w-4" />
+                SVG
+              </a>
+            </Button>
+          ) : null}
+          <span className="text-xs text-muted-foreground">
+            {floorPlan.isCustom
+              ? `Custom plan · ${floorPlan.viewBox.width}×${floorPlan.viewBox.height}px`
+              : "Default plan · upload PNG/JPEG for this event"}
+          </span>
+          <div className="hidden h-6 w-px bg-border sm:block" />
           <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -212,18 +293,18 @@ export default function FloorPlanPanel({ eventId, initialBooths, exhibitors }: P
 
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-white">
           <svg
-            viewBox={`0 0 ${FLOOR_PLAN_VIEWBOX.width} ${FLOOR_PLAN_VIEWBOX.height}`}
+            viewBox={`0 0 ${floorPlan.viewBox.width} ${floorPlan.viewBox.height}`}
             className="absolute inset-0 h-full w-full select-none"
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label="Interactive exhibition floor plan"
           >
             <image
-              href={FLOOR_PLAN_IMAGE}
+              href={floorPlan.imageUrl}
               x={0}
               y={0}
-              width={FLOOR_PLAN_VIEWBOX.width}
-              height={FLOOR_PLAN_VIEWBOX.height}
+              width={floorPlan.viewBox.width}
+              height={floorPlan.viewBox.height}
               preserveAspectRatio="xMidYMid meet"
             />
 

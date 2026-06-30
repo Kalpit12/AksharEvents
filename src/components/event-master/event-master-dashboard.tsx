@@ -25,7 +25,7 @@ import type {
   EventRestaurantOption,
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
-import type { FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import type { FloorPlanBoothRecord, EventFloorPlanConfig } from "@/lib/floor-plan-types";
 import {
   EventHotelsManager,
   EventRestaurantsManager,
@@ -94,6 +94,7 @@ type Props = {
   endDate: string;
   exhibitors?: AdminExhibitorRecord[];
   floorPlanBooths?: FloorPlanBoothRecord[];
+  floorPlan?: EventFloorPlanConfig;
   activities?: EventActivityOption[];
   eventHotels?: EventHotelOption[];
   eventRestaurants?: EventRestaurantOption[];
@@ -141,6 +142,7 @@ export default function EventMasterDashboard({
   endDate,
   exhibitors = [],
   floorPlanBooths = [],
+  floorPlan,
   activities = [],
   eventHotels = [],
   eventRestaurants = [],
@@ -269,10 +271,11 @@ export default function EventMasterDashboard({
 
       {tab === "exhibitors" && <ExhibitorRegistrationsPanel exhibitors={exhibitors} activities={activities} />}
 
-      {tab === "floorplan" && (
+      {tab === "floorplan" && floorPlan && (
         <FloorPlanPanel
           eventId={eventId}
           initialBooths={floorPlanBooths}
+          initialFloorPlan={floorPlan}
           exhibitors={exhibitors}
         />
       )}

@@ -14,6 +14,8 @@ import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { getEventFloorPlanBooths } from "@/lib/floor-plan-actions";
+import { FLOOR_PLAN_IMAGE, FLOOR_PLAN_VIEWBOX } from "@/lib/floor-plan-layout";
+import type { EventFloorPlanConfig } from "@/lib/floor-plan-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 import { cn } from "@/lib/utils";
@@ -142,6 +144,13 @@ export default async function AdminEventMasterPage({
       : null,
   }));
 
+  const defaultFloorPlan: EventFloorPlanConfig = {
+    imageUrl: FLOOR_PLAN_IMAGE,
+    svgUrl: null,
+    viewBox: { ...FLOOR_PLAN_VIEWBOX },
+    isCustom: false,
+  };
+
   return (
     <div
       className={cn(
@@ -162,6 +171,7 @@ export default async function AdminEventMasterPage({
         endDate={event.endDate.toISOString()}
         exhibitors={exhibitors}
         floorPlanBooths={floorPlanResult.booths ?? []}
+        floorPlan={floorPlanResult.floorPlan ?? defaultFloorPlan}
         activities={activities.map(serializeActivity)}
         eventHotels={eventHotels.map(serializeEventHotel)}
         eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}

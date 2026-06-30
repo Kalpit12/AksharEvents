@@ -2,6 +2,7 @@ import { v2 as cloudinary } from "cloudinary";
 
 const EXHIBITOR_DOC_FOLDER = "akshar-events/exhibitor-documents";
 const BRANDING_ARTWORK_FOLDER = "akshar-events/branding-artwork";
+const FLOOR_PLAN_FOLDER = "akshar-events/floor-plans";
 
 function readEnv(name: string): string | undefined {
   const raw = process.env[name];
@@ -39,6 +40,66 @@ export function exhibitorDocumentFolder(eventExhibitorId: string, memberLocalId:
 
 export function brandingArtworkFolder(eventExhibitorId: string, itemMasterId: string) {
   return `${BRANDING_ARTWORK_FOLDER}/${eventExhibitorId}/${itemMasterId}`;
+}
+
+export function eventFloorPlanFolder(eventId: string) {
+  return `${FLOOR_PLAN_FOLDER}/${eventId}`;
+}
+
+type PublicUploadResult = {
+  publicId: string;
+  url: string;
+  width?: number;
+  height?: number;
+  bytes: number;
+  resourceType: string;
+};
+
+export async function uploadPublicAsset(
+  buffer: Buffer,
+  options: {
+    folder: string;
+    publicId?: string;
+    resourceType?: "image" | "raw" | "auto";
+    format?: string;
+    overwrite?: boolean;
+  }
+): Promise<PublicUploadResult> {
+  ensureCloudinaryConfig();
+
+  return new Promise((resolve, reject) => {
+    const upload = cloudinary.uploader.upload_stream(
+      {
+        folder: options.folder,
+        resource_type: options.resourceType ?? "image",
+        format: options.format,
+        overwrite: options.overwrite ?? true,
+        public_id: options.publicId,
+        use_filename: false,
+        unique_filename: false,
+      },
+      (error, result) => {
+        if (error || !result) {
+          reject(error ?? new Error("Cloudinary upload failed"));
+          return;
+        }
+        resolve({
+          publicId: result.public_id,
+          url: result.secure_url,
+          width: result.width,
+          height: result.height,
+          bytes: result.bytes,
+          resourceType: result.resource_type,
+        });
+      }
+    );
+    upload.end(buffer);
+  });
+}
+
+export async function deletePublicAsset(publicId: string, resourceType: "image" | "raw" | "auto" = "image") {
+  ensureCloudinaryConfig();
+  await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 }
 
 export function createBrandingArtworkUploadSignature(params: {

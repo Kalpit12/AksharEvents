@@ -1,5 +1,14 @@
 import type { BoothStatusValue, StandType } from "@/lib/floor-plan-layout";
 
+export type FloorPlanViewBox = { width: number; height: number };
+
+export type EventFloorPlanConfig = {
+  imageUrl: string;
+  svgUrl: string | null;
+  viewBox: FloorPlanViewBox;
+  isCustom: boolean;
+};
+
 export type FloorPlanBoothRecord = {
   id: string;
   code: string;

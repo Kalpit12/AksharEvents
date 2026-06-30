@@ -325,6 +325,12 @@ model Event {
   scheduleItems   EventScheduleItem[]
   itemMaster      EventItemMaster[]
   booths          EventBooth[]
+  floorPlanImageUrl       String?
+  floorPlanSvgUrl         String?
+  floorPlanWidth          Int?
+  floorPlanHeight         Int?
+  floorPlanImagePublicId  String?
+  floorPlanSvgPublicId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -350,6 +356,10 @@ model EventBooth {
   contactPhone     String?
   contactEmail     String?
   notes            String?         @db.Text
+  layoutX          Int?
+  layoutY          Int?
+  layoutW          Int?
+  layoutH          Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
