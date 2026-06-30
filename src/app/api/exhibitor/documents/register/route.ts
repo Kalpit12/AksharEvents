@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { MemberDocumentType } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
+import { exhibitorDocumentFolder } from "@/lib/cloudinary-server";
 import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
@@ -51,6 +52,14 @@ export async function POST(request: Request) {
     const access = await assertExhibitorEventAccess(user, eventExhibitorId);
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    const expectedFolder = exhibitorDocumentFolder(eventExhibitorId, memberLocalId);
+    if (
+      cloudinaryPublicId.includes("..") ||
+      !cloudinaryPublicId.startsWith(`${expectedFolder}/`)
+    ) {
+      return NextResponse.json({ error: "Invalid document reference" }, { status: 400 });
     }
 
     const document = await prisma.exhibitorMemberDocument.upsert({
@@ -114,7 +123,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Document register failed:", error);
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }

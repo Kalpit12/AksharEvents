@@ -1,19 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getAuthenticatedDocumentUrl } from "@/lib/cloudinary-server";
+import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 import { prisma } from "@/lib/prisma";
-
-async function canAccessDocument(user: { id: string; role: string }, eventExhibitorId: string) {
-  if (user.role === "ADMIN") return true;
-  const entry = await prisma.eventExhibitor.findFirst({
-    where: {
-      id: eventExhibitorId,
-      exhibitor: {
-        OR: [{ userId: user.id }, { members: { some: { userId: user.id } } }],
-      },
-    },
-  });
-  return Boolean(entry);
-}
 
 export async function GET(
   _request: Request,
@@ -32,9 +20,9 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const allowed = await canAccessDocument(user, document.eventExhibitorId);
-  if (!allowed) {
-    return new Response("Forbidden", { status: 403 });
+  const access = await assertExhibitorEventAccess(user, document.eventExhibitorId);
+  if (!access.ok) {
+    return new Response(access.error, { status: access.status });
   }
 
   const resourceType = document.mimeType === "application/pdf" ? "raw" : "image";

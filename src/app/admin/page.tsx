@@ -155,6 +155,11 @@ export default async function AdminEventMasterPage() {
           process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
         }
         />
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          <a href="/printing" className="font-medium text-primary hover:underline">
+            Open Printing &amp; artwork dashboard →
+          </a>
+        </p>
       </Suspense>
     </div>
   );

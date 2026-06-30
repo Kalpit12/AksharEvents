@@ -1,8 +1,43 @@
 "use client";
 
+import Ferrofluid from "@/components/ferrofluid/Ferrofluid";
+import { HERO_FERROFLUID } from "@/lib/hero-ferrofluid";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Check, CheckCircle2, Circle, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Circle, MapPin, Sparkles, X } from "lucide-react";
+
+export type PortalHeroStatus = "not_linked" | "draft" | "submitted";
+
+function getEventCountdown(startDate: string, endDate: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+
+  if (today > end) {
+    return { kind: "ended" as const };
+  }
+  if (today >= start) {
+    const day = Math.floor((today.getTime() - start.getTime()) / 86_400_000) + 1;
+    return { kind: "live" as const, day };
+  }
+  const days = Math.ceil((start.getTime() - today.getTime()) / 86_400_000);
+  return { kind: "upcoming" as const, days };
+}
+
+const STATUS_STYLES: Record<PortalHeroStatus, string> = {
+  not_linked: "border-amber-300/30 bg-amber-500/20 text-amber-100",
+  draft: "border-champagne/20 bg-champagne/25 text-champagne-light",
+  submitted: "border-emerald-300/30 bg-emerald-500/20 text-emerald-100",
+};
+
+const STATUS_LABELS: Record<PortalHeroStatus, string> = {
+  not_linked: "Awaiting event selection",
+  draft: "Draft — not submitted",
+  submitted: "Registration submitted",
+};
 
 export function PortalHero({
   eventTitle,
@@ -10,62 +45,105 @@ export function PortalHero({
   dateRange,
   companyName,
   boothLabel,
-  progressPct,
+  eventVenue,
+  startDate,
+  endDate,
+  status,
+  actionLabel,
+  onAction,
 }: {
   eventTitle: string;
   eventCity: string;
   dateRange: string;
   companyName: string;
   boothLabel: string;
-  progressPct: number;
+  eventVenue: string;
+  startDate: string;
+  endDate: string;
+  status: PortalHeroStatus;
+  actionLabel: string;
+  onAction: () => void;
 }) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-champagne/30 bg-gradient-to-br from-espresso via-espresso/95 to-champagne-dark px-5 py-6 text-alabaster shadow-lg shadow-espresso/10 sm:px-7 sm:py-7">
-      <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-alabaster/10 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-champagne/20 blur-3xl" />
+  const countdown = getEventCountdown(startDate, endDate);
 
-      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+  return (
+    <div className="relative min-h-[172px] overflow-hidden rounded-2xl border border-champagne/30 bg-espresso text-alabaster shadow-lg shadow-espresso/10 sm:min-h-[188px]">
+      <Ferrofluid {...HERO_FERROFLUID} />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-espresso/82 via-espresso/58 to-champagne-dark/38" />
+
+      <div className="relative z-10 flex flex-col gap-6 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-alabaster/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-alabaster/10 bg-alabaster/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5" />
             Exhibitor Portal
           </div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{eventTitle}</h1>
-          <p className="mt-1 text-sm text-champagne-light/70">
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl lg:text-[1.65rem]">{eventTitle}</h1>
+          <p className="mt-1 text-sm text-champagne-light/75">
             {eventCity} · {dateRange}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="rounded-lg bg-alabaster/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm">{companyName}</span>
-            <span className="rounded-lg bg-alabaster/10 px-3 py-1.5 text-xs text-champagne-light/60">{boothLabel}</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-champagne/25 px-3 py-1 text-xs font-medium">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-champagne-light" />
-              Registration open
+            <span className="rounded-lg border border-alabaster/10 bg-alabaster/15 px-3 py-1.5 text-sm font-medium backdrop-blur-sm">
+              {companyName}
+            </span>
+            <span className="rounded-lg border border-alabaster/5 bg-alabaster/10 px-3 py-1.5 text-xs text-champagne-light/70">
+              {boothLabel}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium",
+                STATUS_STYLES[status]
+              )}
+            >
+              {status === "draft" ? (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-champagne-light" />
+              ) : status === "submitted" ? (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              ) : null}
+              {STATUS_LABELS[status]}
             </span>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-4 rounded-2xl bg-alabaster/10 p-4 backdrop-blur-sm lg:min-w-[200px]">
-          <div className="relative flex h-16 w-16 items-center justify-center">
-            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15.5" fill="none" className="stroke-white/20" strokeWidth="3" />
-              <circle
-                cx="18"
-                cy="18"
-                r="15.5"
-                fill="none"
-                className="stroke-white transition-all duration-500"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${progressPct} 100`}
-                pathLength={100}
-              />
-            </svg>
-            <span className="text-lg font-bold">{progressPct}%</span>
+        <div className="flex shrink-0 flex-col gap-4 rounded-2xl border border-alabaster/10 bg-alabaster/10 p-4 backdrop-blur-md sm:min-w-[240px] lg:min-w-[260px]">
+          <div className="text-center lg:text-left">
+            {countdown.kind === "upcoming" ? (
+              <>
+                <div className="text-3xl font-bold tabular-nums tracking-tight">{countdown.days}</div>
+                <div className="text-xs text-champagne-light/70">
+                  {countdown.days === 1 ? "day until event" : "days until event"}
+                </div>
+              </>
+            ) : countdown.kind === "live" ? (
+              <>
+                <div className="text-3xl font-bold tabular-nums tracking-tight">Day {countdown.day}</div>
+                <div className="text-xs text-champagne-light/70">Event in progress</div>
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-semibold tracking-tight">Event completed</div>
+                <div className="text-xs text-champagne-light/70">Thank you for exhibiting</div>
+              </>
+            )}
           </div>
-          <div>
-            <div className="text-sm font-medium">Registration</div>
-            <div className="text-xs text-champagne-light/70">Overall progress</div>
+
+          <div className="space-y-1.5 border-t border-alabaster/10 pt-3 text-xs text-champagne-light/80">
+            {eventVenue ? (
+              <div className="flex items-start gap-2">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-champagne-light/60" />
+                <span className="line-clamp-2">{eventVenue}</span>
+              </div>
+            ) : null}
+            <div className="pl-5 text-champagne-light/60">{boothLabel}</div>
           </div>
+
+          <Button
+            type="button"
+            onClick={onAction}
+            className="w-full gap-2 bg-champagne text-espresso shadow-md hover:bg-champagne-light"
+          >
+            {actionLabel}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>
@@ -131,29 +209,31 @@ export function PortalNav<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <>
-      {/* Mobile: horizontal scroll */}
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-1 lg:hidden">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onChange(id)}
-            className={cn(
-              "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
-              active === id
-                ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
-                : "border-border bg-card text-muted-foreground hover:border-champagne/30 hover:text-foreground"
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="whitespace-nowrap">{label}</span>
-          </button>
-        ))}
+    <div className="min-w-0">
+      {/* Mobile: horizontal scroll — full width above main grid */}
+      <div className="lg:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(id)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all",
+                active === id
+                  ? "border-primary bg-primary text-white shadow-md shadow-primary/20"
+                  : "border-border bg-card text-muted-foreground hover:border-champagne/30 hover:text-foreground"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Desktop: sidebar */}
-      <nav className="hidden lg:block lg:w-64 lg:shrink-0">
+      <nav className="hidden lg:block lg:w-full">
         <div className="sticky top-24 space-y-1 rounded-2xl border border-border bg-card p-2 shadow-sm">
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Menu
@@ -176,7 +256,7 @@ export function PortalNav<T extends string>({
           ))}
         </div>
       </nav>
-    </>
+    </div>
   );
 }
 

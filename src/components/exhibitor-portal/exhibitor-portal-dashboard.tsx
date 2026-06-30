@@ -35,9 +35,8 @@ import type {
 } from "@/lib/event-config-types";
 import { EventPreferencesStep } from "@/components/exhibitor-portal/event-preferences-step";
 import { AdditionalRequirementsPanel } from "@/components/exhibitor-portal/additional-requirements-panel";
-import { RegistrationInvoicePanel } from "@/components/exhibitor-portal/registration-invoice-panel";
-import { buildFullExhibitorInvoice } from "@/lib/registration-invoice";
-import { getBoothCatalogItems } from "@/lib/item-master-catalog";
+import { BrandingsPanel } from "@/components/exhibitor-portal/brandings-panel";
+import { getBoothCatalogItems, getBrandingCatalogItems } from "@/lib/item-master-catalog";
 import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import {
   activityToTourOption,
@@ -54,6 +53,7 @@ import {
   ModalShell,
   Panel,
   PortalHero,
+  type PortalHeroStatus,
   PortalNav,
   QuickAction,
   QuickActionsRow,
@@ -90,6 +90,7 @@ import {
   Pencil,
   Plane,
   PackagePlus,
+  Palette,
   Plus,
   Salad,
   Send,
@@ -102,12 +103,14 @@ import {
   Upload,
 } from "lucide-react";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
+import { redactTeamMemberForClient } from "@/lib/registration-pii";
 import { MemberDocumentsUpload } from "@/components/exhibitor-portal/member-documents-upload";
 import {
   saveExhibitorRegistration,
   addExhibitorMember,
   bulkUploadExhibitorMembers,
   registerExhibitorForEvent,
+  getExhibitorMemberPassport,
   updateExhibitorMemberPassport,
 } from "@/lib/exhibitor-actions";
 import { createAirBookingRequest } from "@/lib/air-booking-actions";
@@ -121,6 +124,7 @@ import {
 } from "@/lib/air-booking-workflow-types";
 import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
+import type { SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
@@ -153,12 +157,14 @@ export type ExhibitorPortalProps = {
   memberDocuments?: SerializedMemberDocument[];
   airBookingRequests?: SerializedAirBookingRequest[];
   memberWorkflows?: SerializedAirBookingMemberWorkflow[];
+  brandingArtworkSubmissions?: SerializedBrandingArtworkSubmission[];
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "registration", label: "Registration form", icon: FileText },
   { id: "additional", label: "Additional requirements", icon: PackagePlus },
+  { id: "brandings", label: "Brandings", icon: Palette },
   { id: "members", label: "Team members", icon: Users },
   { id: "tours", label: "Tours & travel", icon: MapPin },
   { id: "food", label: "Food outings", icon: ForkKnife },
@@ -168,6 +174,7 @@ const EXHIBITOR_TAB_IDS = [
   "overview",
   "registration",
   "additional",
+  "brandings",
   "members",
   "tours",
   "food",
@@ -246,6 +253,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [memberWorkflows, setMemberWorkflows] = useState<SerializedAirBookingMemberWorkflow[]>(
     () => props.memberWorkflows ?? []
   );
+  const [brandingSubmissions, setBrandingSubmissions] = useState<SerializedBrandingArtworkSubmission[]>(
+    () => props.brandingArtworkSubmissions ?? []
+  );
   const [memberFilter, setMemberFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -287,11 +297,16 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [shuttles, setShuttles] = useState<Set<string>>(() => new Set(saved?.shuttles ?? []));
   const itemCatalog = useMemo(() => props.itemCatalog ?? [], [props.itemCatalog]);
   const boothCatalog = useMemo(() => getBoothCatalogItems(itemCatalog), [itemCatalog]);
+  const brandingCatalog = useMemo(() => getBrandingCatalogItems(itemCatalog), [itemCatalog]);
   const [selectedBoothItemId, setSelectedBoothItemId] = useState<string | null>(
     () => saved?.selectedBoothItemId ?? null
   );
   const [selectedAdditionalItemIds, setSelectedAdditionalItemIds] = useState<Set<string>>(
     () => new Set(saved?.selectedAdditionalItemIds ?? saved?.selectedEquipmentIds ?? [])
+  );
+  const selectedBrandingItemIds = useMemo(
+    () => [...selectedAdditionalItemIds].filter((id) => brandingCatalog.some((item) => item.id === id)),
+    [selectedAdditionalItemIds, brandingCatalog]
   );
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -353,16 +368,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const dateRange = `${formatDate(props.startDate, "MMM d")}–${formatDate(props.endDate, "d, yyyy")}`;
 
-  const boothInvoiceIds = useMemo(
-    () => (selectedBoothItemId ? [selectedBoothItemId] : []),
-    [selectedBoothItemId]
-  );
-
-  const registrationInvoice = useMemo(
-    () => buildFullExhibitorInvoice(itemCatalog, selectedBoothItemId, [...selectedAdditionalItemIds]),
-    [itemCatalog, selectedBoothItemId, selectedAdditionalItemIds]
-  );
-
   useEffect(() => {
     if (selectedBoothItemId || !saved?.form.booth || boothCatalog.length === 0) return;
     const match = boothCatalog.find((item) => item.name === saved.form.booth);
@@ -407,6 +412,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   const isSubmitted = registrationStatus === "SUBMITTED";
   const saveChainRef = useRef(Promise.resolve());
+  const skipAutosaveRef = useRef(true);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const hasRegistrationProgress = useMemo(
@@ -493,11 +499,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   };
 
   const handleAdditionalInvoiceDownload = useCallback(async () => {
-    setSelectedAdditionalItemIds(new Set());
+    const brandingIds = [...selectedAdditionalItemIds].filter((id) =>
+      brandingCatalog.some((item) => item.id === id)
+    );
+    setSelectedAdditionalItemIds(new Set(brandingIds));
     if (!isSubmitted) {
-      await persistRegistration({ selectedAdditionalItemIds: [] });
+      await persistRegistration({ selectedAdditionalItemIds: brandingIds });
     }
-  }, [isSubmitted, persistRegistration]);
+  }, [isSubmitted, persistRegistration, selectedAdditionalItemIds, brandingCatalog]);
 
   useEffect(() => {
     setAirBookingRequests(props.airBookingRequests ?? []);
@@ -508,11 +517,19 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   }, [props.memberWorkflows]);
 
   useEffect(() => {
+    setBrandingSubmissions(props.brandingArtworkSubmissions ?? []);
+  }, [props.brandingArtworkSubmissions]);
+
+  useEffect(() => {
     setMemberDocuments(props.memberDocuments ?? []);
   }, [props.memberDocuments]);
 
   useEffect(() => {
     if (!props.eventExhibitorId || isSubmitted || !hasRegistrationProgress) return;
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
 
     const timer = setTimeout(() => {
       void persistRegistration();
@@ -578,6 +595,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     }
   };
 
+  const memberHasPassportNumber = (member: TeamMember) =>
+    Boolean(member.hasPassportNumber ?? member.passportNumber?.trim());
+
   const openAddMemberModal = () => {
     setEditingMemberId(null);
     setMemberForm({
@@ -596,15 +616,20 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     setModalOpen(true);
   };
 
-  const openEditMemberModal = (member: TeamMember) => {
+  const openEditMemberModal = async (member: TeamMember) => {
     setEditingMemberId(member.id);
+    let passportNumber = member.passportNumber ?? "";
+    if (!passportNumber && props.canManageMembers && props.eventExhibitorId) {
+      const result = await getExhibitorMemberPassport(props.eventExhibitorId, member.id);
+      if (result.success) passportNumber = result.passportNumber ?? "";
+    }
     setMemberForm({
       fn: member.fn,
       ln: member.ln,
       role: member.role,
       email: member.email,
       phone: member.phone,
-      passportNumber: member.passportNumber ?? "",
+      passportNumber,
       transport: member.transport,
       hotel: member.hotel,
       diet: member.diet,
@@ -648,6 +673,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     }
 
     if (editingMemberId) {
+      const passportValue = memberForm.passportNumber.trim();
       const nextMembers = members.map((m) =>
         m.id === editingMemberId
           ? {
@@ -657,7 +683,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               role: memberForm.role,
               email: memberForm.email.trim(),
               phone: memberForm.phone.trim(),
-              passportNumber: memberForm.passportNumber.trim(),
+              passportNumber: passportValue,
               transport: memberForm.transport,
               hotel: memberForm.hotel,
               diet: memberForm.diet.trim(),
@@ -666,7 +692,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             }
           : m
       );
-      setMembers(nextMembers);
+      setMembers(nextMembers.map(redactTeamMemberForClient));
       setEditingMemberId(null);
       setMemberForm({
         fn: "",
@@ -700,7 +726,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         portalAccess: props.canManageMembers,
       },
     ];
-    setMembers(nextMembers);
+    setMembers(nextMembers.map(redactTeamMemberForClient));
     setMemberForm({
       fn: "",
       ln: "",
@@ -874,9 +900,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const memberDocCount = (memberId: string) =>
     memberDocuments.filter((d) => d.memberLocalId === memberId).length;
 
-  const openDocumentsModal = (member: TeamMember) => {
-    setDocumentsMember(member);
-    setDocumentsPassportDraft(member.passportNumber?.trim() ?? "");
+  const openDocumentsModal = async (member: TeamMember) => {
+    let passportNumber = member.passportNumber?.trim() ?? "";
+    if (!passportNumber && props.canManageMembers && props.eventExhibitorId) {
+      const result = await getExhibitorMemberPassport(props.eventExhibitorId, member.id);
+      if (result.success) passportNumber = result.passportNumber ?? "";
+    }
+    setDocumentsMember({ ...member, passportNumber });
+    setDocumentsPassportDraft(passportNumber);
   };
 
   const saveMemberPassport = async (options?: { silent?: boolean }) => {
@@ -904,7 +935,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
       const savedPassport = result.passportNumber ?? passportNumber;
       const nextMembers = members.map((m) =>
-        m.id === documentsMember.id ? { ...m, passportNumber: savedPassport } : m
+        m.id === documentsMember.id
+          ? { ...m, hasPassportNumber: Boolean(savedPassport) }
+          : m
       );
       setMembers(nextMembers);
       setDocumentsMember((current) =>
@@ -975,29 +1008,136 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     ? `Booth #${props.boothNumber}${props.hall ? ` · ${props.hall}` : ""}`
     : "Booth TBC";
 
+  const heroStatus: PortalHeroStatus = !props.eventExhibitorId
+    ? "not_linked"
+    : isSubmitted
+      ? "submitted"
+      : "draft";
+
+  const heroAction = useMemo(() => {
+    if (!props.eventExhibitorId) {
+      return {
+        label: "Register for event",
+        onAction: () => setTab("overview"),
+      };
+    }
+
+    if (isSubmitted) {
+      return {
+        label: "View registration summary",
+        onAction: () => {
+          setTab("registration");
+          goStep(6);
+        },
+      };
+    }
+
+    if (!formSteps.company) {
+      return {
+        label: "Complete company details",
+        onAction: () => {
+          setTab("registration");
+          goStep(1);
+        },
+      };
+    }
+
+    if (!formSteps.event) {
+      return {
+        label: "Set event preferences",
+        onAction: () => {
+          setTab("registration");
+          goStep(2);
+        },
+      };
+    }
+
+    if (members.length === 0) {
+      return {
+        label: "Add team members",
+        onAction: () => {
+          setTab("members");
+          openAddMemberModal();
+        },
+      };
+    }
+
+    if (!formSteps.travel) {
+      return {
+        label: "Complete travel details",
+        onAction: () => {
+          setTab("registration");
+          goStep(3);
+        },
+      };
+    }
+
+    if (!formSteps.transport) {
+      return {
+        label: "Book tours & transport",
+        onAction: () => {
+          setTab("registration");
+          goStep(4);
+        },
+      };
+    }
+
+    if (!formSteps.food) {
+      return {
+        label: "Confirm food outings",
+        onAction: () => {
+          setTab("registration");
+          goStep(5);
+        },
+      };
+    }
+
+    return {
+      label: "Review & submit",
+      onAction: () => {
+        setTab("registration");
+        goStep(6);
+      },
+    };
+  }, [
+    props.eventExhibitorId,
+    isSubmitted,
+    formSteps,
+    members.length,
+    setTab,
+    goStep,
+    openAddMemberModal,
+  ]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PortalHero
         eventTitle={props.eventTitle}
         eventCity={props.eventCity}
         dateRange={dateRange}
         companyName={props.companyName}
         boothLabel={boothLabel}
-        progressPct={progressPct}
+        eventVenue={props.eventVenue}
+        startDate={props.startDate}
+        endDate={props.endDate}
+        status={heroStatus}
+        actionLabel={heroAction.label}
+        onAction={heroAction.onAction}
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <MetricCard label="Team members" value={n} icon={Users} accent="teal" />
-        <MetricCard label="Transport slots" value={n} icon={Bus} accent="sky" />
-        <MetricCard label="Meal passes" value={n * props.expoDays * 3} icon={Ticket} accent="emerald" />
-        <MetricCard label="Tours booked" value={tourCount} icon={MapPin} accent="violet" />
-        <MetricCard label="Form progress" value={`${progressPct}%`} icon={TrendingUp} accent="amber" />
-      </div>
+      {tab === "overview" && (
+        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Team members" value={n} icon={Users} accent="teal" />
+          <MetricCard label="Transport slots" value={n} icon={Bus} accent="sky" />
+          <MetricCard label="Meal passes" value={n * props.expoDays * 3} icon={Ticket} accent="emerald" />
+          <MetricCard label="Tours booked" value={tourCount} icon={MapPin} accent="violet" />
+        </section>
+      )}
 
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start lg:gap-6">
         <PortalNav tabs={TABS} active={tab} onChange={setTab} />
 
-        <div className="min-w-0 flex-1">
+        <main className="min-w-0 space-y-4">
       {tab === "overview" && (
         <div className="space-y-4">
           {!props.eventExhibitorId && (
@@ -1167,8 +1307,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       {tab === "registration" && (
         <Panel title="" icon={FileText} noHeader>
           <StepBar step={regStep} onStepClick={goStep} />
-          <div className={cn(regStep === 2 && "grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,24rem)]")}>
-            <div className="min-w-0">
           {regStep === 1 && (
             <RegStep title="Company information" icon={Building2}>
               <FormRow>
@@ -1322,23 +1460,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   </div>
                 ))}
               </div>
-              {registrationInvoice.lines.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cost estimate (booth & additional items)
-                  </h4>
-                  <RegistrationInvoicePanel
-                    catalog={itemCatalog}
-                    selectedItemIds={[
-                      ...boothInvoiceIds,
-                      ...selectedAdditionalItemIds,
-                    ]}
-                    companyName={form.company || props.companyName}
-                    eventTitle={props.eventTitle}
-                    contactName={form.contact}
-                  />
-                </div>
-              )}
               <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Travel & logistics</h4>
               <div className="mb-4 grid gap-2.5 sm:grid-cols-2">
                 {formatTravelSummary(travel, visaDocs).map(([label, val]) => (
@@ -1380,19 +1501,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               </div>
             </RegStep>
           )}
-            </div>
-            {regStep === 2 && (
-              <RegistrationInvoicePanel
-                className="xl:sticky xl:top-4 xl:self-start"
-                catalog={itemCatalog}
-                selectedItemIds={boothInvoiceIds}
-                companyName={form.company || props.companyName}
-                eventTitle={props.eventTitle}
-                contactName={form.contact}
-                title="Booth invoice"
-              />
-            )}
-          </div>
         </Panel>
       )}
 
@@ -1405,6 +1513,16 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           eventTitle={props.eventTitle}
           contactName={form.contact}
           onInvoiceDownload={handleAdditionalInvoiceDownload}
+        />
+      )}
+
+      {tab === "brandings" && (
+        <BrandingsPanel
+          eventExhibitorId={props.eventExhibitorId}
+          catalog={itemCatalog}
+          selectedBrandingItemIds={selectedBrandingItemIds}
+          submissions={brandingSubmissions}
+          onSubmissionsChange={setBrandingSubmissions}
         />
       )}
 
@@ -1758,7 +1876,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 {membersAvailableForAirBooking.map((member) => {
                   const selected = airBookingMemberIds.includes(member.id);
                   const ready =
-                    Boolean(member.passportNumber?.trim()) && memberHasPassportDoc(member.id);
+                    memberHasPassportNumber(member) && memberHasPassportDoc(member.id);
                   return (
                     <label
                       key={member.id}
@@ -1782,7 +1900,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{member.fn} {member.ln}</p>
                         <p className="text-xs text-muted-foreground">
-                          {member.email} · Passport {member.passportNumber?.trim() || "—"}
+                          {member.email} · Passport {memberHasPassportNumber(member) ? "on file" : "—"}
                         </p>
                         {!ready && (
                           <p className="mt-1 text-[11px] text-amber-700">
@@ -1799,7 +1917,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           </div>
         </ModalShell>
       )}
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -1947,7 +2065,7 @@ function MemberTable({
                   </td>
                   {!overview && (
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">
-                      {m.passportNumber?.trim() || "—"}
+                      {m.hasPassportNumber ? "On file" : "—"}
                     </td>
                   )}
                   {full && onOpenDocuments && (

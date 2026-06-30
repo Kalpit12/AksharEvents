@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 
 const EXHIBITOR_DOC_FOLDER = "akshar-events/exhibitor-documents";
+const BRANDING_ARTWORK_FOLDER = "akshar-events/branding-artwork";
 
 function readEnv(name: string): string | undefined {
   const raw = process.env[name];
@@ -34,6 +35,24 @@ function ensureCloudinaryConfig() {
 
 export function exhibitorDocumentFolder(eventExhibitorId: string, memberLocalId: string) {
   return `${EXHIBITOR_DOC_FOLDER}/${eventExhibitorId}/${memberLocalId}`;
+}
+
+export function brandingArtworkFolder(eventExhibitorId: string, itemMasterId: string) {
+  return `${BRANDING_ARTWORK_FOLDER}/${eventExhibitorId}/${itemMasterId}`;
+}
+
+export function createBrandingArtworkUploadSignature(params: {
+  eventExhibitorId: string;
+  itemMasterId: string;
+}) {
+  const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
+  const folder = brandingArtworkFolder(params.eventExhibitorId, params.itemMasterId);
+  const timestamp = Math.round(Date.now() / 1000);
+  const signature = cloudinary.utils.api_sign_request(
+    { folder, timestamp, type: "authenticated" },
+    apiSecret
+  );
+  return { cloudName, apiKey, signature, timestamp, folder };
 }
 
 export function createAuthenticatedUploadSignature(params: {

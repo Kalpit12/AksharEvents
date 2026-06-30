@@ -22,6 +22,8 @@ import {
 import { getCurrentUser, requireRole } from "@/lib/auth";
 import type { ActivityKind, ExhibitorRegistrationStatus, ItineraryItemKind, Prisma } from "@prisma/client";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
+import { redactRegistrationForClient } from "@/lib/registration-pii";
+import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 
 function activityToItineraryKind(kind: ActivityKind): ItineraryItemKind {
   return kind === "TOUR" ? "TOUR" : "TRAVEL";
@@ -46,10 +48,37 @@ export async function getExhibitorRegistration(eventExhibitorId: string) {
 
   return {
     success: true,
-    data: eventExhibitor.registration.formData as SavedRegistrationData,
+    data: redactRegistrationForClient(
+      eventExhibitor.registration.formData as SavedRegistrationData
+    ),
     status: eventExhibitor.registration.status,
     submittedAt: eventExhibitor.registration.submittedAt,
   };
+}
+
+export async function getExhibitorMemberPassport(
+  eventExhibitorId: string,
+  memberLocalId: string
+) {
+  const user = await getCurrentUser();
+  if (!user) return { error: "You must be signed in" };
+
+  const access = await assertExhibitorEventAccess(user, eventExhibitorId);
+  if (!access.ok) return { error: access.error };
+
+  const eventExhibitor = await prisma.eventExhibitor.findUnique({
+    where: { id: eventExhibitorId },
+    include: { registration: true },
+  });
+  if (!eventExhibitor?.registration?.formData) {
+    return { error: "Registration data not found" };
+  }
+
+  const formData = eventExhibitor.registration.formData as SavedRegistrationData;
+  const member = formData.members?.find((m) => m.id === memberLocalId);
+  if (!member) return { error: "Team member not found" };
+
+  return { success: true, passportNumber: member.passportNumber?.trim() ?? "" };
 }
 
 export async function saveExhibitorRegistration(

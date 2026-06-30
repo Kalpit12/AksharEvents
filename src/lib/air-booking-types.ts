@@ -47,3 +47,49 @@ export type SerializedAirBookingRequest = {
     message: string | null;
   }[];
 };
+
+export function serializeAirBookingRequest(
+  request: {
+    id: string;
+    eventExhibitorId: string;
+    ticketCount: number;
+    travelDate: Date;
+    notes: string | null;
+    memberLocalIds: string[];
+    status: AirBookingRequestStatus;
+    createdAt: Date;
+  },
+  companyName: string,
+  extra?: {
+    contactName?: string | null;
+    contactEmail?: string | null;
+    dispatches?: {
+      id: string;
+      recipientEmail: string;
+      memberLocalIds: string[];
+      sentAt: Date;
+      message: string | null;
+    }[];
+  }
+): SerializedAirBookingRequest {
+  return {
+    id: request.id,
+    eventExhibitorId: request.eventExhibitorId,
+    companyName,
+    contactName: extra?.contactName ?? null,
+    contactEmail: extra?.contactEmail ?? null,
+    ticketCount: request.ticketCount,
+    travelDate: request.travelDate.toISOString(),
+    notes: request.notes,
+    memberLocalIds: request.memberLocalIds,
+    status: request.status,
+    requestedAt: request.createdAt.toISOString(),
+    dispatches: (extra?.dispatches ?? []).map((d) => ({
+      id: d.id,
+      recipientEmail: d.recipientEmail,
+      memberLocalIds: d.memberLocalIds,
+      sentAt: d.sentAt.toISOString(),
+      message: d.message,
+    })),
+  };
+}

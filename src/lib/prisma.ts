@@ -20,8 +20,8 @@ function createPrismaClient() {
   const pooledUrl =
     databaseUrl && process.env.NODE_ENV !== "production"
       ? withDatabaseUrlParams(databaseUrl, {
-          // Serialize through one connection in dev to avoid exhausting Neon's pooler.
-          connection_limit: "1",
+          // Allow a few concurrent queries in dev without exhausting Neon's pooler.
+          connection_limit: "3",
           pool_timeout: "60",
           connect_timeout: "30",
         })

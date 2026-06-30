@@ -15,6 +15,9 @@ import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
 import { nanoid } from "nanoid";
 import type { EventStatus } from "@prisma/client";
 
+const REGISTRATION_EXISTS_MESSAGE =
+  "Could not create account. If you already have an account, sign in instead.";
+
 export async function registerUser(formData: FormData) {
   const raw = {
     name: formData.get("name") as string,
@@ -30,7 +33,7 @@ export async function registerUser(formData: FormData) {
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing) return { error: "Email already registered" };
+  if (existing) return { error: REGISTRATION_EXISTS_MESSAGE };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
@@ -100,7 +103,7 @@ export async function registerExhibitor(formData: FormData) {
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing) return { error: "Email already registered" };
+  if (existing) return { error: REGISTRATION_EXISTS_MESSAGE };
 
   const event = await getOpenExhibitorEventById(parsed.data.eventId);
   if (!event) return { error: "Selected event is not open for exhibitor registration" };
@@ -178,7 +181,7 @@ export async function registerExhibitor(formData: FormData) {
   } catch (error) {
     console.error("registerExhibitor failed:", error);
     if (error instanceof Error && error.message.includes("Unique constraint")) {
-      return { error: "Email already registered" };
+      return { error: REGISTRATION_EXISTS_MESSAGE };
     }
     return { error: "Could not create exhibitor account. Please try again." };
   }
@@ -207,6 +210,39 @@ export async function loginExhibitor(formData: FormData) {
   }
   if (!user.exhibitorProfile && user.exhibitorMemberships.length === 0) {
     return { error: "No exhibitor account found for this email. Create an exhibitor account first." };
+  }
+
+  const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);
+  if (!valid) return { error: "Invalid email or password" };
+
+  try {
+    await signIn("credentials", {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
+    return { success: true };
+  } catch {
+    return { error: "Invalid email or password" };
+  }
+}
+
+export async function loginPrintingStaff(formData: FormData) {
+  const raw = {
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+  };
+
+  const parsed = loginSchema.safeParse(raw);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const user = await prisma.user.findUnique({
+    where: { email: parsed.data.email },
+  });
+
+  if (!user?.passwordHash) return { error: "Invalid email or password" };
+  if (user.role !== "PRINTING_STAFF" && user.role !== "ADMIN") {
+    return { error: "Printing dashboard access only. Use the exhibitor portal or Event Master sign-in." };
   }
 
   const valid = await bcrypt.compare(parsed.data.password, user.passwordHash);

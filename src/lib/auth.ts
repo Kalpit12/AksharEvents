@@ -1,7 +1,8 @@
+import { cache } from "react";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
 import { authConfig } from "@/lib/auth.config";
 
@@ -42,26 +43,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
 });
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  return prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      image: true,
-      role: true,
-      phone: true,
-      company: true,
-      bio: true,
-      location: true,
-      isVerified: true,
-    },
-  });
-}
+  return withDbRetry(() =>
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+        phone: true,
+        company: true,
+        bio: true,
+        location: true,
+        isVerified: true,
+      },
+    })
+  );
+});
 
 export async function requireAuth() {
   const user = await getCurrentUser();

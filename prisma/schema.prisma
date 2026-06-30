@@ -14,6 +14,7 @@ enum UserRole {
   ATTENDEE
   ORGANIZER
   ADMIN
+  PRINTING_STAFF
 }
 
 enum EventStatus {
@@ -145,6 +146,17 @@ enum MemberDocumentType {
   OTHER
 }
 
+enum BrandingArtworkStatus {
+  DRAFT
+  SUBMITTED
+  NOT_VERIFIED
+  VERIFIED
+  SENT_FOR_PRINTING
+  PRINTING_IN_PROCESS
+  ARTWORK_DELIVERED
+  ARTWORK_AFFIXED
+}
+
 // ─── Auth (NextAuth) ─────────────────────────────────────────────────────────
 
 model User {
@@ -177,6 +189,8 @@ model User {
   airBookingRequestsRequested AirBookingRequest[] @relation("AirBookingRequestedBy")
   memberDocumentsUploaded ExhibitorMemberDocument[] @relation("MemberDocumentUploadedBy")
   airBookingDispatchesSent AirBookingDispatch[] @relation("AirBookingDispatchSentBy")
+  brandingArtworkUploaded BrandingArtworkSubmission[] @relation("BrandingArtworkUploadedBy")
+  brandingArtworkStatusUpdates BrandingArtworkSubmission[] @relation("BrandingArtworkStatusUpdatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -493,6 +507,7 @@ model EventExhibitor {
   airBookingRequests AirBookingRequest[]
   memberDocuments    ExhibitorMemberDocument[]
   memberWorkflows    AirBookingMemberWorkflow[]
+  brandingArtworkSubmissions BrandingArtworkSubmission[]
 
   @@unique([eventId, exhibitorId])
 }
@@ -546,6 +561,32 @@ model ExhibitorMemberDocument {
 
   @@unique([eventExhibitorId, memberLocalId, documentType])
   @@index([eventExhibitorId, memberLocalId])
+}
+
+model BrandingArtworkSubmission {
+  id                 String                @id @default(cuid())
+  eventExhibitorId   String
+  eventExhibitor     EventExhibitor        @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  itemMasterId       String
+  itemMaster         EventItemMaster       @relation(fields: [itemMasterId], references: [id], onDelete: Cascade)
+  cloudinaryPublicId String?
+  originalFileName   String?
+  mimeType           String?
+  fileSize           Int?
+  status             BrandingArtworkStatus @default(DRAFT)
+  rejectionReason    String?               @db.Text
+  submittedAt        DateTime?
+  uploadedById       String?
+  uploadedBy         User?                 @relation("BrandingArtworkUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  statusUpdatedById  String?
+  statusUpdatedBy    User?                 @relation("BrandingArtworkStatusUpdatedBy", fields: [statusUpdatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventExhibitorId, itemMasterId])
+  @@index([eventExhibitorId])
+  @@index([status])
 }
 
 model AirBookingDispatch {
@@ -690,6 +731,7 @@ model EventItemMaster {
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  brandingArtworkSubmissions BrandingArtworkSubmission[]
 
   @@index([eventId])
   @@index([category])

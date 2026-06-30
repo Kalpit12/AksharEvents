@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, Calendar, ClipboardList, LogOut, Menu, X } from "lucide-react";
+import { Building2, Calendar, ClipboardList, LogOut, Menu, Palette, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -14,7 +14,9 @@ interface MobileNavProps {
 
 export function MobileNav({ session, navLinks }: MobileNavProps) {
   const [open, setOpen] = useState(false);
-  const isAdmin = session?.user?.role === "ADMIN";
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const isPrintingStaff = role === "PRINTING_STAFF";
 
   return (
     <div className="xl:hidden">
@@ -71,6 +73,14 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                     Event Master Sign In
                   </Link>
                   <Link
+                    href="/auth/printing"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                  >
+                    <Palette className="h-4 w-4" />
+                    Printing Sign In
+                  </Link>
+                  <Link
                     href="/booking-inquiries"
                     onClick={() => setOpen(false)}
                     className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
@@ -80,13 +90,32 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                   </Link>
                 </>
               ) : isAdmin ? (
+                <>
+                  <Link
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Event Master
+                  </Link>
+                  <Link
+                    href="/printing"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                  >
+                    <Palette className="h-4 w-4" />
+                    Printing Dashboard
+                  </Link>
+                </>
+              ) : isPrintingStaff ? (
                 <Link
-                  href="/admin"
+                  href="/printing"
                   onClick={() => setOpen(false)}
                   className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
                 >
-                  <Calendar className="h-4 w-4" />
-                  Event Master
+                  <Palette className="h-4 w-4" />
+                  Printing Dashboard
                 </Link>
               ) : (
                 <Link

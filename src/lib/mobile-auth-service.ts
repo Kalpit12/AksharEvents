@@ -8,6 +8,9 @@ import { createAuditLog } from "@/lib/audit";
 import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
 import type { UserRole } from "@prisma/client";
 
+const REGISTRATION_EXISTS_MESSAGE =
+  "Could not create account. If you already have an account, sign in instead.";
+
 async function uniqueExhibitorSlug(base: string) {
   let slug = slugify(base);
   let suffix = 0;
@@ -92,7 +95,7 @@ export async function mobileRegisterExhibitor(input: {
   if (products.length === 0) return { error: "List at least one product or service" };
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existing) return { error: "Email already registered" };
+  if (existing) return { error: REGISTRATION_EXISTS_MESSAGE };
 
   const event = await getOpenExhibitorEventById(parsed.data.eventId);
   if (!event) return { error: "Selected event is not open for exhibitor registration" };

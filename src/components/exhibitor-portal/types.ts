@@ -2,6 +2,7 @@ export type ExhibitorTab =
   | "overview"
   | "registration"
   | "additional"
+  | "brandings"
   | "members"
   | "tours"
   | "food";
@@ -14,6 +15,8 @@ export type TeamMember = {
   email: string;
   phone: string;
   passportNumber?: string;
+  /** Set when passport number is redacted from the client payload */
+  hasPassportNumber?: boolean;
   transport: string;
   hotel: string;
   diet: string;

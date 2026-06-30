@@ -1,0 +1,16 @@
+export const HERO_FERROFLUID = {
+  colors: ["#1C1A17", "#C5A880", "#EFECE6"],
+  speed: 0.5,
+  scale: 1.6,
+  turbulence: 1,
+  fluidity: 0.1,
+  rimWidth: 0.2,
+  sharpness: 2.5,
+  shimmer: 1.5,
+  glow: 2,
+  flowDirection: "down" as const,
+  opacity: 1,
+  mouseInteraction: true,
+  mouseStrength: 1,
+  mouseRadius: 0.35,
+};

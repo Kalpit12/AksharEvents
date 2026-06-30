@@ -7,6 +7,7 @@ import type { SavedRegistrationData } from "@/components/exhibitor-portal/regist
 import { createAuditLog } from "@/lib/audit";
 import { buildMemberDocumentsPdf } from "@/lib/air-booking-pdf";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
+import { serializeAirBookingRequest } from "@/lib/air-booking-types";
 import { canSendMemberToTravelAgent } from "@/lib/air-booking-workflow-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import { sendFlightBookingPackageEmail, sendFlightBookingRequestNotification } from "@/lib/email";
@@ -189,7 +190,7 @@ export async function createAirBookingRequest(input: z.infer<typeof createReques
 
   return {
     success: true,
-    request: serializeRequest(request, request.eventExhibitor.exhibitor.companyName),
+    request: serializeAirBookingRequest(request, request.eventExhibitor.exhibitor.companyName),
   };
 }
 
@@ -207,7 +208,7 @@ export async function listAirBookingRequestsForEvent(eventId: string): Promise<S
   });
 
   return requests.map((r) =>
-    serializeRequest(r, r.eventExhibitor.exhibitor.companyName, {
+    serializeAirBookingRequest(r, r.eventExhibitor.exhibitor.companyName, {
       contactName: r.eventExhibitor.exhibitor.contactName,
       contactEmail: r.eventExhibitor.exhibitor.contactEmail,
       dispatches: r.dispatches,
@@ -237,7 +238,9 @@ export async function listAirBookingRequestsForExhibitor(eventExhibitorId: strin
   return {
     success: true,
     requests: requests.map((r) =>
-      serializeRequest(r, r.eventExhibitor.exhibitor.companyName, { dispatches: r.dispatches })
+      serializeAirBookingRequest(r, r.eventExhibitor.exhibitor.companyName, {
+        dispatches: r.dispatches,
+      })
     ),
   };
 }
@@ -533,50 +536,4 @@ export async function sendCombinedAirBookingPackageToAgent(
   revalidatePath("/exhibitor");
 
   return { success: true, travellerCount: orderedMembers.length };
-}
-
-function serializeRequest(
-  request: {
-    id: string;
-    eventExhibitorId: string;
-    ticketCount: number;
-    travelDate: Date;
-    notes: string | null;
-    memberLocalIds: string[];
-    status: SerializedAirBookingRequest["status"];
-    createdAt: Date;
-  },
-  companyName: string,
-  extra?: {
-    contactName?: string | null;
-    contactEmail?: string | null;
-    dispatches?: {
-      id: string;
-      recipientEmail: string;
-      memberLocalIds: string[];
-      sentAt: Date;
-      message: string | null;
-    }[];
-  }
-): SerializedAirBookingRequest {
-  return {
-    id: request.id,
-    eventExhibitorId: request.eventExhibitorId,
-    companyName,
-    contactName: extra?.contactName ?? null,
-    contactEmail: extra?.contactEmail ?? null,
-    ticketCount: request.ticketCount,
-    travelDate: request.travelDate.toISOString(),
-    notes: request.notes,
-    memberLocalIds: request.memberLocalIds,
-    status: request.status,
-    requestedAt: request.createdAt.toISOString(),
-    dispatches: (extra?.dispatches ?? []).map((d) => ({
-      id: d.id,
-      recipientEmail: d.recipientEmail,
-      memberLocalIds: d.memberLocalIds,
-      sentAt: d.sentAt.toISOString(),
-      message: d.message,
-    })),
-  };
 }

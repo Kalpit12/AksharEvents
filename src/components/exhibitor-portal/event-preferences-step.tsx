@@ -3,7 +3,6 @@
 import { CustomSelect, toSelectOptions } from "@/components/exhibitor-portal/custom-select";
 import type { EventItemMasterOption } from "@/lib/event-config-types";
 import { getBoothCatalogItems } from "@/lib/item-master-catalog";
-import { formatCurrency } from "@/lib/utils";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 
@@ -61,12 +60,11 @@ function boothShortName(name: string) {
 
 function boothSelectOptions(items: EventItemMasterOption[]) {
   return items.map((item) => {
-    const price = formatCurrency(item.unitCost, item.currency);
     const short = boothShortName(item.name);
     return {
       value: item.id,
-      label: `${item.name} — ${price}`,
-      triggerLabel: `${short} — ${price}`,
+      label: item.name,
+      triggerLabel: short,
     };
   });
 }

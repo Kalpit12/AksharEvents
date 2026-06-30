@@ -1,13 +1,9 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
-import { requireExhibitorAccess } from "@/lib/exhibitor";
+import { auth } from "@/lib/auth";
 
 export default async function ExhibitorLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/auth/exhibitor?mode=signin");
-
-  const access = await requireExhibitorAccess(user.id);
-  if (!access) redirect("/auth/exhibitor?mode=signup");
+  const session = await auth();
+  if (!session?.user) redirect("/auth/exhibitor?mode=signin");
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">

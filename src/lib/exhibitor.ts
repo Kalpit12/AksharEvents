@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { cache } from "react";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import type { ExhibitorMemberRole } from "@prisma/client";
 
 export async function getExhibitorForUser(userId: string) {
@@ -34,13 +35,29 @@ export async function getExhibitorMembership(userId: string, exhibitorId: string
   return { role: member.role, isOwner: false as const };
 }
 
-export async function requireExhibitorAccess(userId: string) {
-  const exhibitor = await getExhibitorForUser(userId);
-  if (!exhibitor) return null;
+/** Single round-trip when possible; deduped per request via React cache. */
+export const requireExhibitorAccess = cache(async (userId: string) => {
+  return withDbRetry(async () => {
+    const owned = await prisma.exhibitor.findUnique({ where: { userId } });
+    if (owned) {
+      return {
+        exhibitor: owned,
+        membership: { role: "OWNER" as ExhibitorMemberRole, isOwner: true as const },
+      };
+    }
 
-  const membership = await getExhibitorMembership(userId, exhibitor.id);
-  return { exhibitor, membership };
-}
+    const member = await prisma.exhibitorMember.findFirst({
+      where: { userId },
+      include: { exhibitor: true },
+    });
+    if (!member) return null;
+
+    return {
+      exhibitor: member.exhibitor,
+      membership: { role: member.role, isOwner: false as const },
+    };
+  });
+});
 
 export function canManageMembers(role: ExhibitorMemberRole | "OWNER") {
   return role === "OWNER" || role === "ADMIN";

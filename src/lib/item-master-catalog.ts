@@ -132,6 +132,14 @@ export function getBoothCatalogItems(items: EventItemMasterOption[]) {
   return items.filter((item) => isBoothCategory(item.category));
 }
 
+export function getBrandingCatalogItems(items: EventItemMasterOption[]) {
+  return items.filter((item) => isBrandingCategory(item.category));
+}
+
+export function isBrandingCategory(category: string) {
+  return normalizeCategory(category) === normalizeCategory(ITEM_MASTER_CATEGORY_BRANDINGS);
+}
+
 export function getAdditionalRequirementItems(items: EventItemMasterOption[]) {
   return items.filter((item) => !isBoothCategory(item.category));
 }

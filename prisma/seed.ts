@@ -78,6 +78,19 @@ async function main() {
     },
   });
 
+  const printingStaff = await prisma.user.upsert({
+    where: { email: "printing@aksharevents.com" },
+    update: { role: "PRINTING_STAFF", passwordHash: userPassword },
+    create: {
+      name: "Printing Team",
+      email: "printing@aksharevents.com",
+      passwordHash: userPassword,
+      role: "PRINTING_STAFF",
+      company: "AksharEvents Print & Artwork",
+      isVerified: true,
+    },
+  });
+
   // Categories
   const categories = await Promise.all(
     [
@@ -622,6 +635,7 @@ async function main() {
   console.log("  Organizer: organizer@aksharevents.com / password123");
   console.log("  Attendee:  attendee@aksharevents.com / password123");
   console.log("  Exhibitor: exhibitor@aksharevents.com / password123");
+  console.log("  Printing:  printing@aksharevents.com / password123");
 }
 
 main()

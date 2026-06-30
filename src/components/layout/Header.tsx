@@ -9,6 +9,7 @@ import {
   Calendar,
   ClipboardList,
   Building2,
+  Palette,
 } from "lucide-react";
 
 const navLinks = [
@@ -25,7 +26,9 @@ const navLinkClass =
 
 export default async function Header() {
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const isPrintingStaff = role === "PRINTING_STAFF";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-lg supports-[backdrop-filter]:bg-background/80">
@@ -56,10 +59,25 @@ export default async function Header() {
           {session?.user ? (
             <div className="hidden shrink-0 flex-nowrap items-center gap-2 md:flex">
               {isAdmin ? (
+                <>
+                  <Button variant="outline" size="sm" className="shrink-0" asChild>
+                    <Link href="/admin">
+                      <Calendar className="h-4 w-4" />
+                      Event Master
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" className="shrink-0" asChild>
+                    <Link href="/printing">
+                      <Palette className="h-4 w-4" />
+                      Printing
+                    </Link>
+                  </Button>
+                </>
+              ) : isPrintingStaff ? (
                 <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href="/admin">
-                    <Calendar className="h-4 w-4" />
-                    Event Master
+                  <Link href="/printing">
+                    <Palette className="h-4 w-4" />
+                    Printing Dashboard
                   </Link>
                 </Button>
               ) : (
@@ -84,6 +102,12 @@ export default async function Header() {
                 <Link href="/auth/login">
                   <Calendar className="h-4 w-4" />
                   Event Master
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" className="shrink-0" asChild>
+                <Link href="/auth/printing">
+                  <Palette className="h-4 w-4" />
+                  Printing
                 </Link>
               </Button>
               <Button size="sm" className="shrink-0" asChild>

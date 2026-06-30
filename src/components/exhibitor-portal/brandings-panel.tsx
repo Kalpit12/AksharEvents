@@ -1,0 +1,406 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { EventItemMasterOption } from "@/lib/event-config-types";
+import {
+  BRANDING_ARTWORK_STATUS_BADGE,
+  BRANDING_ARTWORK_STATUS_LABELS,
+  canExhibitorEditArtwork,
+  isArtworkLocked,
+  type SerializedBrandingArtworkSubmission,
+} from "@/lib/branding-artwork-types";
+import { getBrandingCatalogItems, ITEM_MASTER_CATEGORY_BRANDINGS } from "@/lib/item-master-catalog";
+import { submitBrandingArtwork, ensureBrandingSubmissionRows } from "@/lib/branding-artwork-actions";
+import { EmptyState, ModalShell, Panel } from "@/components/exhibitor-portal/exhibitor-portal-ui";
+import { Button } from "@/components/ui/Button";
+import { cn, formatCurrency } from "@/lib/utils";
+import { AlertTriangle, Check, ExternalLink, FileUp, Loader2, Palette, Send } from "lucide-react";
+import { notify } from "@/lib/notify";
+
+type Props = {
+  eventExhibitorId: string | null;
+  catalog: EventItemMasterOption[];
+  selectedBrandingItemIds: string[];
+  submissions: SerializedBrandingArtworkSubmission[];
+  onSubmissionsChange: (submissions: SerializedBrandingArtworkSubmission[]) => void;
+};
+
+export function BrandingsPanel({
+  eventExhibitorId,
+  catalog,
+  selectedBrandingItemIds,
+  submissions,
+  onSubmissionsChange,
+}: Props) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const brandingCatalog = useMemo(() => getBrandingCatalogItems(catalog), [catalog]);
+
+  const displayBrandingItemIds = useMemo(() => {
+    const ids = new Set(selectedBrandingItemIds);
+    for (const row of submissions) ids.add(row.itemMasterId);
+    return [...ids];
+  }, [selectedBrandingItemIds, submissions]);
+
+  const displayBrandingItems = useMemo(() => {
+    const items: EventItemMasterOption[] = [];
+    for (const id of displayBrandingItemIds) {
+      const catalogItem = brandingCatalog.find((item) => item.id === id);
+      if (catalogItem) {
+        items.push(catalogItem);
+        continue;
+      }
+      const row = submissions.find((s) => s.itemMasterId === id);
+      if (row) {
+        items.push({
+          id: row.itemMasterId,
+          name: row.itemName,
+          category: row.itemCategory,
+          unitOfMeasure: "—",
+          unitCost: 0,
+          currency: "KES",
+          sortOrder: 0,
+        });
+      }
+    }
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }, [displayBrandingItemIds, brandingCatalog, submissions]);
+
+  const submissionByItemId = useMemo(() => {
+    const map = new Map<string, SerializedBrandingArtworkSubmission>();
+    for (const row of submissions) map.set(row.itemMasterId, row);
+    return map;
+  }, [submissions]);
+
+  const syncRows = useCallback(async () => {
+    if (!eventExhibitorId || displayBrandingItemIds.length === 0) return;
+    const result = await ensureBrandingSubmissionRows(eventExhibitorId, displayBrandingItemIds);
+    if (result.success && result.submissions) {
+      onSubmissionsChange(result.submissions);
+    }
+  }, [eventExhibitorId, displayBrandingItemIds, onSubmissionsChange]);
+
+  useEffect(() => {
+    void syncRows();
+  }, [syncRows]);
+
+  const editableItems = useMemo(
+    () =>
+      displayBrandingItems.filter((item) => {
+        const row = submissionByItemId.get(item.id);
+        return !row || canExhibitorEditArtwork(row.status);
+      }),
+    [displayBrandingItems, submissionByItemId]
+  );
+
+  const allEditableUploaded = editableItems.every((item) => {
+    const row = submissionByItemId.get(item.id);
+    return Boolean(row?.cloudinaryPublicId);
+  });
+
+  const canSubmit = editableItems.length > 0 && allEditableUploaded;
+
+  const hasSubmittedArtwork = submissions.some((row) => row.status !== "DRAFT");
+
+  const uploadArtwork = async (itemMasterId: string, file: File) => {
+    if (!eventExhibitorId) {
+      notify.error("Link an event first");
+      return;
+    }
+
+    const row = submissionByItemId.get(itemMasterId);
+    if (row && isArtworkLocked(row.status)) {
+      notify.error("This artwork has been submitted and cannot be changed");
+      return;
+    }
+
+    setUploadingItemId(itemMasterId);
+    try {
+      const signResponse = await fetch("/api/exhibitor/branding-artwork/upload-signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventExhibitorId, itemMasterId }),
+      });
+      const signResult = await signResponse.json();
+      if (!signResponse.ok) {
+        notify.error(signResult.error ?? "Could not prepare upload");
+        return;
+      }
+
+      const { cloudName, apiKey, signature, timestamp, folder } = signResult;
+      const cloudForm = new FormData();
+      cloudForm.append("file", file);
+      cloudForm.append("api_key", apiKey);
+      cloudForm.append("timestamp", String(timestamp));
+      cloudForm.append("signature", signature);
+      cloudForm.append("folder", folder);
+      cloudForm.append("type", "authenticated");
+
+      const cloudResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+        method: "POST",
+        body: cloudForm,
+      });
+      const cloudResult = await cloudResponse.json();
+      if (!cloudResponse.ok || cloudResult.error) {
+        notify.error(cloudResult.error?.message ?? "Upload failed");
+        return;
+      }
+
+      const registerResponse = await fetch("/api/exhibitor/branding-artwork/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventExhibitorId,
+          itemMasterId,
+          cloudinaryPublicId: cloudResult.public_id,
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: cloudResult.bytes,
+        }),
+      });
+      const registerResult = await registerResponse.json();
+      if (!registerResponse.ok) {
+        notify.error(registerResult.error ?? "Could not save artwork");
+        return;
+      }
+
+      const next = submissions.filter((s) => s.itemMasterId !== itemMasterId);
+      onSubmissionsChange([...next, registerResult.submission]);
+      notify.success("Artwork uploaded");
+    } catch {
+      notify.error("Upload failed");
+    } finally {
+      setUploadingItemId(null);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!eventExhibitorId) return;
+    setSubmitting(true);
+    try {
+      const result = await submitBrandingArtwork(
+        eventExhibitorId,
+        editableItems.map((i) => i.id)
+      );
+      if (result.error) {
+        notify.error(result.error);
+        return;
+      }
+      if (result.submissions) {
+        const merged = new Map(submissions.map((s) => [s.itemMasterId, s]));
+        for (const row of result.submissions) merged.set(row.itemMasterId, row);
+        onSubmissionsChange([...merged.values()]);
+      }
+      setConfirmOpen(false);
+      notify.success("Artwork submitted for review");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!eventExhibitorId) {
+    return (
+      <Panel title="Brandings" icon={Palette}>
+        <p className="text-sm text-muted-foreground">Register for an event to upload branding artwork.</p>
+      </Panel>
+    );
+  }
+
+  if (displayBrandingItems.length === 0) {
+    return (
+      <Panel title="Brandings" icon={Palette}>
+        <EmptyState
+          icon={Palette}
+          title="No branding items selected"
+          description={`Choose items from the ${ITEM_MASTER_CATEGORY_BRANDINGS} category under Additional requirements, then return here to upload your artwork files.`}
+          compact
+        />
+      </Panel>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Panel title="Branding artwork" icon={Palette}>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {hasSubmittedArtwork
+            ? "Your submitted branding artwork and current production status are shown below. Contact the event team if you need changes after submission."
+            : "Upload print-ready artwork for each branding item you selected. Once submitted, files cannot be changed unless the printing team marks them as not verified."}
+        </p>
+
+        <div className="space-y-3">
+          {displayBrandingItems.map((item) => {
+            const row = submissionByItemId.get(item.id);
+            const locked = row ? isArtworkLocked(row.status) : false;
+            const editable = !row || canExhibitorEditArtwork(row.status);
+            const isUploading = uploadingItemId === item.id;
+
+            return (
+              <section
+                key={item.id}
+                className="rounded-xl border border-border bg-muted/20 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold">{item.name}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {item.unitOfMeasure} · {formatCurrency(item.unitCost, item.currency)}
+                    </p>
+                  </div>
+                  {row ? (
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                        BRANDING_ARTWORK_STATUS_BADGE[row.status]
+                      )}
+                    >
+                      {BRANDING_ARTWORK_STATUS_LABELS[row.status]}
+                    </span>
+                  ) : null}
+                </div>
+
+                {row?.status === "NOT_VERIFIED" && row.rejectionReason ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-900 dark:bg-red-900/20 dark:text-red-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">Artwork not verified</p>
+                      <p className="mt-1 text-xs">{row.rejectionReason}</p>
+                      <p className="mt-2 text-xs opacity-90">
+                        Please upload corrected artwork and submit again.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 rounded-lg border border-dashed border-border bg-card/80 p-3">
+                  {row?.originalFileName ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs">
+                        <Check className="mr-1 inline h-3.5 w-3.5 text-emerald-600" />
+                        {row.originalFileName}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" asChild>
+                          <a
+                            href={`/api/exhibitor/branding-artwork/${row.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" /> View
+                          </a>
+                        </Button>
+                        {editable ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1 text-xs"
+                            disabled={isUploading}
+                            onClick={() => inputRefs.current[item.id]?.click()}
+                          >
+                            {isUploading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <FileUp className="h-3.5 w-3.5" />
+                            )}
+                            Replace
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        PDF, JPG, PNG, WEBP, SVG, or AI/EPS · max 25 MB
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1 text-xs"
+                        disabled={isUploading || locked}
+                        onClick={() => inputRefs.current[item.id]?.click()}
+                      >
+                        {isUploading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <FileUp className="h-3.5 w-3.5" />
+                        )}
+                        Upload artwork
+                      </Button>
+                    </div>
+                  )}
+                  <input
+                    ref={(el) => {
+                      inputRefs.current[item.id] = el;
+                    }}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,.svg,.ai,.eps,application/pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void uploadArtwork(item.id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </section>
+            );
+          })}
+        </div>
+
+        {editableItems.length > 0 ? (
+          <div className="mt-5 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              {canSubmit
+                ? "All branding items have artwork uploaded and are ready to submit."
+                : "Upload artwork for every branding item before submitting."}
+            </p>
+            <Button
+              className="gap-1 bg-primary hover:bg-champagne-dark sm:shrink-0"
+              disabled={!canSubmit || submitting}
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Send className="h-4 w-4" />
+              Submit artwork
+            </Button>
+          </div>
+        ) : null}
+      </Panel>
+
+      {confirmOpen && (
+        <ModalShell
+          title="Submit branding artwork?"
+          icon={AlertTriangle}
+          onClose={() => !submitting && setConfirmOpen(false)}
+          footer={
+            <>
+              <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
+                No, go back
+              </Button>
+              <Button
+                disabled={submitting}
+                className="gap-1 bg-primary hover:bg-champagne-dark"
+                onClick={() => void handleSubmit()}
+              >
+                {submitting ? "Submitting…" : "Yes, submit"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            <p>
+              Once your artwork is submitted it <strong>cannot be changed</strong>. Please recheck
+              every file — correct dimensions, resolution, spelling, and branding colours — before
+              you continue.
+            </p>
+            <p className="text-muted-foreground">Are you sure you want to submit?</p>
+          </div>
+        </ModalShell>
+      )}
+    </div>
+  );
+}

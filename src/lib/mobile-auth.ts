@@ -23,7 +23,7 @@ export async function signMobileToken(payload: MobileTokenPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime("24h")
     .sign(getSecret());
 }
 

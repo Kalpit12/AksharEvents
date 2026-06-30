@@ -6,11 +6,12 @@ import {
   serializeEventRestaurant,
   serializeEventScheduleItem,
 } from "@/lib/event-config-types";
-import { listAirBookingRequestsForExhibitor } from "@/lib/air-booking-actions";
-import { listAirBookingMemberWorkflowsForExhibitor } from "@/lib/air-booking-workflow-actions";
 import type { SerializedAirBookingRequest } from "@/lib/air-booking-types";
-import type { SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
+import { serializeAirBookingRequest } from "@/lib/air-booking-types";
+import { serializeWorkflow, type SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
+import { serializeBrandingArtworkSubmission, type SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
+import { redactRegistrationForClient } from "@/lib/registration-pii";
 import { getOpenExhibitorEvents, type OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma, withDbRetry } from "@/lib/prisma";
@@ -25,6 +26,8 @@ const eventExhibitorInclude = {
     },
   },
 } as const;
+
+const emptyEventConfig = [[], [], [], [], []] as const;
 
 function serializeActivity(activity: {
   id: string;
@@ -52,6 +55,19 @@ function serializeActivity(activity: {
   };
 }
 
+function pickEventEntry(
+  eventEntries: Awaited<
+    ReturnType<typeof prisma.eventExhibitor.findMany<{ include: typeof eventExhibitorInclude }>>
+  >,
+  primaryEventId: string | undefined
+) {
+  if (eventEntries.length === 0) return null;
+  if (primaryEventId) {
+    return eventEntries.find((entry) => entry.eventId === primaryEventId) ?? eventEntries[0];
+  }
+  return eventEntries[0];
+}
+
 export type ExhibitorDashboardPageData = {
   exhibitor: Exhibitor;
   membershipRole: ExhibitorMemberRole | "OWNER";
@@ -75,92 +91,97 @@ export type ExhibitorDashboardPageData = {
   memberDocuments: SerializedMemberDocument[];
   airBookingRequests: SerializedAirBookingRequest[];
   memberWorkflows: SerializedAirBookingMemberWorkflow[];
+  brandingArtworkSubmissions: SerializedBrandingArtworkSubmission[];
 };
 
 export async function loadExhibitorDashboardPageData(
   exhibitor: Exhibitor,
   membershipRole: ExhibitorMemberRole | "OWNER"
 ): Promise<ExhibitorDashboardPageData> {
-  const primaryEvent = await getPrimaryPublishedEvent();
-  const openEvents = await getOpenExhibitorEvents();
-
-  let eventEntry = primaryEvent
-    ? await prisma.eventExhibitor.findFirst({
-        where: {
-          exhibitorId: exhibitor.id,
-          eventId: primaryEvent.id,
-        },
-        include: eventExhibitorInclude,
-      })
-    : null;
-
-  if (!eventEntry) {
-    eventEntry = await prisma.eventExhibitor.findFirst({
+  const [primaryEvent, openEvents, eventEntries] = await Promise.all([
+    getPrimaryPublishedEvent(),
+    getOpenExhibitorEvents(),
+    prisma.eventExhibitor.findMany({
       where: { exhibitorId: exhibitor.id },
-      orderBy: { event: { startDate: "asc" } },
       include: eventExhibitorInclude,
-    });
-  }
+      orderBy: { event: { startDate: "asc" } },
+    }),
+  ]);
 
+  const eventEntry = pickEventEntry(eventEntries, primaryEvent?.id);
   const event = eventEntry?.event ?? primaryEvent;
   const expoDays = event
     ? Math.max(1, differenceInCalendarDays(event.endDate, event.startDate) + 1)
     : 1;
 
-  const savedRegistration = eventEntry?.registration?.formData
-    ? (eventEntry.registration.formData as SavedRegistrationData)
-    : null;
+  const savedRegistration = redactRegistrationForClient(
+    eventEntry?.registration?.formData
+      ? (eventEntry.registration.formData as SavedRegistrationData)
+      : null
+  );
 
-  let activities: Awaited<ReturnType<typeof prisma.eventActivity.findMany>> = [];
-  let eventHotels: Awaited<ReturnType<typeof prisma.eventHotel.findMany>> = [];
-  let eventRestaurants: Awaited<ReturnType<typeof prisma.eventRestaurant.findMany>> = [];
-  let eventSchedule: Awaited<ReturnType<typeof prisma.eventScheduleItem.findMany>> = [];
-  let itemCatalogRows: Awaited<ReturnType<typeof prisma.eventItemMaster.findMany>> = [];
+  const eventId = event?.id;
+  const eventExhibitorId = eventEntry?.id;
+  const canLoadDocuments = membershipRole !== "STAFF";
 
-  if (event) {
-    [activities, eventHotels, eventRestaurants, eventSchedule, itemCatalogRows] =
-      await prisma.$transaction([
-        prisma.eventActivity.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: { startAt: "asc" },
-        }),
-        prisma.eventHotel.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        }),
-        prisma.eventRestaurant.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        }),
-        prisma.eventScheduleItem.findMany({
-          where: { eventId: event.id, isActive: true },
-          orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
-        }),
-        prisma.eventItemMaster.findMany({
-          where: { eventId: event.id },
-          orderBy: [{ category: "asc" }, { name: "asc" }],
-        }),
-      ]);
-  }
+  const [eventConfig, memberDocuments, airBookingRows, memberWorkflowRows, brandingArtworkRows] =
+    await Promise.all([
+    eventId
+      ? prisma.$transaction([
+          prisma.eventActivity.findMany({
+            where: { eventId, isActive: true },
+            orderBy: { startAt: "asc" },
+          }),
+          prisma.eventHotel.findMany({
+            where: { eventId, isActive: true },
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          }),
+          prisma.eventRestaurant.findMany({
+            where: { eventId, isActive: true },
+            orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          }),
+          prisma.eventScheduleItem.findMany({
+            where: { eventId, isActive: true },
+            orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
+          }),
+          prisma.eventItemMaster.findMany({
+            where: { eventId },
+            orderBy: [{ category: "asc" }, { name: "asc" }],
+          }),
+        ])
+      : Promise.resolve([...emptyEventConfig]),
+    eventExhibitorId && canLoadDocuments
+      ? prisma.exhibitorMemberDocument.findMany({
+          where: { eventExhibitorId },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    eventExhibitorId
+      ? prisma.airBookingRequest.findMany({
+          where: { eventExhibitorId },
+          include: {
+            eventExhibitor: { include: { exhibitor: true } },
+            dispatches: { orderBy: { sentAt: "desc" } },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
+    eventExhibitorId
+      ? prisma.airBookingMemberWorkflow.findMany({
+          where: { eventExhibitorId },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve([]),
+    eventExhibitorId
+      ? prisma.brandingArtworkSubmission.findMany({
+          where: { eventExhibitorId },
+          include: { itemMaster: true },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
-  let memberDocuments: Awaited<ReturnType<typeof prisma.exhibitorMemberDocument.findMany>> = [];
-  let serializedAirBookingRequests: SerializedAirBookingRequest[] = [];
-  let serializedMemberWorkflows: SerializedAirBookingMemberWorkflow[] = [];
-
-  if (eventEntry) {
-    memberDocuments = await prisma.exhibitorMemberDocument.findMany({
-      where: { eventExhibitorId: eventEntry.id },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const airBookingRequests = await listAirBookingRequestsForExhibitor(eventEntry.id);
-    serializedAirBookingRequests =
-      airBookingRequests.success && airBookingRequests.requests ? airBookingRequests.requests : [];
-
-    const memberWorkflows = await listAirBookingMemberWorkflowsForExhibitor(eventEntry.id);
-    serializedMemberWorkflows =
-      memberWorkflows.success && memberWorkflows.workflows ? memberWorkflows.workflows : [];
-  }
+  const [activities, eventHotels, eventRestaurants, eventSchedule, itemCatalogRows] = eventConfig;
 
   const serializedMemberDocuments: SerializedMemberDocument[] = memberDocuments.map((doc) => ({
     id: doc.id,
@@ -173,10 +194,19 @@ export async function loadExhibitorDashboardPageData(
     uploadedAt: doc.createdAt.toISOString(),
   }));
 
+  const serializedAirBookingRequests = airBookingRows.map((row) =>
+    serializeAirBookingRequest(row, row.eventExhibitor.exhibitor.companyName, {
+      dispatches: row.dispatches,
+    })
+  );
+
+  const serializedMemberWorkflows = memberWorkflowRows.map(serializeWorkflow);
+  const serializedBrandingArtwork = brandingArtworkRows.map(serializeBrandingArtworkSubmission);
+
   return {
     exhibitor,
     membershipRole,
-    eventExhibitorId: eventEntry?.id ?? null,
+    eventExhibitorId: eventExhibitorId ?? null,
     savedRegistration,
     registrationStatus: eventEntry?.registration?.status ?? null,
     eventTitle: event?.title ?? "Upcoming event",
@@ -196,6 +226,7 @@ export async function loadExhibitorDashboardPageData(
     memberDocuments: serializedMemberDocuments,
     airBookingRequests: serializedAirBookingRequests,
     memberWorkflows: serializedMemberWorkflows,
+    brandingArtworkSubmissions: serializedBrandingArtwork,
   };
 }
 

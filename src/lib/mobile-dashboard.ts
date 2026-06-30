@@ -15,6 +15,7 @@ import {
 import { requireExhibitorAccess } from "@/lib/exhibitor";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma } from "@/lib/prisma";
+import { redactRegistrationForClient } from "@/lib/registration-pii";
 
 function serializeActivity(activity: {
   id: string;
@@ -75,9 +76,11 @@ export async function getMobileExhibitorDashboard(userId: string) {
       })
     : [];
 
-  const savedRegistration = eventEntry?.registration?.formData
-    ? (eventEntry.registration.formData as SavedRegistrationData)
-    : null;
+  const savedRegistration = redactRegistrationForClient(
+    eventEntry?.registration?.formData
+      ? (eventEntry.registration.formData as SavedRegistrationData)
+      : null
+  );
 
   const expoDays = event
     ? Math.max(1, differenceInCalendarDays(event.endDate, event.startDate) + 1)

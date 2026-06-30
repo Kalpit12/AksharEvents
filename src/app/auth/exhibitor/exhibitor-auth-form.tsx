@@ -45,7 +45,6 @@ export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhi
 
     toast.success("Welcome back!");
     router.push("/exhibitor");
-    router.refresh();
   };
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -67,7 +66,6 @@ export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhi
 
     toast.success("Exhibitor account created!");
     router.push("/exhibitor");
-    router.refresh();
   };
 
   return (
