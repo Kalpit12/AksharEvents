@@ -360,7 +360,7 @@ export function BrandingsPanel({
                               Issue to fix
                             </p>
                             <p className="mt-1 whitespace-pre-wrap text-sm font-medium leading-relaxed text-red-950 dark:text-red-50">
-                              {row.rejectionReason}
+                              {row!.rejectionReason}
                             </p>
                           </div>
                         ) : (
