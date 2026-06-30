@@ -1,4 +1,5 @@
 import type { BrandingArtworkStatus } from "@prisma/client";
+import type { SerializedBrandingArtworkStatusHistory } from "@/lib/branding-artwork-history";
 
 export const BRANDING_ARTWORK_STATUS_LABELS: Record<BrandingArtworkStatus, string> = {
   DRAFT: "Draft — not submitted",
@@ -56,6 +57,7 @@ export type AdminBrandingArtworkRecord = SerializedBrandingArtworkSubmission & {
   hall: string | null;
   contactName: string | null;
   contactEmail: string | null;
+  statusHistory: SerializedBrandingArtworkStatusHistory[];
 };
 
 export function canExhibitorEditArtwork(status: BrandingArtworkStatus) {

@@ -9,6 +9,7 @@ import {
   serializeBrandingArtworkSubmission,
 } from "@/lib/branding-artwork-types";
 import { isBrandingCategory } from "@/lib/item-master-catalog";
+import { recordBrandingStatusHistory } from "@/lib/branding-artwork-history";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 
@@ -75,30 +76,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const submission = await prisma.brandingArtworkSubmission.upsert({
-      where: {
-        eventExhibitorId_itemMasterId: { eventExhibitorId, itemMasterId },
-      },
-      create: {
-        eventExhibitorId,
-        itemMasterId,
-        cloudinaryPublicId,
-        originalFileName,
-        mimeType,
-        fileSize,
-        uploadedById: user.id,
-        status: "DRAFT",
-      },
-      update: {
-        cloudinaryPublicId,
-        originalFileName,
-        mimeType,
-        fileSize,
-        uploadedById: user.id,
-        // New upload must be submitted again; keep rejectionReason until submit clears it.
-        status: "DRAFT",
-      },
-      include: { itemMaster: true },
+    const submission = await prisma.$transaction(async (tx) => {
+      const row = await tx.brandingArtworkSubmission.upsert({
+        where: {
+          eventExhibitorId_itemMasterId: { eventExhibitorId, itemMasterId },
+        },
+        create: {
+          eventExhibitorId,
+          itemMasterId,
+          cloudinaryPublicId,
+          originalFileName,
+          mimeType,
+          fileSize,
+          uploadedById: user.id,
+          status: "DRAFT",
+        },
+        update: {
+          cloudinaryPublicId,
+          originalFileName,
+          mimeType,
+          fileSize,
+          uploadedById: user.id,
+          status: "DRAFT",
+        },
+        include: { itemMaster: true },
+      });
+
+      if (existing && existing.status !== "DRAFT") {
+        await recordBrandingStatusHistory(tx, {
+          submissionId: row.id,
+          status: "DRAFT",
+          note: "Corrected artwork uploaded",
+          changedById: user.id,
+        });
+      }
+
+      return row;
     });
 
     try {

@@ -8,6 +8,7 @@ import {
   printingStaffActionsFor,
   type AdminBrandingArtworkRecord,
 } from "@/lib/branding-artwork-types";
+import { resolveBrandingStatusTimeline } from "@/lib/branding-artwork-history";
 import { updateBrandingArtworkStatus } from "@/lib/branding-artwork-actions";
 import Ferrofluid from "@/components/ferrofluid/Ferrofluid";
 import { HERO_FERROFLUID } from "@/lib/hero-ferrofluid";
@@ -24,6 +25,7 @@ import {
   Building2,
   Check,
   ExternalLink,
+  History,
   Mail,
   MapPin,
   Palette,
@@ -431,6 +433,8 @@ function CompanyArtworkPanel({
                 </p>
               ) : null}
 
+              <ArtworkStatusHistory row={row} />
+
               <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
                 {actions.canVerify ? (
                   <Button size="sm" className="h-8 gap-1 text-xs" disabled={busy} onClick={() => onVerify(row.id)}>
@@ -465,6 +469,67 @@ function CompanyArtworkPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function ArtworkStatusHistory({ row }: { row: AdminBrandingArtworkRecord }) {
+  const timeline = resolveBrandingStatusTimeline(row, row.statusHistory);
+
+  if (timeline.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-border/70 bg-background/60 p-3">
+      <div className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+        <History className="h-3.5 w-3.5 text-muted-foreground" />
+        Status history
+      </div>
+      <ol className="relative space-y-0 border-l border-border pl-4">
+        {timeline.map((entry, index) => {
+          const isLast = index === timeline.length - 1;
+          return (
+            <li key={entry.id} className={cn("relative pb-3 last:pb-0")}>
+              <span
+                className={cn(
+                  "absolute -left-[1.125rem] top-1 h-2.5 w-2.5 rounded-full border-2 border-background",
+                  isLast ? "bg-primary ring-2 ring-primary/20" : "bg-muted-foreground/40"
+                )}
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      BRANDING_ARTWORK_STATUS_BADGE[entry.status]
+                    )}
+                  >
+                    {BRANDING_ARTWORK_STATUS_LABELS[entry.status]}
+                  </span>
+                  <time
+                    className="text-[11px] tabular-nums text-muted-foreground"
+                    dateTime={entry.createdAt}
+                  >
+                    {formatDate(entry.createdAt, "MMM d, yyyy · h:mm a")}
+                  </time>
+                </div>
+                {entry.changedByName ? (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">By {entry.changedByName}</p>
+                ) : null}
+                {entry.note ? (
+                  <p className="mt-1 text-[11px] text-muted-foreground">{entry.note}</p>
+                ) : null}
+                {entry.rejectionReason ? (
+                  <p className="mt-1 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                    {entry.rejectionReason}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

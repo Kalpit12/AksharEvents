@@ -1,4 +1,5 @@
 import { serializeBrandingArtworkSubmission, type AdminBrandingArtworkRecord } from "@/lib/branding-artwork-types";
+import { serializeBrandingStatusHistory } from "@/lib/branding-artwork-history";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma, withDbRetry } from "@/lib/prisma";
 
@@ -22,6 +23,10 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     include: {
       itemMaster: true,
       eventExhibitor: { include: { exhibitor: true } },
+      statusHistory: {
+        include: { changedBy: { select: { name: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
     orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
   });
@@ -33,6 +38,7 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     hall: row.eventExhibitor.hall,
     contactName: row.eventExhibitor.exhibitor.contactName,
     contactEmail: row.eventExhibitor.exhibitor.contactEmail,
+    statusHistory: row.statusHistory.map(serializeBrandingStatusHistory),
   }));
 
   return {

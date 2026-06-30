@@ -14,6 +14,7 @@ import { deleteAuthenticatedDocument } from "@/lib/cloudinary-server";
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { recordBrandingStatusHistory } from "@/lib/branding-artwork-history";
 import { revalidatePath } from "next/cache";
 
 async function assertPrintingStaff() {
@@ -59,20 +60,27 @@ export async function submitBrandingArtwork(eventExhibitorId: string, itemMaster
   }
 
   const now = new Date();
-  await prisma.$transaction(
-    submissions
-      .filter((s) => canExhibitorEditArtwork(s.status) && s.cloudinaryPublicId)
-      .map((submission) =>
-        prisma.brandingArtworkSubmission.update({
-          where: { id: submission.id },
-          data: {
-            status: "SUBMITTED",
-            submittedAt: now,
-            rejectionReason: null,
-          },
-        })
-      )
+  const toSubmit = submissions.filter(
+    (s) => canExhibitorEditArtwork(s.status) && s.cloudinaryPublicId
   );
+
+  await prisma.$transaction(async (tx) => {
+    for (const submission of toSubmit) {
+      await tx.brandingArtworkSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: "SUBMITTED",
+          submittedAt: now,
+          rejectionReason: null,
+        },
+      });
+      await recordBrandingStatusHistory(tx, {
+        submissionId: submission.id,
+        status: "SUBMITTED",
+        changedById: user.id,
+      });
+    }
+  });
 
   try {
     await createAuditLog({
@@ -119,36 +127,59 @@ export async function updateBrandingArtworkStatus(input: {
 
   if (input.action === "verify") {
     if (!actions.canVerify) return { error: "Cannot verify artwork in its current status" };
-    await prisma.brandingArtworkSubmission.update({
-      where: { id: submission.id },
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await tx.brandingArtworkSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: "VERIFIED",
+          rejectionReason: null,
+          statusUpdatedById: staff.user!.id,
+        },
+      });
+      await recordBrandingStatusHistory(tx, {
+        submissionId: submission.id,
         status: "VERIFIED",
-        rejectionReason: null,
-        statusUpdatedById: staff.user!.id,
-      },
+        changedById: staff.user!.id,
+      });
     });
   } else if (input.action === "reject") {
     if (!actions.canReject) return { error: "Cannot reject artwork in its current status" };
     const reason = input.rejectionReason?.trim();
     if (!reason) return { error: "Please provide a reason why the artwork was not verified" };
-    await prisma.brandingArtworkSubmission.update({
-      where: { id: submission.id },
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await tx.brandingArtworkSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: "NOT_VERIFIED",
+          rejectionReason: reason,
+          statusUpdatedById: staff.user!.id,
+        },
+      });
+      await recordBrandingStatusHistory(tx, {
+        submissionId: submission.id,
         status: "NOT_VERIFIED",
         rejectionReason: reason,
-        statusUpdatedById: staff.user!.id,
-      },
+        changedById: staff.user!.id,
+      });
     });
   } else if (input.action === "advance") {
     if (!actions.canAdvance || !actions.nextStatus) {
       return { error: "No further status available for this artwork" };
     }
-    await prisma.brandingArtworkSubmission.update({
-      where: { id: submission.id },
-      data: {
-        status: actions.nextStatus as BrandingArtworkStatus,
-        statusUpdatedById: staff.user!.id,
-      },
+    const nextStatus = actions.nextStatus as BrandingArtworkStatus;
+    await prisma.$transaction(async (tx) => {
+      await tx.brandingArtworkSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: nextStatus,
+          statusUpdatedById: staff.user!.id,
+        },
+      });
+      await recordBrandingStatusHistory(tx, {
+        submissionId: submission.id,
+        status: nextStatus,
+        changedById: staff.user!.id,
+      });
     });
   } else {
     return { error: "Invalid action" };
