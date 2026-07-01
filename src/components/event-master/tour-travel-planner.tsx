@@ -7,9 +7,11 @@ import {
   addTourTravelStop,
   createTourTravelItinerary,
   deleteTourTravelStop,
+  importTourTravelFromUpload,
   publishTourTravelItinerary,
   updateTourTravelItinerary,
 } from "@/lib/itinerary-actions";
+import { ScheduleFileUpload } from "@/components/event-master/schedule-file-upload";
 import {
   TOUR_TRAVEL_STOP_LABELS,
   type SerializedTourTravelDay,
@@ -135,6 +137,26 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
           </li>
         ))}
       </ol>
+
+      <ScheduleFileUpload
+        eventId={eventId}
+        kind="tour-travel"
+        replaceItineraryId={selectedId || null}
+        disabled={busy}
+        onImport={async (formData) => {
+          const result = await importTourTravelFromUpload(formData);
+          if (result.error) {
+            notify.error(result.error);
+            return { error: result.error };
+          }
+          if ("itineraryId" in result && result.itineraryId) {
+            setSelectedId(result.itineraryId);
+          }
+          notify.success(result.message ?? "Schedule imported");
+          router.refresh();
+          return { message: result.message };
+        }}
+      />
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <Input

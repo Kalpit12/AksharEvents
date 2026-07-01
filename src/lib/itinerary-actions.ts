@@ -246,3 +246,170 @@ export async function notifyExhibitorsOfEventSchedule(eventId: string) {
 
   return { success: true as const, count: result.count };
 }
+
+export async function importTourTravelFromUpload(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const eventId = String(formData.get("eventId") ?? "");
+  const file = formData.get("file");
+  const replaceItineraryId = String(formData.get("replaceItineraryId") ?? "").trim() || null;
+
+  if (!eventId) return { error: "Event is required" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel or CSV file to upload" };
+
+  const { isAcceptedScheduleFileName, parseTourTravelUpload } = await import(
+    "@/lib/schedule-upload-parser"
+  );
+  if (!isAcceptedScheduleFileName(file.name)) {
+    return { error: "Upload a .xlsx, .xls, or .csv file" };
+  }
+
+  let parsed;
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    parsed = parseTourTravelUpload(buffer, file.name);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not read the uploaded schedule file",
+    };
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: eventId } });
+  if (!event) return { error: "Event not found" };
+
+  let targetId: string;
+
+  if (replaceItineraryId) {
+    const existing = await prisma.tourTravelItinerary.findFirst({
+      where: { id: replaceItineraryId, eventId },
+    });
+    if (!existing) return { error: "Selected trip was not found" };
+
+    await prisma.tourTravelDay.deleteMany({ where: { itineraryId: replaceItineraryId } });
+    await prisma.tourTravelItinerary.update({
+      where: { id: replaceItineraryId },
+      data: {
+        title: parsed.title,
+        description: parsed.description,
+        vehicleInfo: parsed.vehicleInfo,
+        memberCount: parsed.memberCount,
+        hotelInfo: parsed.hotelInfo,
+        isPublished: false,
+        publishedAt: null,
+      },
+    });
+    targetId = replaceItineraryId;
+  } else {
+    const created = await prisma.tourTravelItinerary.create({
+      data: {
+        eventId,
+        title: parsed.title,
+        description: parsed.description,
+        vehicleInfo: parsed.vehicleInfo,
+        memberCount: parsed.memberCount,
+        hotelInfo: parsed.hotelInfo,
+      },
+    });
+    targetId = created.id;
+  }
+
+  for (const day of parsed.days) {
+    const dayRow = await prisma.tourTravelDay.create({
+      data: {
+        itineraryId: targetId,
+        dayIndex: day.dayIndex,
+        dayDate: day.dayDate,
+        title: day.title,
+      },
+    });
+
+    if (day.stops.length > 0) {
+      await prisma.tourTravelStop.createMany({
+        data: day.stops.map((stop) => ({
+          dayId: dayRow.id,
+          stopType: stop.stopType,
+          title: stop.title,
+          location: stop.location,
+          startAt: stop.startAt,
+          endAt: stop.endAt,
+          notes: stop.notes,
+          sortOrder: stop.sortOrder,
+        })),
+      });
+    }
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+
+  const stopCount = parsed.days.reduce((total, day) => total + day.stops.length, 0);
+  return {
+    success: true as const,
+    itineraryId: targetId,
+    message: `Imported "${parsed.title}" with ${parsed.days.length} days and ${stopCount} stops`,
+  };
+}
+
+export async function importEventScheduleFromUpload(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const eventId = String(formData.get("eventId") ?? "");
+  const file = formData.get("file");
+
+  if (!eventId) return { error: "Event is required" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel or CSV file to upload" };
+
+  const { isAcceptedScheduleFileName, parseEventScheduleUpload } = await import(
+    "@/lib/schedule-upload-parser"
+  );
+  if (!isAcceptedScheduleFileName(file.name)) {
+    return { error: "Upload a .xlsx, .xls, or .csv file" };
+  }
+
+  let parsed;
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    parsed = parseEventScheduleUpload(buffer, file.name);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Could not read the uploaded schedule file",
+    };
+  }
+
+  const event = await prisma.event.findFirst({ where: { id: eventId } });
+  if (!event) return { error: "Event not found" };
+
+  const existingCount = await prisma.eventScheduleItem.count({ where: { eventId } });
+
+  if (parsed.items.length > 0) {
+    await prisma.eventScheduleItem.createMany({
+      data: parsed.items.map((item, index) => ({
+        eventId,
+        title: item.title,
+        description: item.description,
+        startAt: item.startAt,
+        endAt: item.endAt,
+        location: item.location,
+        sortOrder: existingCount + index,
+        isActive: true,
+      })),
+    });
+  }
+
+  await notifyEventExhibitorUsers({
+    eventId,
+    title: "Event schedule updated",
+    message: `${event.title}: ${parsed.items.length} schedule item${parsed.items.length === 1 ? "" : "s"} imported from ${file.name}.`,
+    link: "/exhibitor?tab=schedules",
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+
+  return {
+    success: true as const,
+    message: `Imported ${parsed.items.length} event schedule item${parsed.items.length === 1 ? "" : "s"}`,
+  };
+}
