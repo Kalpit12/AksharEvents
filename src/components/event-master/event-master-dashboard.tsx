@@ -17,6 +17,7 @@ import {
 } from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
 import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
+import ItineraryPanel from "@/components/event-master/itinerary-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
@@ -26,6 +27,7 @@ import type {
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
 import type { FloorPlanBoothRecord, EventFloorPlanConfig } from "@/lib/floor-plan-types";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import {
   EventHotelsManager,
   EventRestaurantsManager,
@@ -67,6 +69,7 @@ import {
   Package,
   Pencil,
   Plane,
+  Route,
   Settings,
   Store,
   Ticket,
@@ -100,6 +103,7 @@ type Props = {
   eventRestaurants?: EventRestaurantOption[];
   scheduleItems?: EventScheduleItemOption[];
   itemMaster?: EventItemMasterOption[];
+  tourTravelItineraries?: SerializedTourTravelItinerary[];
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
 };
@@ -114,6 +118,7 @@ const EVENT_MASTER_TAB_IDS = [
   "hotels",
   "food",
   "schedule",
+  "itinerary",
   "floorplan",
 ] as const satisfies readonly EventMasterTab[];
 
@@ -128,6 +133,7 @@ const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ cla
   { id: "hotels", label: "Hotels", icon: Building2 },
   { id: "food", label: "Food", icon: ForkKnife },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
+  { id: "itinerary", label: "Itinerary", icon: Route },
 ];
 
 function initialsFromName(fn: string, ln: string) {
@@ -148,6 +154,7 @@ export default function EventMasterDashboard({
   eventRestaurants = [],
   scheduleItems = [],
   itemMaster = [],
+  tourTravelItineraries = [],
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
 }: Props) {
@@ -563,6 +570,16 @@ export default function EventMasterDashboard({
           )}
           </Panel>
         </div>
+      )}
+
+      {tab === "itinerary" && (
+        <ItineraryPanel
+          eventId={eventId}
+          itineraries={tourTravelItineraries}
+          scheduleItems={scheduleItems}
+          exhibitors={exhibitors}
+          activities={activities}
+        />
       )}
       </div>
     </div>

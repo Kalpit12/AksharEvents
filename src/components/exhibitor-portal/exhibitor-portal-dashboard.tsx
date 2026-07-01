@@ -36,6 +36,7 @@ import type {
 import { EventPreferencesStep } from "@/components/exhibitor-portal/event-preferences-step";
 import { AdditionalRequirementsPanel } from "@/components/exhibitor-portal/additional-requirements-panel";
 import { BrandingsPanel } from "@/components/exhibitor-portal/brandings-panel";
+import ExhibitorItineraryPanel from "@/components/exhibitor-portal/exhibitor-itinerary-panel";
 import { getBoothCatalogItems, getBrandingCatalogItems } from "@/lib/item-master-catalog";
 import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import {
@@ -93,6 +94,7 @@ import {
   PackagePlus,
   Palette,
   Plus,
+  Route,
   Salad,
   Send,
   ShieldCheck,
@@ -129,6 +131,7 @@ import type { SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import { notify } from "@/lib/notify";
 
 export type ExhibitorPortalProps = {
@@ -160,6 +163,8 @@ export type ExhibitorPortalProps = {
   airBookingRequests?: SerializedAirBookingRequest[];
   memberWorkflows?: SerializedAirBookingMemberWorkflow[];
   brandingArtworkSubmissions?: SerializedBrandingArtworkSubmission[];
+  tourTravelItineraries?: SerializedTourTravelItinerary[];
+  notificationUnreadCount?: number;
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -169,6 +174,7 @@ const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ class
   { id: "brandings", label: "Brandings", icon: Palette },
   { id: "members", label: "Team members", icon: Users },
   { id: "tours", label: "Tours & travel", icon: MapPin },
+  { id: "schedules", label: "Schedules", icon: Route },
   { id: "food", label: "Food outings", icon: ForkKnife },
 ];
 
@@ -179,6 +185,7 @@ const EXHIBITOR_TAB_IDS = [
   "brandings",
   "members",
   "tours",
+  "schedules",
   "food",
 ] as const satisfies readonly ExhibitorTab[];
 
@@ -215,6 +222,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const searchParams = useSearchParams();
   const { setParams } = useDashboardUrlState();
   const [tab, setTabRaw] = useUrlEnumState("tab", EXHIBITOR_TAB_IDS, "overview");
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "itinerary") {
+      setParams({ tab: "schedules" });
+    }
+  }, [searchParams, setParams]);
 
   const setupOptions = useMemo(() => buildSetupDateOptions(props.startDate), [props.startDate]);
   const departureOptions = useMemo(() => buildDepartureOptions(props.endDate), [props.endDate]);
@@ -1695,6 +1708,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             </Panel>
           )}
         </div>
+      )}
+
+      {tab === "schedules" && (
+        <ExhibitorItineraryPanel
+          itineraries={props.tourTravelItineraries ?? []}
+          scheduleItems={props.eventSchedule ?? []}
+        />
       )}
 
       {/* Food */}

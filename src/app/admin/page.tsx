@@ -1,52 +1,14 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
-import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
-import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
-import type { EventActivityOption } from "@/lib/event-activity-types";
-import {
-  serializeEventHotel,
-  serializeEventItemMaster,
-  serializeEventRestaurant,
-  serializeEventScheduleItem,
-} from "@/lib/event-config-types";
+import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
-import { prisma } from "@/lib/prisma";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
-import { getEventFloorPlanBooths } from "@/lib/floor-plan-actions";
-import { FLOOR_PLAN_IMAGE, FLOOR_PLAN_VIEWBOX } from "@/lib/floor-plan-layout";
-import type { EventFloorPlanConfig } from "@/lib/floor-plan-types";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-function serializeActivity(activity: {
-  id: string;
-  kind: "TOUR" | "TRAVEL";
-  title: string;
-  description: string | null;
-  startAt: Date;
-  endAt: Date | null;
-  location: string | null;
-  price: { toNumber(): number };
-  currency: string;
-  maxSlots: number | null;
-}): EventActivityOption {
-  return {
-    id: activity.id,
-    kind: activity.kind,
-    title: activity.title,
-    description: activity.description,
-    startAt: activity.startAt.toISOString(),
-    endAt: activity.endAt?.toISOString() ?? null,
-    location: activity.location,
-    price: activity.price.toNumber(),
-    currency: activity.currency,
-    maxSlots: activity.maxSlots,
-  };
-}
 
 export default async function AdminEventMasterPage({
   searchParams,
@@ -85,71 +47,7 @@ export default async function AdminEventMasterPage({
   }
 
   const location = event.venue?.city ?? "Kenya";
-
-  const [
-    eventExhibitors,
-    activities,
-    eventHotels,
-    eventRestaurants,
-    scheduleItems,
-    itemMasterRows,
-    floorPlanResult,
-  ] = await Promise.all([
-    prisma.eventExhibitor.findMany({
-      where: { eventId: event.id },
-      include: {
-        exhibitor: true,
-        registration: true,
-      },
-      orderBy: { exhibitor: { companyName: "asc" } },
-    }),
-    prisma.eventActivity.findMany({
-      where: { eventId: event.id, isActive: true },
-      orderBy: { startAt: "asc" },
-    }),
-    prisma.eventHotel.findMany({
-      where: { eventId: event.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.eventRestaurant.findMany({
-      where: { eventId: event.id },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
-    prisma.eventScheduleItem.findMany({
-      where: { eventId: event.id },
-      orderBy: [{ startAt: "asc" }, { sortOrder: "asc" }],
-    }),
-    prisma.eventItemMaster.findMany({
-      where: { eventId: event.id },
-      orderBy: [{ category: "asc" }, { name: "asc" }],
-    }),
-    getEventFloorPlanBooths(event.id),
-  ]);
-
-  const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
-    id: entry.id,
-    companyName: entry.exhibitor.companyName,
-    slug: entry.exhibitor.slug,
-    boothNumber: entry.boothNumber,
-    hall: entry.hall,
-    contactName: entry.exhibitor.contactName,
-    contactEmail: entry.exhibitor.contactEmail,
-    contactPhone: entry.exhibitor.contactPhone,
-    website: entry.exhibitor.website,
-    products: entry.exhibitor.products,
-    registrationStatus: entry.registration?.status ?? null,
-    submittedAt: entry.registration?.submittedAt?.toISOString() ?? null,
-    formData: entry.registration?.formData
-      ? (entry.registration.formData as SavedRegistrationData)
-      : null,
-  }));
-
-  const defaultFloorPlan: EventFloorPlanConfig = {
-    imageUrl: FLOOR_PLAN_IMAGE,
-    svgUrl: null,
-    viewBox: { ...FLOOR_PLAN_VIEWBOX },
-    isCustom: false,
-  };
+  const data = await loadAdminEventMasterPageDataWithRetry(event.id);
 
   return (
     <div
@@ -164,23 +62,24 @@ export default async function AdminEventMasterPage({
         }
       >
         <EventMasterDashboard
-        eventId={event.id}
-        eventTitle={event.title}
-        eventLocation={location}
-        startDate={event.startDate.toISOString()}
-        endDate={event.endDate.toISOString()}
-        exhibitors={exhibitors}
-        floorPlanBooths={floorPlanResult.booths ?? []}
-        floorPlan={floorPlanResult.floorPlan ?? defaultFloorPlan}
-        activities={activities.map(serializeActivity)}
-        eventHotels={eventHotels.map(serializeEventHotel)}
-        eventRestaurants={eventRestaurants.map(serializeEventRestaurant)}
-        scheduleItems={scheduleItems.map(serializeEventScheduleItem)}
-        itemMaster={itemMasterRows.map(serializeEventItemMaster)}
-        flightBookingAgentEmail={getFlightBookingAgentEmail()}
-        flightBookingCcEmail={
-          process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
-        }
+          eventId={event.id}
+          eventTitle={event.title}
+          eventLocation={location}
+          startDate={event.startDate.toISOString()}
+          endDate={event.endDate.toISOString()}
+          exhibitors={data.exhibitors}
+          floorPlanBooths={data.floorPlanBooths}
+          floorPlan={data.floorPlan}
+          activities={data.activities}
+          eventHotels={data.eventHotels}
+          eventRestaurants={data.eventRestaurants}
+          scheduleItems={data.scheduleItems}
+          itemMaster={data.itemMaster}
+          tourTravelItineraries={data.tourTravelItineraries}
+          flightBookingAgentEmail={getFlightBookingAgentEmail()}
+          flightBookingCcEmail={
+            process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
+          }
         />
       </Suspense>
     </div>

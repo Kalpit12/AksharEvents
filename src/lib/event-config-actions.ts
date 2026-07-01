@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
+import { notifyEventExhibitorUsers } from "@/lib/notification-actions";
 import { prisma } from "@/lib/prisma";
 import {
   createEventHotelSchema,
@@ -152,6 +153,13 @@ export async function createEventScheduleItem(formData: FormData) {
     },
   });
 
+  await notifyEventExhibitorUsers({
+    eventId: event.id,
+    title: "Event schedule updated",
+    message: `${event.title}: a new schedule item "${parsed.data.title.trim()}" was added.`,
+    link: "/exhibitor?tab=schedules",
+  });
+
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
   return { success: true };
@@ -170,6 +178,19 @@ export async function toggleEventScheduleItem(itemId: string, eventId: string) {
     where: { id: itemId },
     data: { isActive: !item.isActive },
   });
+
+  if (!item.isActive) {
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true },
+    });
+    await notifyEventExhibitorUsers({
+      eventId,
+      title: "Event schedule updated",
+      message: `${event?.title ?? "Your event"}: "${item.title}" is now on the published schedule.`,
+      link: "/exhibitor?tab=schedules",
+    });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");

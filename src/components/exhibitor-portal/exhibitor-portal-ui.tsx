@@ -51,6 +51,7 @@ export function PortalHero({
   status,
   actionLabel,
   onAction,
+  headerActions,
 }: {
   eventTitle: string;
   eventCity: string;
@@ -63,6 +64,7 @@ export function PortalHero({
   status: PortalHeroStatus;
   actionLabel: string;
   onAction: () => void;
+  headerActions?: React.ReactNode;
 }) {
   const countdown = getEventCountdown(startDate, endDate);
 
@@ -72,6 +74,9 @@ export function PortalHero({
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-espresso/82 via-espresso/58 to-champagne-dark/38" />
 
       <div className="relative z-10 flex flex-col gap-6 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-center lg:justify-between">
+        {headerActions ? (
+          <div className="absolute right-5 top-5 z-20 sm:right-7 sm:top-7">{headerActions}</div>
+        ) : null}
         <div className="min-w-0 flex-1">
           <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-alabaster/10 bg-alabaster/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
             <Sparkles className="h-3.5 w-3.5" />

@@ -15,7 +15,8 @@ export default async function ExhibitorDashboardPage() {
 
   const data = await loadExhibitorDashboardPageDataWithRetry(
     access.exhibitor,
-    access.membership.role
+    access.membership.role,
+    user.id
   );
 
   return (
@@ -48,6 +49,8 @@ export default async function ExhibitorDashboardPage() {
       airBookingRequests={data.airBookingRequests}
       memberWorkflows={data.memberWorkflows}
       brandingArtworkSubmissions={data.brandingArtworkSubmissions}
+      tourTravelItineraries={data.tourTravelItineraries}
+      notificationUnreadCount={data.notificationUnreadCount}
     />
   );
 }

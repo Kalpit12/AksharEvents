@@ -11,6 +11,8 @@ import { serializeAirBookingRequest } from "@/lib/air-booking-types";
 import { serializeWorkflow, type SerializedAirBookingMemberWorkflow } from "@/lib/air-booking-workflow-types";
 import { serializeBrandingArtworkSubmission, type SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork-types";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
+import { loadPublishedTourTravelItineraries } from "@/lib/itinerary-actions";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import { standLabelForBoothCode } from "@/lib/booth-allocation";
 import { redactRegistrationForClient } from "@/lib/registration-pii";
 import { getOpenExhibitorEvents, type OpenExhibitorEvent } from "@/lib/exhibitor-events";
@@ -94,11 +96,14 @@ export type ExhibitorDashboardPageData = {
   airBookingRequests: SerializedAirBookingRequest[];
   memberWorkflows: SerializedAirBookingMemberWorkflow[];
   brandingArtworkSubmissions: SerializedBrandingArtworkSubmission[];
+  tourTravelItineraries: SerializedTourTravelItinerary[];
+  notificationUnreadCount: number;
 };
 
 export async function loadExhibitorDashboardPageData(
   exhibitor: Exhibitor,
-  membershipRole: ExhibitorMemberRole | "OWNER"
+  membershipRole: ExhibitorMemberRole | "OWNER",
+  userId: string
 ): Promise<ExhibitorDashboardPageData> {
   const [primaryEvent, openEvents, eventEntries] = await Promise.all([
     getPrimaryPublishedEvent(),
@@ -233,6 +238,11 @@ export async function loadExhibitorDashboardPageData(
     assignedBoothRow?.code?.toUpperCase() ?? eventEntry?.boothNumber?.toUpperCase() ?? null;
   const boothStandLabel = boothNumber ? standLabelForBoothCode(boothNumber) : null;
 
+  const [tourTravelItineraries, notificationUnreadCount] = await Promise.all([
+    eventId ? loadPublishedTourTravelItineraries(eventId) : Promise.resolve([]),
+    prisma.notification.count({ where: { userId, isRead: false } }),
+  ]);
+
   return {
     exhibitor,
     membershipRole,
@@ -258,12 +268,15 @@ export async function loadExhibitorDashboardPageData(
     airBookingRequests: serializedAirBookingRequests,
     memberWorkflows: serializedMemberWorkflows,
     brandingArtworkSubmissions: serializedBrandingArtwork,
+    tourTravelItineraries,
+    notificationUnreadCount,
   };
 }
 
 export async function loadExhibitorDashboardPageDataWithRetry(
   exhibitor: Exhibitor,
-  membershipRole: ExhibitorMemberRole | "OWNER"
+  membershipRole: ExhibitorMemberRole | "OWNER",
+  userId: string
 ) {
-  return withDbRetry(() => loadExhibitorDashboardPageData(exhibitor, membershipRole));
+  return withDbRetry(() => loadExhibitorDashboardPageData(exhibitor, membershipRole, userId));
 }

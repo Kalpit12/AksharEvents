@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { BRAND } from "@/lib/utils";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { ExhibitorHeaderNotifications } from "@/components/layout/exhibitor-header-notifications";
 import { PortalProfileMenu } from "@/components/layout/portal-profile-menu";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { exhibitorPortalLinks } from "@/lib/exhibitor-portal-links";
+import { prisma } from "@/lib/prisma";
+import { BRAND } from "@/lib/utils";
 import { Building2 } from "lucide-react";
 
 const portalLinks = exhibitorPortalLinks;
@@ -11,6 +13,11 @@ const portalLinks = exhibitorPortalLinks;
 export default async function ExhibitorHeader() {
   const session = await auth();
   const displayName = session?.user?.name ?? "Exhibitor";
+  const unreadCount = session?.user?.id
+    ? await prisma.notification.count({
+        where: { userId: session.user.id, isRead: false },
+      })
+    : 0;
 
   return (
     <header className="sticky top-0 z-50 border-b border-champagne/30 bg-gradient-to-r from-espresso via-espresso/95 to-espresso text-alabaster shadow-md shadow-espresso/20 supports-[backdrop-filter]:bg-espresso/95">
@@ -64,6 +71,7 @@ export default async function ExhibitorHeader() {
         )}
 
         <div className="relative flex shrink-0 items-center gap-1 sm:gap-2">
+          <ExhibitorHeaderNotifications initialUnreadCount={unreadCount} />
           <ThemeToggle className="text-champagne-light hover:bg-alabaster/10 hover:text-alabaster" />
           <PortalProfileMenu name={displayName} email={session?.user?.email} />
         </div>

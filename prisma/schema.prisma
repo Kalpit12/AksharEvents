@@ -87,6 +87,7 @@ enum NotificationType {
   PAYMENT_RECEIVED
   REVIEW_APPROVED
   ORGANIZER_ANNOUNCEMENT
+  ITINERARY_UPDATE
   SYSTEM
 }
 
@@ -162,6 +163,12 @@ enum BrandingArtworkStatus {
   PRINTING_IN_PROCESS
   ARTWORK_DELIVERED
   ARTWORK_AFFIXED
+}
+
+enum TourTravelStopType {
+  START
+  STOP
+  STAY
 }
 
 // ─── Auth (NextAuth) ─────────────────────────────────────────────────────────
@@ -325,6 +332,7 @@ model Event {
   scheduleItems   EventScheduleItem[]
   itemMaster      EventItemMaster[]
   booths          EventBooth[]
+  tourTravelItineraries TourTravelItinerary[]
   floorPlanImageUrl       String?
   floorPlanSvgUrl         String?
   floorPlanWidth          Int?
@@ -774,6 +782,53 @@ model EventScheduleItem {
 
   @@index([eventId])
   @@index([startAt])
+}
+
+model TourTravelItinerary {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?  @db.Text
+  vehicleInfo String?  @db.Text
+  memberCount Int?
+  hotelInfo   String?  @db.Text
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  days        TourTravelDay[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model TourTravelDay {
+  id          String   @id @default(cuid())
+  itineraryId String
+  itinerary   TourTravelItinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  dayIndex    Int
+  dayDate     DateTime?
+  title       String?
+  stops       TourTravelStop[]
+
+  @@unique([itineraryId, dayIndex])
+  @@index([itineraryId])
+}
+
+model TourTravelStop {
+  id        String             @id @default(cuid())
+  dayId     String
+  day       TourTravelDay      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  stopType  TourTravelStopType
+  title     String
+  location  String?
+  startAt   DateTime?
+  endAt     DateTime?
+  notes     String?            @db.Text
+  sortOrder Int                @default(0)
+
+  @@index([dayId])
 }
 
 model EventItemMaster {
