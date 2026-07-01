@@ -13,12 +13,14 @@ import { updateBrandingArtworkStatus } from "@/lib/branding-artwork-actions";
 import Ferrofluid from "@/components/ferrofluid/Ferrofluid";
 import { HERO_FERROFLUID } from "@/lib/hero-ferrofluid";
 import { ModalShell } from "@/components/exhibitor-portal/exhibitor-portal-ui";
+import PrintingFloorPlanPanel from "@/components/printing-artwork/printing-floor-plan-panel";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn, formatDate } from "@/lib/utils";
-import { useUrlStringState } from "@/hooks/use-dashboard-url-state";
+import { useUrlEnumState, useUrlStringState } from "@/hooks/use-dashboard-url-state";
+import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import {
   AlertTriangle,
   ArrowRight,
@@ -36,6 +38,9 @@ import {
   X,
 } from "lucide-react";
 import { notify } from "@/lib/notify";
+
+const PRINTING_VIEW_IDS = ["companies", "floorplan"] as const;
+type PrintingView = (typeof PRINTING_VIEW_IDS)[number];
 
 type CompanyGroup = {
   eventExhibitorId: string;
@@ -100,6 +105,8 @@ type Props = {
   eventLocation: string;
   dateRange: string;
   records: AdminBrandingArtworkRecord[];
+  floorPlan: EventFloorPlanConfig | null;
+  floorPlanBooths: FloorPlanBoothRecord[];
 };
 
 export default function PrintingArtworkDashboard({
@@ -107,8 +114,11 @@ export default function PrintingArtworkDashboard({
   eventLocation,
   dateRange,
   records,
+  floorPlan,
+  floorPlanBooths,
 }: Props) {
   const router = useRouter();
+  const [view, setView] = useUrlEnumState("view", PRINTING_VIEW_IDS, "companies");
   const [companyQuery, setCompanyQuery] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useUrlStringState("company", "");
   const [rejectTarget, setRejectTarget] = useState<AdminBrandingArtworkRecord | null>(null);
@@ -220,7 +230,7 @@ export default function PrintingArtworkDashboard({
         </div>
       </section>
 
-      {records.length === 0 ? (
+      {records.length === 0 && view === "companies" ? (
         <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
           <Palette className="mx-auto h-10 w-10 text-muted-foreground" />
           <p className="mt-3 text-sm font-medium">No submitted artwork yet</p>
@@ -230,7 +240,62 @@ export default function PrintingArtworkDashboard({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-start">
+        <>
+          {floorPlan ? (
+            <div className="flex justify-start">
+              <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
+                <button
+                  type="button"
+                  onClick={() => setView("companies")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    view === "companies"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Building2 className="h-4 w-4" />
+                  Companies
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("floorplan")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    view === "floorplan"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <MapPin className="h-4 w-4" />
+                  Floor plan
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {view === "floorplan" && floorPlan ? (
+            <div className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+              <PrintingFloorPlanPanel
+                floorPlan={floorPlan}
+                booths={floorPlanBooths}
+                records={records}
+                onOpenCompany={(eventExhibitorId) => {
+                  setSelectedCompanyId(eventExhibitorId);
+                  setView("companies");
+                }}
+              />
+            </div>
+          ) : view === "floorplan" && !floorPlan ? (
+            <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
+              <MapPin className="mx-auto h-10 w-10 text-muted-foreground" />
+              <p className="mt-3 text-sm font-medium">Floor plan not available</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The event floor plan has not been set up yet.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] lg:items-start">
           <aside className="rounded-2xl border border-border bg-card p-3">
             <div className="relative mb-3">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -314,7 +379,9 @@ export default function PrintingArtworkDashboard({
               />
             )}
           </main>
-        </div>
+            </div>
+          )}
+        </>
       )}
 
       {rejectTarget && (

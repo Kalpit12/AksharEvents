@@ -1,5 +1,7 @@
 import { serializeBrandingArtworkSubmission, type AdminBrandingArtworkRecord } from "@/lib/branding-artwork-types";
 import { serializeBrandingStatusHistory } from "@/lib/branding-artwork-history";
+import { loadEventFloorPlanBooths } from "@/lib/floor-plan-data";
+import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma, withDbRetry } from "@/lib/prisma";
 
@@ -9,6 +11,8 @@ export type PrintingDashboardPageData = {
   startDate: string;
   endDate: string;
   records: AdminBrandingArtworkRecord[];
+  floorPlan: EventFloorPlanConfig | null;
+  floorPlanBooths: FloorPlanBoothRecord[];
 };
 
 export async function loadPrintingDashboardPageData(): Promise<PrintingDashboardPageData | null> {
@@ -41,12 +45,16 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     statusHistory: row.statusHistory.map(serializeBrandingStatusHistory),
   }));
 
+  const floorPlanSnapshot = await loadEventFloorPlanBooths(event.id);
+
   return {
     eventTitle: event.title,
     eventLocation: event.venue?.city ?? "Kenya",
     startDate: event.startDate.toISOString(),
     endDate: event.endDate.toISOString(),
     records,
+    floorPlan: floorPlanSnapshot?.floorPlan ?? null,
+    floorPlanBooths: floorPlanSnapshot?.booths ?? [],
   };
 }
 

@@ -39,6 +39,8 @@ export default async function PrintingDashboardPage() {
         eventLocation={data.eventLocation}
         dateRange={dateRange}
         records={data.records}
+        floorPlan={data.floorPlan}
+        floorPlanBooths={data.floorPlanBooths}
       />
     </Suspense>
   );

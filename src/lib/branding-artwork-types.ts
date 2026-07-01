@@ -23,6 +23,56 @@ export const BRANDING_ARTWORK_STATUS_BADGE: Record<BrandingArtworkStatus, string
   ARTWORK_AFFIXED: "bg-primary/15 text-primary",
 };
 
+/** SVG fill colours for the printing floor plan (matches badge palette). */
+export const BRANDING_ARTWORK_STATUS_FILL: Record<BrandingArtworkStatus, string> = {
+  DRAFT: "#e5e7eb",
+  SUBMITTED: "#fcd34d",
+  NOT_VERIFIED: "#fca5a5",
+  VERIFIED: "#6ee7b7",
+  SENT_FOR_PRINTING: "#7dd3fc",
+  PRINTING_IN_PROCESS: "#c4b5fd",
+  ARTWORK_DELIVERED: "#5eead4",
+  ARTWORK_AFFIXED: "#c9b896",
+};
+
+export const PRINTING_FLOOR_PLAN_NO_ARTWORK_FILL = "#f3f4f6";
+export const PRINTING_FLOOR_PLAN_UNASSIGNED_FILL = "#fafafa";
+
+const ARTWORK_STATUS_PRIORITY: BrandingArtworkStatus[] = [
+  "NOT_VERIFIED",
+  "SUBMITTED",
+  "DRAFT",
+  "VERIFIED",
+  "SENT_FOR_PRINTING",
+  "PRINTING_IN_PROCESS",
+  "ARTWORK_DELIVERED",
+  "ARTWORK_AFFIXED",
+];
+
+/** Least-advanced status wins — highlights bottlenecks on the floor plan. */
+export function aggregateArtworkStatus(
+  statuses: BrandingArtworkStatus[]
+): BrandingArtworkStatus | null {
+  if (statuses.length === 0) return null;
+
+  return statuses.reduce((current, status) => {
+    const currentIdx = ARTWORK_STATUS_PRIORITY.indexOf(current);
+    const statusIdx = ARTWORK_STATUS_PRIORITY.indexOf(status);
+    return statusIdx < currentIdx ? status : current;
+  });
+}
+
+/** Statuses shown in the printing floor plan legend (excludes draft). */
+export const PRINTING_FLOOR_PLAN_LEGEND_STATUSES: BrandingArtworkStatus[] = [
+  "SUBMITTED",
+  "NOT_VERIFIED",
+  "VERIFIED",
+  "SENT_FOR_PRINTING",
+  "PRINTING_IN_PROCESS",
+  "ARTWORK_DELIVERED",
+  "ARTWORK_AFFIXED",
+];
+
 export const ALLOWED_BRANDING_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
