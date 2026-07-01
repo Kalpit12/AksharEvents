@@ -80,10 +80,12 @@ export function buildBoothArtworkSummaries(
     const aggregateStatus = aggregateArtworkStatus(submissions.map((row) => row.status));
 
     let fillColor = PRINTING_FLOOR_PLAN_UNASSIGNED_FILL;
-    if (companyName || eventExhibitorId || submissions.length > 0) {
+    if (submissions.length > 0) {
       fillColor = aggregateStatus
         ? BRANDING_ARTWORK_STATUS_FILL[aggregateStatus]
         : PRINTING_FLOOR_PLAN_NO_ARTWORK_FILL;
+    } else if (companyName || eventExhibitorId) {
+      fillColor = PRINTING_FLOOR_PLAN_NO_ARTWORK_FILL;
     }
 
     return {
@@ -103,4 +105,40 @@ export function findUnmappedArtworkRecords(
 ) {
   const mappedIds = new Set(summaries.flatMap((summary) => summary.submissions.map((row) => row.id)));
   return records.filter((record) => !mappedIds.has(record.id));
+}
+
+export const ALL_BRANDING_ITEMS_VALUE = "all";
+
+export type BrandingItemOption = {
+  id: string;
+  name: string;
+};
+
+export function mergeBrandingItemOptions(
+  catalog: BrandingItemOption[],
+  records: AdminBrandingArtworkRecord[]
+): BrandingItemOption[] {
+  const map = new Map(catalog.map((option) => [option.id, option]));
+  for (const record of records) {
+    if (!map.has(record.itemMasterId)) {
+      map.set(record.itemMasterId, { id: record.itemMasterId, name: record.itemName });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function filterArtworkRecordsByItem(
+  records: AdminBrandingArtworkRecord[],
+  itemMasterId: string
+) {
+  if (!itemMasterId || itemMasterId === ALL_BRANDING_ITEMS_VALUE) return records;
+  return records.filter((record) => record.itemMasterId === itemMasterId);
+}
+
+export function brandingItemLabel(
+  options: BrandingItemOption[],
+  itemMasterId: string
+) {
+  if (!itemMasterId || itemMasterId === ALL_BRANDING_ITEMS_VALUE) return "All branding items";
+  return options.find((option) => option.id === itemMasterId)?.name ?? "Selected item";
 }

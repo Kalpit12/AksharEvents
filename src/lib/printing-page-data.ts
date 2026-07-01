@@ -1,7 +1,9 @@
 import { serializeBrandingArtworkSubmission, type AdminBrandingArtworkRecord } from "@/lib/branding-artwork-types";
 import { serializeBrandingStatusHistory } from "@/lib/branding-artwork-history";
 import { loadEventFloorPlanBooths } from "@/lib/floor-plan-data";
+import { isBrandingCategory } from "@/lib/item-master-catalog";
 import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import type { BrandingItemOption } from "@/lib/printing-floor-plan-matching";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { prisma, withDbRetry } from "@/lib/prisma";
 
@@ -13,6 +15,7 @@ export type PrintingDashboardPageData = {
   records: AdminBrandingArtworkRecord[];
   floorPlan: EventFloorPlanConfig | null;
   floorPlanBooths: FloorPlanBoothRecord[];
+  brandingItemOptions: BrandingItemOption[];
 };
 
 export async function loadPrintingDashboardPageData(): Promise<PrintingDashboardPageData | null> {
@@ -54,6 +57,15 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     statusHistory: row.statusHistory.map(serializeBrandingStatusHistory),
   }));
 
+  const catalogRows = await prisma.eventItemMaster.findMany({
+    where: { eventId: event.id },
+    select: { id: true, name: true, category: true },
+    orderBy: { name: "asc" },
+  });
+  const brandingItemOptions: BrandingItemOption[] = catalogRows
+    .filter((row) => isBrandingCategory(row.category))
+    .map((row) => ({ id: row.id, name: row.name }));
+
   const floorPlanSnapshot = await loadEventFloorPlanBooths(event.id);
 
   return {
@@ -64,6 +76,7 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     records,
     floorPlan: floorPlanSnapshot?.floorPlan ?? null,
     floorPlanBooths: floorPlanSnapshot?.booths ?? [],
+    brandingItemOptions,
   };
 }
 

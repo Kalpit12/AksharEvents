@@ -13,18 +13,26 @@ import {
 import { STAND_TYPE_LABELS } from "@/lib/floor-plan-layout";
 import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import {
+  ALL_BRANDING_ITEMS_VALUE,
+  brandingItemLabel,
   buildBoothArtworkSummaries,
+  filterArtworkRecordsByItem,
   findUnmappedArtworkRecords,
+  mergeBrandingItemOptions,
+  type BrandingItemOption,
 } from "@/lib/printing-floor-plan-matching";
+import { CustomSelect } from "@/components/exhibitor-portal/custom-select";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Building2, MapPin, Search } from "lucide-react";
+import { useUrlStringState } from "@/hooks/use-dashboard-url-state";
+import { AlertTriangle, Building2, MapPin, Palette, Search } from "lucide-react";
 
 type Props = {
   floorPlan: EventFloorPlanConfig;
   booths: FloorPlanBoothRecord[];
   records: AdminBrandingArtworkRecord[];
+  brandingItemOptions: BrandingItemOption[];
   onOpenCompany?: (eventExhibitorId: string) => void;
 };
 
@@ -32,19 +40,47 @@ export default function PrintingFloorPlanPanel({
   floorPlan,
   booths,
   records,
+  brandingItemOptions,
   onOpenCompany,
 }: Props) {
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedItemId, setSelectedItemId] = useUrlStringState("item", ALL_BRANDING_ITEMS_VALUE);
+
+  const itemOptions = useMemo(
+    () => mergeBrandingItemOptions(brandingItemOptions, records),
+    [brandingItemOptions, records]
+  );
+
+  const filteredRecords = useMemo(
+    () => filterArtworkRecordsByItem(records, selectedItemId),
+    [records, selectedItemId]
+  );
+
+  const selectedItemLabel = useMemo(
+    () => brandingItemLabel(itemOptions, selectedItemId),
+    [itemOptions, selectedItemId]
+  );
+
+  const itemSelectOptions = useMemo(
+    () => [
+      { value: ALL_BRANDING_ITEMS_VALUE, label: "All branding items" },
+      ...itemOptions.map((option) => ({
+        value: option.id,
+        label: option.name,
+      })),
+    ],
+    [itemOptions]
+  );
 
   const summaries = useMemo(
-    () => buildBoothArtworkSummaries(booths, records),
-    [booths, records]
+    () => buildBoothArtworkSummaries(booths, filteredRecords),
+    [booths, filteredRecords]
   );
 
   const unmappedRecords = useMemo(
-    () => findUnmappedArtworkRecords(summaries, records),
-    [summaries, records]
+    () => findUnmappedArtworkRecords(summaries, filteredRecords),
+    [summaries, filteredRecords]
   );
 
   const summaryByCode = useMemo(
@@ -78,8 +114,11 @@ export default function PrintingFloorPlanPanel({
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-medium">
-                {unmappedRecords.length} artwork item{unmappedRecords.length === 1 ? "" : "s"} not
-                placed on the floor plan
+                {unmappedRecords.length}{" "}
+                {selectedItemId === ALL_BRANDING_ITEMS_VALUE
+                  ? "artwork item"
+                  : `"${selectedItemLabel}" artwork`}
+                {unmappedRecords.length === 1 ? "" : "s"} not placed on the floor plan
               </p>
               <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/80">
                 Assign a booth in Event Master or set booth numbers on exhibitor registrations:{" "}
@@ -95,10 +134,34 @@ export default function PrintingFloorPlanPanel({
           </div>
         ) : null}
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-end gap-2">
+          <div className="min-w-[200px] flex-1 sm:max-w-xs">
+            <label
+              htmlFor="floor-plan-branding-item"
+              className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              <Palette className="h-3.5 w-3.5" />
+              Branding item
+            </label>
+            <CustomSelect
+              id="floor-plan-branding-item"
+              value={selectedItemId}
+              onChange={setSelectedItemId}
+              options={itemSelectOptions}
+              placeholder="Select branding item"
+              size="sm"
+            />
+          </div>
           <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <label
+              htmlFor="floor-plan-booth-search"
+              className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              Find booth
+            </label>
+            <Search className="pointer-events-none absolute left-3 top-[calc(50%+0.5rem)] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id="floor-plan-booth-search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -106,7 +169,7 @@ export default function PrintingFloorPlanPanel({
               className="h-9 pl-9"
             />
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={handleSearch}>
+          <Button type="button" variant="outline" size="sm" className="mb-0.5" onClick={handleSearch}>
             Find
           </Button>
           <div className="hidden h-6 w-px bg-border sm:block" />
@@ -153,9 +216,11 @@ export default function PrintingFloorPlanPanel({
               const fill = summary?.fillColor ?? PRINTING_FLOOR_PLAN_UNASSIGNED_FILL;
               const statusLabel = summary?.aggregateStatus
                 ? BRANDING_ARTWORK_STATUS_LABELS[summary.aggregateStatus]
-                : summary?.companyName || (summary?.submissions.length ?? 0) > 0
+                : summary?.submissions.length
                   ? "No artwork submitted"
-                  : "Unassigned";
+                  : summary?.companyName || summary?.eventExhibitorId
+                    ? `No ${selectedItemLabel === "All branding items" ? "artwork" : selectedItemLabel} submitted`
+                    : "Unassigned";
 
               return (
                 <rect
@@ -205,6 +270,9 @@ export default function PrintingFloorPlanPanel({
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
             <h3 className="font-semibold">Booth artwork</h3>
+            {selectedItemId !== ALL_BRANDING_ITEMS_VALUE ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">Showing: {selectedItemLabel}</p>
+            ) : null}
           </div>
           {!selectedBooth ? (
             <p className="mt-1 text-sm text-muted-foreground">
@@ -272,7 +340,9 @@ export default function PrintingFloorPlanPanel({
             {selectedSummary.submissions.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Artwork items ({selectedSummary.submissions.length})
+                  {selectedItemId === ALL_BRANDING_ITEMS_VALUE
+                    ? `Artwork items (${selectedSummary.submissions.length})`
+                    : selectedItemLabel}
                 </p>
                 {selectedSummary.submissions.map((row) => (
                   <div
@@ -292,9 +362,11 @@ export default function PrintingFloorPlanPanel({
                   </div>
                 ))}
               </div>
-            ) : selectedSummary.companyName ? (
+            ) : selectedSummary.companyName || selectedSummary.eventExhibitorId ? (
               <p className="rounded-lg bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-                This exhibitor has not submitted any artwork yet.
+                {selectedItemId === ALL_BRANDING_ITEMS_VALUE
+                  ? "This exhibitor has not submitted any artwork yet."
+                  : `No artwork submitted for ${selectedItemLabel} yet.`}
               </p>
             ) : null}
 

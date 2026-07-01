@@ -41,6 +41,7 @@ export default async function PrintingDashboardPage() {
         records={data.records}
         floorPlan={data.floorPlan}
         floorPlanBooths={data.floorPlanBooths}
+        brandingItemOptions={data.brandingItemOptions}
       />
     </Suspense>
   );

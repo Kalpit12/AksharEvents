@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { cn, formatDate } from "@/lib/utils";
 import { useUrlEnumState, useUrlStringState } from "@/hooks/use-dashboard-url-state";
 import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import type { BrandingItemOption } from "@/lib/printing-floor-plan-matching";
 import {
   AlertTriangle,
   ArrowRight,
@@ -107,6 +108,7 @@ type Props = {
   records: AdminBrandingArtworkRecord[];
   floorPlan: EventFloorPlanConfig | null;
   floorPlanBooths: FloorPlanBoothRecord[];
+  brandingItemOptions: BrandingItemOption[];
 };
 
 export default function PrintingArtworkDashboard({
@@ -116,6 +118,7 @@ export default function PrintingArtworkDashboard({
   records,
   floorPlan,
   floorPlanBooths,
+  brandingItemOptions,
 }: Props) {
   const router = useRouter();
   const [view, setView] = useUrlEnumState("view", PRINTING_VIEW_IDS, "companies");
@@ -280,6 +283,7 @@ export default function PrintingArtworkDashboard({
                 floorPlan={floorPlan}
                 booths={floorPlanBooths}
                 records={records}
+                brandingItemOptions={brandingItemOptions}
                 onOpenCompany={(eventExhibitorId) => {
                   setSelectedCompanyId(eventExhibitorId);
                   setView("companies");
