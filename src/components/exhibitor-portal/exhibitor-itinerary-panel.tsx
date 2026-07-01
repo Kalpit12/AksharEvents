@@ -5,6 +5,7 @@ import {
   TOUR_TRAVEL_STOP_LABELS,
   type SerializedTourTravelItinerary,
 } from "@/lib/itinerary-types";
+import { EventScheduleTimeline } from "@/components/events/event-schedule-timeline";
 import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import { cn, formatDate } from "@/lib/utils";
 import { Bus, CalendarDays, Clock, Hotel, MapPin, Users } from "lucide-react";
@@ -133,30 +134,13 @@ export default function ExhibitorItineraryPanel({ itineraries, scheduleItems }: 
             <CalendarDays className="h-5 w-5 text-primary" />
             Event schedule
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-6">
             {eventScheduleByDay.map(({ day, items }) => (
-              <div key={day} className="rounded-xl border border-border bg-muted/20 p-3">
+              <div key={day}>
                 <span className="mb-3 inline-flex rounded-full bg-champagne/15 px-2.5 py-0.5 text-[11px] font-medium text-espresso">
                   {day}
                 </span>
-                <ul className="space-y-2">
-                  {items.map((item) => (
-                    <li key={item.id} className="flex items-start gap-2 text-sm">
-                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <div>
-                        <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDate(item.startAt, "h:mm a")}
-                          {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
-                          {item.location ? ` · ${item.location}` : ""}
-                        </div>
-                        {item.description ? (
-                          <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <EventScheduleTimeline items={items} />
               </div>
             ))}
           </div>

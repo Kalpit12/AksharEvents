@@ -2,7 +2,7 @@ import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display"
 import { activityLabelMap } from "@/lib/exhibitor-form-options";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import { formatDate } from "@/lib/utils";
-import { differenceInCalendarDays } from "date-fns";
+import { addDays, differenceInCalendarDays } from "date-fns";
 
 export type AggregatedMember = {
   id: string;
@@ -35,6 +35,32 @@ export type MealAggregate = {
 
 export function expoDaysFromRange(startDate: string, endDate: string): number {
   return Math.max(1, differenceInCalendarDays(new Date(endDate), new Date(startDate)) + 1);
+}
+
+export type EventCalendarDay = {
+  index: number;
+  date: string;
+  label: string;
+  shortLabel: string;
+};
+
+export function listEventCalendarDays(startDate: string, endDate: string): EventCalendarDay[] {
+  const start = new Date(startDate);
+  const dayCount = expoDaysFromRange(startDate, endDate);
+
+  return Array.from({ length: dayCount }, (_, offset) => {
+    const day = addDays(start, offset);
+    return {
+      index: offset + 1,
+      date: formatDate(day, "yyyy-MM-dd"),
+      label: `Day ${offset + 1} · ${formatDate(day, "EEE · MMM d")}`,
+      shortLabel: formatDate(day, "EEE · MMM d"),
+    };
+  });
+}
+
+export function getScheduleDayKey(isoDate: string) {
+  return formatDate(isoDate, "yyyy-MM-dd");
 }
 
 export function aggregateMembers(exhibitors: AdminExhibitorRecord[]): AggregatedMember[] {

@@ -33,6 +33,7 @@ export type ParsedEventScheduleItem = {
   endAt: Date | null;
   location: string | null;
   description: string | null;
+  speaker: string | null;
 };
 
 export type ParsedEventScheduleUpload = {
@@ -341,6 +342,7 @@ export function parseEventScheduleUpload(buffer: Buffer, fileName: string): Pars
           endAt: stop.endAt,
           location: stop.location,
           description: stop.notes,
+          speaker: null,
         });
       }
     }
@@ -363,6 +365,7 @@ export function parseEventScheduleUpload(buffer: Buffer, fileName: string): Pars
   const endIndex = columnIndex(headers, [/end/, /to/, /finish/]);
   const locationIndex = columnIndex(headers, [/location/, /venue/, /room/, /hall/, /place/]);
   const descriptionIndex = columnIndex(headers, [/description/, /notes/, /details/]);
+  const speakerIndex = columnIndex(headers, [/speaker/, /presenter/, /host/, /facilitator/]);
 
   if (titleIndex < 0 || startIndex < 0) {
     throw new Error("Missing required columns: Title and Start (or Date/Time).");
@@ -398,6 +401,7 @@ export function parseEventScheduleUpload(buffer: Buffer, fileName: string): Pars
       endAt: endAt && !Number.isNaN(endAt.getTime()) ? endAt : null,
       location: locationIndex >= 0 ? cellText(row[locationIndex]) || null : null,
       description: descriptionIndex >= 0 ? cellText(row[descriptionIndex]) || null : null,
+      speaker: speakerIndex >= 0 ? cellText(row[speakerIndex]) || null : null,
     });
   }
 

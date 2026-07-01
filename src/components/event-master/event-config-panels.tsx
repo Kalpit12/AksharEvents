@@ -8,6 +8,7 @@ import {
   createEventRestaurant,
   createEventScheduleItem,
   deleteEventItemMaster,
+  deleteEventScheduleItem,
   updateEventItemMaster,
   toggleEventHotel,
   toggleEventRestaurant,
@@ -19,6 +20,7 @@ import type {
   EventRestaurantOption,
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
+import { EventScheduleTimeline } from "@/components/events/event-schedule-timeline";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -31,6 +33,10 @@ import {
 } from "@/components/exhibitor-portal/custom-select";
 import { useUrlStringState } from "@/hooks/use-dashboard-url-state";
 import { notify } from "@/lib/notify";
+import {
+  getScheduleDayKey,
+  listEventCalendarDays,
+} from "@/lib/event-master-aggregations";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import {
   Building2,
@@ -264,18 +270,74 @@ export function EventRestaurantsManager({
 export function EventScheduleManager({
   eventId,
   scheduleItems,
+  eventStartDate,
+  eventEndDate,
+  embedded = false,
 }: {
   eventId: string;
   scheduleItems: EventScheduleItemOption[];
+  eventStartDate: string;
+  eventEndDate: string;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const eventDays = useMemo(
+    () => listEventCalendarDays(eventStartDate, eventEndDate),
+    [eventStartDate, eventEndDate]
+  );
+
+  const [selectedDayDate, setSelectedDayDate] = useState(eventDays[0]?.date ?? "");
+
+  const activeDay = eventDays.find((day) => day.date === selectedDayDate) ?? eventDays[0];
+
+  const itemsByDay = useMemo(() => {
+    const map = new Map<string, EventScheduleItemOption[]>();
+    for (const day of eventDays) {
+      map.set(day.date, []);
+    }
+    for (const item of scheduleItems) {
+      const key = getScheduleDayKey(item.startAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    for (const items of map.values()) {
+      items.sort(
+        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      );
+    }
+    return map;
+  }, [eventDays, scheduleItems]);
+
+  const dayItems = activeDay ? itemsByDay.get(activeDay.date) ?? [] : [];
+
+  const buildDateTime = (day: string, time: string) => {
+    const normalized = time.length === 5 ? `${time}:00` : time;
+    return `${day}T${normalized}`;
+  };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!activeDay) {
+      notify.error("Event dates are required to add schedule items");
+      return;
+    }
+
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     formData.set("eventId", eventId);
+    formData.set("startAt", buildDateTime(activeDay.date, String(formData.get("startTime") ?? "")));
+
+    const endTime = String(formData.get("endTime") ?? "").trim();
+    if (!endTime) {
+      notify.error("End time is required");
+      setLoading(false);
+      return;
+    }
+    formData.set("endAt", buildDateTime(activeDay.date, endTime));
+
     const result = await createEventScheduleItem(formData);
     setLoading(false);
 
@@ -299,73 +361,163 @@ export function EventScheduleManager({
     router.refresh();
   };
 
-  return (
-    <ConfigPanel title="Manage event schedule" icon={CalendarDays}>
+  const handleDelete = async (itemId: string) => {
+    setDeletingId(itemId);
+    const result = await deleteEventScheduleItem(itemId, eventId);
+    setDeletingId(null);
+
+    if (result.error) {
+      notify.error(result.error);
+      return;
+    }
+
+    notify.success("Schedule item removed");
+    router.refresh();
+  };
+
+  const content = (
+    <>
       <p className="mb-4 text-xs text-muted-foreground">
-        Build the full event schedule here. Exhibitors see these items during registration and on their dashboard.
+        {embedded
+          ? "Matches the public event page schedule (08:00 — 09:00 · session title · speaker). Pick a day, add sessions, then notify exhibitors."
+          : `Build the schedule day by day across ${eventDays.length} event day${eventDays.length === 1 ? "" : "s"} — same format as the public event page.`}
       </p>
-      <form onSubmit={handleCreate} className="mb-5 grid gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Label htmlFor="schedule-title">Title</Label>
-          <Input id="schedule-title" name="title" required placeholder="e.g. Opening ceremony" className="mt-1.5" />
-        </div>
-        <div>
-          <Label htmlFor="schedule-start">Start</Label>
-          <Input id="schedule-start" name="startAt" type="datetime-local" required className="mt-1.5" />
-        </div>
-        <div>
-          <Label htmlFor="schedule-end">End (optional)</Label>
-          <Input id="schedule-end" name="endAt" type="datetime-local" className="mt-1.5" />
-        </div>
-        <div className="sm:col-span-2">
-          <Label htmlFor="schedule-location">Location (optional)</Label>
-          <Input id="schedule-location" name="location" placeholder="e.g. Main hall" className="mt-1.5" />
-        </div>
-        <div className="sm:col-span-2">
-          <Label htmlFor="schedule-description">Description (optional)</Label>
-          <Textarea id="schedule-description" name="description" rows={2} className="mt-1.5" />
-        </div>
-        <div className="sm:col-span-2">
-          <Button type="submit" disabled={loading} className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            Add schedule item
-          </Button>
-        </div>
-      </form>
-      {scheduleItems.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No schedule items yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {scheduleItems.map((item) => (
-            <div
-              key={item.id}
-              className={cn(
-                "flex items-start justify-between gap-3 rounded-lg border px-4 py-3 text-sm",
-                item.isActive ? "border-border bg-muted/30" : "border-dashed border-border/70 bg-muted/10 opacity-70"
-              )}
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{item.title}</span>
-                  {!item.isActive ? <Badge variant="outline">Hidden</Badge> : null}
-                </div>
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {formatDate(item.startAt, "EEE · MMM d · h:mm a")}
-                  {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
-                  {item.location ? ` · ${item.location}` : ""}
-                </div>
-                {item.description ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+
+      {eventDays.length > 0 ? (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {eventDays.map((day) => {
+            const count = itemsByDay.get(day.date)?.length ?? 0;
+            return (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => setSelectedDayDate(day.date)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors",
+                  activeDay?.date === day.date
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border bg-muted/20 text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <span className="font-medium">{day.label}</span>
+                {count > 0 ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums">
+                    {count}
+                  </span>
                 ) : null}
-              </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => void handleToggle(item.id)}>
-                {item.isActive ? "Hide" : "Show"}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mb-4 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+          Set the event start and end dates to schedule items day by day.
+        </p>
+      )}
+
+      {activeDay ? (
+        <>
+          <form onSubmit={handleCreate} className="mb-5 grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="scheduleDay" value={activeDay.date} />
+            <div className="sm:col-span-2">
+              <Label htmlFor="schedule-title">Session title</Label>
+              <Input
+                id="schedule-title"
+                name="title"
+                required
+                placeholder="e.g. Registration & Networking"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="schedule-start">Start time</Label>
+              <Input id="schedule-start" name="startTime" type="time" required className="mt-1.5" />
+            </div>
+            <div>
+              <Label htmlFor="schedule-end">End time</Label>
+              <Input id="schedule-end" name="endTime" type="time" required className="mt-1.5" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="schedule-speaker">Speaker / host (optional)</Label>
+              <Input
+                id="schedule-speaker"
+                name="speaker"
+                placeholder="e.g. Dr. James Ochieng"
+                className="mt-1.5"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="schedule-location">Location (optional)</Label>
+              <Input
+                id="schedule-location"
+                name="location"
+                placeholder="e.g. Main hall"
+                className="mt-1.5"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="schedule-description">Notes (optional)</Label>
+              <Textarea
+                id="schedule-description"
+                name="description"
+                rows={2}
+                placeholder="Extra details shown below the session title"
+                className="mt-1.5"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button type="submit" disabled={loading} className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                Add session to {activeDay.shortLabel}
               </Button>
             </div>
-          ))}
-        </div>
-      )}
+          </form>
+
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            {activeDay.label} schedule
+          </div>
+
+          <EventScheduleTimeline
+            items={dayItems}
+            showHiddenBadge
+            actions={(item) => (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={deletingId === item.id}
+                  onClick={() => void handleToggle(item.id)}
+                >
+                  {item.isActive ? "Hide" : "Show"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-destructive hover:text-destructive"
+                  disabled={deletingId === item.id}
+                  onClick={() => void handleDelete(item.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deletingId === item.id ? "Removing…" : "Remove"}
+                </Button>
+              </>
+            )}
+          />
+        </>
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="mt-5">{content}</div>;
+  }
+
+  return (
+    <ConfigPanel title="Manage event schedule" icon={CalendarDays}>
+      {content}
     </ConfigPanel>
   );
 }

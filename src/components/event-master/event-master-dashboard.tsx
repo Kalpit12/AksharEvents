@@ -43,7 +43,6 @@ import {
   aggregateRestaurantSelections,
   aggregateTransport,
   expoDaysFromRange,
-  groupScheduleByDay,
 } from "@/lib/event-master-aggregations";
 import { Input } from "@/components/ui/Input";
 import { cn, formatDate } from "@/lib/utils";
@@ -54,7 +53,6 @@ import {
   Building2,
   Bus,
   CalendarDays,
-  Clock,
   Coffee,
   Droplets,
   ForkKnife,
@@ -172,10 +170,6 @@ export default function EventMasterDashboard({
   const mealAggregates = useMemo(() => aggregateMeals(exhibitors), [exhibitors]);
   const dietaryRows = useMemo(() => aggregateDietary(exhibitors), [exhibitors]);
   const restaurantSelections = useMemo(() => aggregateRestaurantSelections(exhibitors), [exhibitors]);
-  const eventScheduleByDay = useMemo(
-    () => groupScheduleByDay(scheduleItems.filter((item) => item.isActive)),
-    [scheduleItems]
-  );
 
   const filteredMembers = useMemo(
     () => (roleFilter ? members.filter((m) => m.role === roleFilter) : members),
@@ -538,43 +532,20 @@ export default function EventMasterDashboard({
 
       {tab === "schedule" && (
         <div className="space-y-4">
-          <EventScheduleManager eventId={eventId} scheduleItems={scheduleItems} />
-          <Panel title="Published event schedule" icon={CalendarDays}>
-          {eventScheduleByDay.length === 0 ? (
-            <EmptyMessage message="No schedule items published yet. Add items above to build the event schedule for exhibitors." />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {eventScheduleByDay.map(({ day, items }) => (
-                <div key={day} className="rounded-xl border border-border bg-muted/30 p-3">
-                  <span className="mb-3 inline-flex rounded-full bg-champagne/15 px-2.5 py-0.5 text-[11px] font-medium text-espresso">
-                    {day}
-                  </span>
-                  <ul className="space-y-2">
-                    {items.map((item) => (
-                      <li key={item.id} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                        <div>
-                          <div className="font-medium text-foreground">{item.title}</div>
-                          <div>
-                            {formatDate(item.startAt, "h:mm a")}
-                            {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
-                            {item.location ? ` · ${item.location}` : ""}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          )}
-          </Panel>
+          <EventScheduleManager
+            eventId={eventId}
+            scheduleItems={scheduleItems}
+            eventStartDate={startDate}
+            eventEndDate={endDate}
+          />
         </div>
       )}
 
       {tab === "itinerary" && (
         <ItineraryPanel
           eventId={eventId}
+          eventStartDate={startDate}
+          eventEndDate={endDate}
           itineraries={tourTravelItineraries}
           scheduleItems={scheduleItems}
           exhibitors={exhibitors}

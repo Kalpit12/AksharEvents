@@ -279,6 +279,15 @@ function buildMockEvent(seed: MockEventSeed, index: number) {
     ],
     speakers: [],
     agenda: [],
+    scheduleItems: [] as Array<{
+      id: string;
+      title: string;
+      description: string | null;
+      speaker: string | null;
+      startAt: Date;
+      endAt: Date | null;
+      location: string | null;
+    }>,
     gallery: [],
     faqs: [],
     sponsors: [],

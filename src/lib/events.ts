@@ -110,6 +110,7 @@ export async function getEventBySlug(slug: string) {
       ticketTypes: { where: { isActive: true }, orderBy: { price: "asc" } },
       speakers: { orderBy: { order: "asc" } },
       agenda: { orderBy: { order: "asc" } },
+      scheduleItems: { where: { isActive: true }, orderBy: { startAt: "asc" } },
       gallery: { orderBy: { order: "asc" } },
       faqs: { orderBy: { order: "asc" } },
       sponsors: {

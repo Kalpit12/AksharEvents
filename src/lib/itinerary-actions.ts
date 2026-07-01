@@ -389,6 +389,7 @@ export async function importEventScheduleFromUpload(formData: FormData) {
         eventId,
         title: item.title,
         description: item.description,
+        speaker: item.speaker ?? null,
         startAt: item.startAt,
         endAt: item.endAt,
         location: item.location,
@@ -397,6 +398,9 @@ export async function importEventScheduleFromUpload(formData: FormData) {
       })),
     });
   }
+
+  const { syncPublicAgendaFromEventSchedule } = await import("@/lib/event-config-actions");
+  await syncPublicAgendaFromEventSchedule(eventId);
 
   await notifyEventExhibitorUsers({
     eventId,
@@ -407,6 +411,7 @@ export async function importEventScheduleFromUpload(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
+  revalidatePath("/events");
 
   return {
     success: true as const,

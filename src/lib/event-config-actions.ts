@@ -18,6 +18,36 @@ async function requireEventMaster() {
   return { user, error: null };
 }
 
+function formatAgendaTime(date: Date) {
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+export async function syncPublicAgendaFromEventSchedule(eventId: string) {
+  const items = await prisma.eventScheduleItem.findMany({
+    where: { eventId, isActive: true },
+    orderBy: { startAt: "asc" },
+  });
+
+  await prisma.agendaItem.deleteMany({ where: { eventId } });
+
+  if (items.length === 0) return;
+
+  await prisma.agendaItem.createMany({
+    data: items.map((item, order) => ({
+      eventId,
+      title: item.title,
+      description: item.description,
+      speaker: item.speaker,
+      location: item.location,
+      startTime: formatAgendaTime(item.startAt),
+      endTime: item.endAt ? formatAgendaTime(item.endAt) : formatAgendaTime(item.startAt),
+      order,
+    })),
+  });
+}
+
 export async function createEventHotel(formData: FormData) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
@@ -130,6 +160,7 @@ export async function createEventScheduleItem(formData: FormData) {
     eventId: formData.get("eventId"),
     title: formData.get("title"),
     description: formData.get("description") || undefined,
+    speaker: formData.get("speaker") || undefined,
     startAt: formData.get("startAt"),
     endAt: formData.get("endAt") || undefined,
     location: formData.get("location") || undefined,
@@ -146,12 +177,15 @@ export async function createEventScheduleItem(formData: FormData) {
       eventId: event.id,
       title: parsed.data.title.trim(),
       description: parsed.data.description?.trim() || null,
+      speaker: parsed.data.speaker?.trim() || null,
       startAt: new Date(parsed.data.startAt),
-      endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
+      endAt: new Date(parsed.data.endAt),
       location: parsed.data.location?.trim() || null,
       sortOrder: count,
     },
   });
+
+  await syncPublicAgendaFromEventSchedule(event.id);
 
   await notifyEventExhibitorUsers({
     eventId: event.id,
@@ -162,6 +196,26 @@ export async function createEventScheduleItem(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
+  revalidatePath("/events");
+  return { success: true };
+}
+
+export async function deleteEventScheduleItem(itemId: string, eventId: string) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const item = await prisma.eventScheduleItem.findFirst({
+    where: { id: itemId, eventId },
+  });
+  if (!item) return { error: "Schedule item not found" };
+
+  await prisma.eventScheduleItem.delete({ where: { id: itemId } });
+
+  await syncPublicAgendaFromEventSchedule(eventId);
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+  revalidatePath("/events");
   return { success: true };
 }
 
@@ -179,6 +233,8 @@ export async function toggleEventScheduleItem(itemId: string, eventId: string) {
     data: { isActive: !item.isActive },
   });
 
+  await syncPublicAgendaFromEventSchedule(eventId);
+
   if (!item.isActive) {
     const event = await prisma.event.findUnique({
       where: { id: eventId },
@@ -194,6 +250,7 @@ export async function toggleEventScheduleItem(itemId: string, eventId: string) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
+  revalidatePath("/events");
   return { success: true };
 }
 

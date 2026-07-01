@@ -185,8 +185,9 @@ export const createEventScheduleItemSchema = z.object({
   eventId: z.string().min(1),
   title: z.string().min(2, "Title is required"),
   description: z.string().optional(),
+  speaker: z.string().optional(),
   startAt: z.string().min(1, "Start time is required"),
-  endAt: z.string().optional(),
+  endAt: z.string().min(1, "End time is required"),
   location: z.string().optional(),
 });
 

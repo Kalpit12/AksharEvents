@@ -24,6 +24,7 @@ import {
   uniqueSpeakers,
   uniqueTicketTypes,
 } from "@/lib/event-detail-utils";
+import { PublicEventScheduleSection } from "@/components/events/public-event-schedule";
 
 interface EventDetailPageProps {
   params: Promise<{ slug: string }>;
@@ -66,6 +67,8 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   const gallery = uniqueGalleryImages(event.gallery, event.banner);
   const faqs = uniqueFaqs(event.faqs);
   const description = descriptionWithoutShortLead(event.description, event.shortDescription);
+  const scheduleItems =
+    "scheduleItems" in event && Array.isArray(event.scheduleItems) ? event.scheduleItems : [];
 
   const avgRating = event.reviews.length
     ? event.reviews.reduce((s, r) => s + r.rating, 0) / event.reviews.length
@@ -171,25 +174,12 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
               </div>
             </section>
 
-            {/* Agenda */}
-            {agenda.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-primary" />Schedule</h2>
-                <div className="space-y-3">
-                  {agenda.map((item) => (
-                    <div key={item.id} className="flex flex-col gap-2 rounded-xl border border-border p-4 sm:flex-row sm:gap-4">
-                      <div className="shrink-0 text-sm font-mono text-primary sm:w-28">
-                        {item.startTime} — {item.endTime}
-                      </div>
-                      <div>
-                        <p className="font-medium">{item.title}</p>
-                        {item.speaker && <p className="text-sm text-muted-foreground">{item.speaker}</p>}
-                        {item.description && <p className="text-sm text-muted-foreground mt-1">{item.description}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+            {/* Schedule */}
+            {(scheduleItems.length > 0 || agenda.length > 0) && (
+              <PublicEventScheduleSection
+                scheduleItems={scheduleItems}
+                agenda={agenda}
+              />
             )}
 
             {/* Speakers */}

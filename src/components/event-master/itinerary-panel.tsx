@@ -13,20 +13,17 @@ import {
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import type { EventActivityOption } from "@/lib/event-activity-types";
-import {
-  aggregateTourTravelExhibitorSelections,
+import { aggregateTourTravelExhibitorSelections,
   type TourTravelExhibitorSelection,
 } from "@/lib/tour-travel-exhibitor-selection";
-import { groupScheduleByDay } from "@/lib/event-master-aggregations";
 import { useUrlEnumState } from "@/hooks/use-dashboard-url-state";
 import { Button } from "@/components/ui/Button";
 import { notify } from "@/lib/notify";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   Bell,
   Bus,
   CalendarDays,
-  Clock,
   Users,
 } from "lucide-react";
 
@@ -44,6 +41,8 @@ const ITINERARY_SECTIONS: {
 
 type Props = {
   eventId: string;
+  eventStartDate: string;
+  eventEndDate: string;
   itineraries: SerializedTourTravelItinerary[];
   scheduleItems: EventScheduleItemOption[];
   exhibitors?: AdminExhibitorRecord[];
@@ -52,6 +51,8 @@ type Props = {
 
 export default function ItineraryPanel({
   eventId,
+  eventStartDate,
+  eventEndDate,
   itineraries,
   scheduleItems,
   exhibitors = [],
@@ -63,11 +64,6 @@ export default function ItineraryPanel({
     "itinerarySection",
     ITINERARY_SECTION_IDS,
     "tours-travel"
-  );
-
-  const eventScheduleByDay = useMemo(
-    () => groupScheduleByDay(scheduleItems.filter((item) => item.isActive)),
-    [scheduleItems]
   );
 
   const tourTravelExhibitors = useMemo(
@@ -172,7 +168,8 @@ export default function ItineraryPanel({
                 Event day schedule
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add or import expo sessions and timings. Exhibitors see these under Schedules.
+                Build sessions day by day — same format as the public event page (time range, title, speaker).
+                Exhibitors see these under Schedules.
               </p>
             </div>
             <Button
@@ -214,34 +211,13 @@ export default function ItineraryPanel({
             }}
           />
 
-          <EventScheduleManager eventId={eventId} scheduleItems={scheduleItems} />
-
-          {eventScheduleByDay.length > 0 ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {eventScheduleByDay.map(({ day, items }) => (
-                <div key={day} className="rounded-xl border border-border bg-muted/30 p-3">
-                  <span className="mb-3 inline-flex rounded-full bg-champagne/15 px-2.5 py-0.5 text-[11px] font-medium text-espresso">
-                    {day}
-                  </span>
-                  <ul className="space-y-2">
-                    {items.map((item) => (
-                      <li key={item.id} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                        <div>
-                          <div className="font-medium text-foreground">{item.title}</div>
-                          <div>
-                            {formatDate(item.startAt, "h:mm a")}
-                            {item.endAt ? ` – ${formatDate(item.endAt, "h:mm a")}` : ""}
-                            {item.location ? ` · ${item.location}` : ""}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <EventScheduleManager
+            eventId={eventId}
+            scheduleItems={scheduleItems}
+            eventStartDate={eventStartDate}
+            eventEndDate={eventEndDate}
+            embedded
+          />
         </section>
       )}
     </div>

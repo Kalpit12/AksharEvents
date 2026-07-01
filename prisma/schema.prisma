@@ -772,6 +772,7 @@ model EventScheduleItem {
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   title       String
   description String?  @db.Text
+  speaker     String?
   startAt     DateTime
   endAt       DateTime?
   location    String?
