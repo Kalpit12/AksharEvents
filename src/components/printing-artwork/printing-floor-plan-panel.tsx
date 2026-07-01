@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import type { BrandingArtworkStatus } from "@prisma/client";
 import {
-  aggregateArtworkStatus,
   BRANDING_ARTWORK_STATUS_BADGE,
   BRANDING_ARTWORK_STATUS_FILL,
   BRANDING_ARTWORK_STATUS_LABELS,
@@ -14,80 +12,14 @@ import {
 } from "@/lib/branding-artwork-types";
 import { STAND_TYPE_LABELS } from "@/lib/floor-plan-layout";
 import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
+import {
+  buildBoothArtworkSummaries,
+  findUnmappedArtworkRecords,
+} from "@/lib/printing-floor-plan-matching";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import { Building2, MapPin, Search } from "lucide-react";
-
-export type BoothArtworkSummary = {
-  boothCode: string;
-  companyName: string | null;
-  eventExhibitorId: string | null;
-  submissions: AdminBrandingArtworkRecord[];
-  aggregateStatus: BrandingArtworkStatus | null;
-  fillColor: string;
-};
-
-function normalizeBoothCode(value: string | null | undefined) {
-  return value?.trim().toUpperCase() ?? "";
-}
-
-function buildBoothArtworkSummaries(
-  booths: FloorPlanBoothRecord[],
-  records: AdminBrandingArtworkRecord[]
-): BoothArtworkSummary[] {
-  const byExhibitorId = new Map<string, AdminBrandingArtworkRecord[]>();
-  const byBoothNumber = new Map<string, AdminBrandingArtworkRecord[]>();
-
-  for (const row of records) {
-    const exhibitorRows = byExhibitorId.get(row.eventExhibitorId) ?? [];
-    exhibitorRows.push(row);
-    byExhibitorId.set(row.eventExhibitorId, exhibitorRows);
-
-    const boothCode = normalizeBoothCode(row.boothNumber);
-    if (boothCode) {
-      const boothRows = byBoothNumber.get(boothCode) ?? [];
-      boothRows.push(row);
-      byBoothNumber.set(boothCode, boothRows);
-    }
-  }
-
-  return booths.map((booth) => {
-    const boothCode = booth.code;
-    const fromBoothLink = booth.eventExhibitorId
-      ? byExhibitorId.get(booth.eventExhibitorId) ?? []
-      : [];
-    const fromBoothNumber = byBoothNumber.get(boothCode) ?? [];
-    const submissions = fromBoothLink.length > 0 ? fromBoothLink : fromBoothNumber;
-
-    const companyName =
-      submissions[0]?.companyName ??
-      booth.companyName ??
-      booth.exhibitorName ??
-      null;
-
-    const eventExhibitorId =
-      booth.eventExhibitorId ?? submissions[0]?.eventExhibitorId ?? null;
-
-    const aggregateStatus = aggregateArtworkStatus(submissions.map((row) => row.status));
-
-    let fillColor = PRINTING_FLOOR_PLAN_UNASSIGNED_FILL;
-    if (companyName || eventExhibitorId) {
-      fillColor = aggregateStatus
-        ? BRANDING_ARTWORK_STATUS_FILL[aggregateStatus]
-        : PRINTING_FLOOR_PLAN_NO_ARTWORK_FILL;
-    }
-
-    return {
-      boothCode,
-      companyName,
-      eventExhibitorId,
-      submissions,
-      aggregateStatus,
-      fillColor,
-    };
-  });
-}
+import { AlertTriangle, Building2, MapPin, Search } from "lucide-react";
 
 type Props = {
   floorPlan: EventFloorPlanConfig;
@@ -108,6 +40,11 @@ export default function PrintingFloorPlanPanel({
   const summaries = useMemo(
     () => buildBoothArtworkSummaries(booths, records),
     [booths, records]
+  );
+
+  const unmappedRecords = useMemo(
+    () => findUnmappedArtworkRecords(summaries, records),
+    [summaries, records]
   );
 
   const summaryByCode = useMemo(
@@ -136,6 +73,28 @@ export default function PrintingFloorPlanPanel({
   return (
     <div className="flex h-[calc(100dvh-14rem)] min-h-[420px] flex-col gap-2 overflow-hidden xl:flex-row xl:gap-4">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        {unmappedRecords.length > 0 ? (
+          <div className="flex shrink-0 items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">
+                {unmappedRecords.length} artwork item{unmappedRecords.length === 1 ? "" : "s"} not
+                placed on the floor plan
+              </p>
+              <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/80">
+                Assign a booth in Event Master or set booth numbers on exhibitor registrations:{" "}
+                {[
+                  ...new Set(
+                    unmappedRecords.map(
+                      (row) => `${row.companyName}${row.boothNumber ? ` (${row.boothNumber})` : ""}`
+                    )
+                  ),
+                ].join(", ")}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -194,7 +153,7 @@ export default function PrintingFloorPlanPanel({
               const fill = summary?.fillColor ?? PRINTING_FLOOR_PLAN_UNASSIGNED_FILL;
               const statusLabel = summary?.aggregateStatus
                 ? BRANDING_ARTWORK_STATUS_LABELS[summary.aggregateStatus]
-                : summary?.companyName
+                : summary?.companyName || (summary?.submissions.length ?? 0) > 0
                   ? "No artwork submitted"
                   : "Unassigned";
 
@@ -228,7 +187,11 @@ export default function PrintingFloorPlanPanel({
                   }}
                 >
                   <title>
-                    {`${booth.code}${summary?.companyName ? ` · ${summary.companyName}` : ""} — ${statusLabel}`}
+                    {`${booth.code}${summary?.companyName ? ` · ${summary.companyName}` : ""} — ${statusLabel}${
+                      summary && summary.submissions.length > 1
+                        ? ` · ${summary.submissions.length} items`
+                        : ""
+                    }`}
                   </title>
                 </rect>
               );
@@ -293,6 +256,13 @@ export default function PrintingFloorPlanPanel({
                   </Button>
                 ) : null}
               </div>
+            ) : selectedSummary.submissions.length > 0 ? (
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Company
+                </p>
+                <p className="text-sm font-semibold">{selectedSummary.submissions[0]!.companyName}</p>
+              </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border bg-muted/15 px-3 py-4 text-center text-sm text-muted-foreground">
                 No exhibitor assigned to this booth.
@@ -302,7 +272,7 @@ export default function PrintingFloorPlanPanel({
             {selectedSummary.submissions.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Artwork items
+                  Artwork items ({selectedSummary.submissions.length})
                 </p>
                 {selectedSummary.submissions.map((row) => (
                   <div

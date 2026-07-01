@@ -35,10 +35,19 @@ export async function loadPrintingDashboardPageData(): Promise<PrintingDashboard
     orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
   });
 
+  const boothAssignments = await prisma.eventBooth.findMany({
+    where: { eventId: event.id, eventExhibitorId: { not: null } },
+    select: { code: true, eventExhibitorId: true },
+  });
+  const boothCodeByExhibitorId = new Map(
+    boothAssignments.map((row) => [row.eventExhibitorId!, row.code])
+  );
+
   const records: AdminBrandingArtworkRecord[] = rows.map((row) => ({
     ...serializeBrandingArtworkSubmission(row),
     companyName: row.eventExhibitor.exhibitor.companyName,
-    boothNumber: row.eventExhibitor.boothNumber,
+    boothNumber:
+      boothCodeByExhibitorId.get(row.eventExhibitorId) ?? row.eventExhibitor.boothNumber,
     hall: row.eventExhibitor.hall,
     contactName: row.eventExhibitor.exhibitor.contactName,
     contactEmail: row.eventExhibitor.exhibitor.contactEmail,
