@@ -6,6 +6,10 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import { serializeTourTravelItinerary } from "@/lib/itinerary-types";
 import { notifyEventExhibitorUsers, notifyTourTravelSelectedExhibitors } from "@/lib/notification-actions";
+import {
+  deleteTourTravelPlacePhoto,
+  uploadTourTravelPlacePhoto,
+} from "@/lib/tour-travel-place-photo";
 import { prisma } from "@/lib/prisma";
 
 async function requireEventMaster() {
@@ -187,6 +191,118 @@ export async function addTourTravelStop(input: z.infer<typeof stopSchema>) {
   return { success: true as const };
 }
 
+export async function addTourTravelStopFromForm(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const parsed = stopSchema.safeParse({
+    dayId: formData.get("dayId"),
+    stopType: formData.get("stopType"),
+    title: formData.get("title"),
+    location: formData.get("location") || undefined,
+    startAt: formData.get("startAt") || undefined,
+    endAt: formData.get("endAt") || undefined,
+    notes: formData.get("notes") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const day = await prisma.tourTravelDay.findUnique({
+    where: { id: parsed.data.dayId },
+    include: { itinerary: true },
+  });
+  if (!day) return { error: "Day not found" };
+
+  const count = await prisma.tourTravelStop.count({ where: { dayId: day.id } });
+
+  const created = await prisma.tourTravelStop.create({
+    data: {
+      dayId: day.id,
+      stopType: parsed.data.stopType as TourTravelStopType,
+      title: parsed.data.title.trim(),
+      location: parsed.data.location?.trim() || null,
+      startAt: parsed.data.startAt ? new Date(parsed.data.startAt) : null,
+      endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
+      notes: parsed.data.notes?.trim() || null,
+      sortOrder: count,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+  return { success: true as const, stopId: created.id };
+}
+
+const updateStopSchema = z.object({
+  stopId: z.string().min(1),
+  eventId: z.string().min(1),
+  stopType: z.enum(["START", "STOP", "STAY"]),
+  title: z.string().min(1),
+  location: z.string().optional(),
+  startAt: z.string().optional(),
+  endAt: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export async function updateTourTravelStopFromForm(formData: FormData) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const parsed = updateStopSchema.safeParse({
+    stopId: formData.get("stopId"),
+    eventId: formData.get("eventId"),
+    stopType: formData.get("stopType"),
+    title: formData.get("title"),
+    location: formData.get("location") || undefined,
+    startAt: formData.get("startAt") || undefined,
+    endAt: formData.get("endAt") || undefined,
+    notes: formData.get("notes") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+
+  const stop = await prisma.tourTravelStop.findUnique({
+    where: { id: parsed.data.stopId },
+    include: { day: { include: { itinerary: true } } },
+  });
+  if (!stop || stop.day.itinerary.eventId !== parsed.data.eventId) {
+    return { error: "Stop not found" };
+  }
+
+  let placeImageUrl = stop.placeImageUrl;
+  let placeImagePublicId = stop.placeImagePublicId;
+  const removePlacePhoto = formData.get("removePlacePhoto") === "true";
+
+  const placePhoto = formData.get("placePhoto");
+  if (placePhoto instanceof File && placePhoto.size > 0) {
+    const upload = await uploadTourTravelPlacePhoto(parsed.data.eventId, placePhoto);
+    if ("error" in upload) return { error: upload.error };
+    await deleteTourTravelPlacePhoto(stop.placeImagePublicId);
+    placeImageUrl = upload.url;
+    placeImagePublicId = upload.publicId;
+  } else if (removePlacePhoto) {
+    await deleteTourTravelPlacePhoto(stop.placeImagePublicId);
+    placeImageUrl = null;
+    placeImagePublicId = null;
+  }
+
+  await prisma.tourTravelStop.update({
+    where: { id: parsed.data.stopId },
+    data: {
+      stopType: parsed.data.stopType as TourTravelStopType,
+      title: parsed.data.title.trim(),
+      location: parsed.data.location?.trim() || null,
+      startAt: parsed.data.startAt ? new Date(parsed.data.startAt) : null,
+      endAt: parsed.data.endAt ? new Date(parsed.data.endAt) : null,
+      notes: parsed.data.notes?.trim() || null,
+      placeImageUrl,
+      placeImagePublicId,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor");
+  return { success: true as const };
+}
+
 export async function deleteTourTravelStop(stopId: string, eventId: string) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
@@ -197,6 +313,7 @@ export async function deleteTourTravelStop(stopId: string, eventId: string) {
   });
   if (!stop || stop.day.itinerary.eventId !== eventId) return { error: "Stop not found" };
 
+  await deleteTourTravelPlacePhoto(stop.placeImagePublicId);
   await prisma.tourTravelStop.delete({ where: { id: stopId } });
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
@@ -285,6 +402,14 @@ export async function importTourTravelFromUpload(formData: FormData) {
       where: { id: replaceItineraryId, eventId },
     });
     if (!existing) return { error: "Selected trip was not found" };
+
+    const oldStops = await prisma.tourTravelStop.findMany({
+      where: { day: { itineraryId: replaceItineraryId } },
+      select: { placeImagePublicId: true },
+    });
+    for (const oldStop of oldStops) {
+      await deleteTourTravelPlacePhoto(oldStop.placeImagePublicId);
+    }
 
     await prisma.tourTravelDay.deleteMany({ where: { itineraryId: replaceItineraryId } });
     await prisma.tourTravelItinerary.update({

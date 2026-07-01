@@ -773,6 +773,8 @@ model EventScheduleItem {
   title       String
   description String?  @db.Text
   speaker     String?
+  speakerImageUrl       String?
+  speakerImagePublicId  String?
   startAt     DateTime
   endAt       DateTime?
   location    String?
@@ -827,6 +829,8 @@ model TourTravelStop {
   startAt   DateTime?
   endAt     DateTime?
   notes     String?            @db.Text
+  placeImageUrl       String?
+  placeImagePublicId  String?
   sortOrder Int                @default(0)
 
   @@index([dayId])

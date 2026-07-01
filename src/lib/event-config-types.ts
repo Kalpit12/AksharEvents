@@ -22,6 +22,7 @@ export type EventScheduleItemOption = {
   title: string;
   description: string | null;
   speaker: string | null;
+  speakerImageUrl: string | null;
   startAt: string;
   endAt: string | null;
   location: string | null;
@@ -82,6 +83,7 @@ export function serializeEventScheduleItem(item: {
   title: string;
   description: string | null;
   speaker?: string | null;
+  speakerImageUrl?: string | null;
   startAt: Date;
   endAt: Date | null;
   location: string | null;
@@ -93,6 +95,7 @@ export function serializeEventScheduleItem(item: {
     title: item.title,
     description: item.description,
     speaker: item.speaker ?? null,
+    speakerImageUrl: item.speakerImageUrl ?? null,
     startAt: item.startAt.toISOString(),
     endAt: item.endAt?.toISOString() ?? null,
     location: item.location,

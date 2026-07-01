@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { notifyEventExhibitorUsers } from "@/lib/notification-actions";
+import {
+  deleteEventScheduleSpeakerPhoto,
+  uploadEventScheduleSpeakerPhoto,
+} from "@/lib/event-schedule-speaker-photo";
 import { prisma } from "@/lib/prisma";
 import {
   createEventHotelSchema,
@@ -46,6 +50,56 @@ export async function syncPublicAgendaFromEventSchedule(eventId: string) {
       order,
     })),
   });
+
+  await syncSpeakersFromEventSchedule(eventId);
+}
+
+async function syncSpeakersFromEventSchedule(eventId: string) {
+  const items = await prisma.eventScheduleItem.findMany({
+    where: { eventId, isActive: true, speaker: { not: null } },
+    orderBy: { startAt: "asc" },
+  });
+
+  const byName = new Map<string, { name: string; image: string | null }>();
+  for (const item of items) {
+    const name = item.speaker?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const current = byName.get(key);
+    byName.set(key, {
+      name,
+      image: item.speakerImageUrl ?? current?.image ?? null,
+    });
+  }
+
+  if (byName.size === 0) return;
+
+  const existing = await prisma.speaker.findMany({ where: { eventId } });
+  const existingByName = new Map(existing.map((speaker) => [speaker.name.toLowerCase(), speaker]));
+
+  let order = existing.length;
+  for (const entry of byName.values()) {
+    const match = existingByName.get(entry.name.toLowerCase());
+    if (match) {
+      if (entry.image && match.image !== entry.image) {
+        await prisma.speaker.update({
+          where: { id: match.id },
+          data: { image: entry.image },
+        });
+      }
+      continue;
+    }
+
+    await prisma.speaker.create({
+      data: {
+        eventId,
+        name: entry.name,
+        image: entry.image,
+        order,
+      },
+    });
+    order += 1;
+  }
 }
 
 export async function createEventHotel(formData: FormData) {
@@ -170,6 +224,22 @@ export async function createEventScheduleItem(formData: FormData) {
   const event = await prisma.event.findFirst({ where: { id: parsed.data.eventId } });
   if (!event) return { error: "Event not found" };
 
+  const speakerPhoto = formData.get("speakerPhoto");
+  const hasSpeakerPhoto = speakerPhoto instanceof File && speakerPhoto.size > 0;
+  if (hasSpeakerPhoto && !parsed.data.speaker?.trim()) {
+    return { error: "Enter the speaker name when uploading a photo" };
+  }
+
+  let speakerImageUrl: string | null = null;
+  let speakerImagePublicId: string | null = null;
+
+  if (hasSpeakerPhoto && speakerPhoto instanceof File) {
+    const upload = await uploadEventScheduleSpeakerPhoto(event.id, speakerPhoto);
+    if ("error" in upload) return { error: upload.error };
+    speakerImageUrl = upload.url;
+    speakerImagePublicId = upload.publicId;
+  }
+
   const count = await prisma.eventScheduleItem.count({ where: { eventId: event.id } });
 
   await prisma.eventScheduleItem.create({
@@ -178,6 +248,8 @@ export async function createEventScheduleItem(formData: FormData) {
       title: parsed.data.title.trim(),
       description: parsed.data.description?.trim() || null,
       speaker: parsed.data.speaker?.trim() || null,
+      speakerImageUrl,
+      speakerImagePublicId,
       startAt: new Date(parsed.data.startAt),
       endAt: new Date(parsed.data.endAt),
       location: parsed.data.location?.trim() || null,
@@ -209,6 +281,7 @@ export async function deleteEventScheduleItem(itemId: string, eventId: string) {
   });
   if (!item) return { error: "Schedule item not found" };
 
+  await deleteEventScheduleSpeakerPhoto(item.speakerImagePublicId);
   await prisma.eventScheduleItem.delete({ where: { id: itemId } });
 
   await syncPublicAgendaFromEventSchedule(eventId);

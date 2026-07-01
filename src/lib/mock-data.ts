@@ -284,6 +284,7 @@ function buildMockEvent(seed: MockEventSeed, index: number) {
       title: string;
       description: string | null;
       speaker: string | null;
+      speakerImageUrl: string | null;
       startAt: Date;
       endAt: Date | null;
       location: string | null;

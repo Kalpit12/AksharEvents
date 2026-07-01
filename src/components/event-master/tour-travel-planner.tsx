@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   addTourTravelDay,
-  addTourTravelStop,
+  addTourTravelStopFromForm,
   createTourTravelItinerary,
   deleteTourTravelStop,
   importTourTravelFromUpload,
   publishTourTravelItinerary,
   updateTourTravelItinerary,
+  updateTourTravelStopFromForm,
 } from "@/lib/itinerary-actions";
 import { ScheduleFileUpload } from "@/components/event-master/schedule-file-upload";
 import {
@@ -23,15 +24,23 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { notify } from "@/lib/notify";
+import {
+  EVENT_SCHEDULE_SPEAKER_PHOTO_ACCEPT,
+  EVENT_SCHEDULE_SPEAKER_PHOTO_MIME,
+  MAX_EVENT_SCHEDULE_SPEAKER_PHOTO_BYTES,
+} from "@/lib/event-schedule-speaker-photo-constants";
 import { cn, formatDate } from "@/lib/utils";
+import { SafeImage } from "@/components/ui/SafeImage";
 import {
   Bus,
   ChevronDown,
   Hotel,
   MapPin,
+  Pencil,
   Plus,
   Send,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 import type { TourTravelStopType } from "@prisma/client";
@@ -55,6 +64,7 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
   const [busy, setBusy] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
   const [addingStopDayId, setAddingStopDayId] = useState<string | null>(null);
+  const [editingStop, setEditingStop] = useState<{ dayId: string; stopId: string } | null>(null);
 
   useEffect(() => {
     if (!selectedId && itineraries[0]) setSelectedId(itineraries[0].id);
@@ -68,18 +78,19 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
     [itineraries, selectedId]
   );
 
-  const run = async (
-    fn: () => Promise<{ error?: string; message?: string } | void>
-  ) => {
+  const run = async <T extends { error?: string; message?: string; stopId?: string } | void>(
+    fn: () => Promise<T>
+  ): Promise<T | void> => {
     setBusy(true);
     try {
       const result = await fn();
       if (result && "error" in result && result.error) {
         notify.error(result.error);
-        return;
+        return result;
       }
       notify.success(result && "message" in result && result.message ? result.message : "Saved");
       router.refresh();
+      return result;
     } finally {
       setBusy(false);
     }
@@ -340,7 +351,7 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
                   <div>
                     <h4 className="text-sm font-semibold">Day-by-day route</h4>
                     <p className="text-xs text-muted-foreground">
-                      Add each day, then add departures, stops, and overnight stays in order.
+                      Add stops, then click Edit on each row to set the photo, time, and place details.
                     </p>
                   </div>
                   <Button
@@ -376,26 +387,38 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
                         key={day.id}
                         day={day}
                         busy={busy}
+                        editingStopId={editingStop?.dayId === day.id ? editingStop.stopId : null}
                         isAddingStop={addingStopDayId === day.id}
                         onToggleAddStop={() =>
                           setAddingStopDayId((current) => (current === day.id ? null : day.id))
                         }
-                        onDeleteStop={(stopId) =>
-                          void run(async () => deleteTourTravelStop(stopId, eventId))
-                        }
-                        onAddStop={(fd) => {
-                          void run(async () => {
-                            const result = await addTourTravelStop({
-                              dayId: day.id,
-                              stopType: String(fd.get("stopType")) as TourTravelStopType,
-                              title: String(fd.get("title") ?? ""),
-                              location: String(fd.get("location") ?? "") || undefined,
-                              startAt: String(fd.get("startAt") ?? "") || undefined,
-                              notes: String(fd.get("notes") ?? "") || undefined,
-                            });
+                        onEditStop={(stopId) => setEditingStop({ dayId: day.id, stopId })}
+                        onCancelEdit={() => setEditingStop(null)}
+                        onDeleteStop={(stopId) => {
+                          if (editingStop?.stopId === stopId) setEditingStop(null);
+                          void run(async () => deleteTourTravelStop(stopId, eventId));
+                        }}
+                        onAddStop={async (formData) => {
+                          formData.set("dayId", day.id);
+                          const result = await run(async () => {
+                            const addResult = await addTourTravelStopFromForm(formData);
+                            if (addResult.error) return addResult;
                             setAddingStopDayId(null);
-                            return result;
+                            return {
+                              message: "Stop added — add photo, time, and details below",
+                              stopId: addResult.stopId,
+                            };
                           });
+                          if (result && "stopId" in result && result.stopId) {
+                            setEditingStop({ dayId: day.id, stopId: result.stopId });
+                          }
+                        }}
+                        onUpdateStop={async (formData) => {
+                          formData.set("eventId", eventId);
+                          const result = await run(async () => updateTourTravelStopFromForm(formData));
+                          if (!result || !("error" in result) || !result.error) {
+                            setEditingStop(null);
+                          }
                         }}
                       />
                     ))}
@@ -410,20 +433,36 @@ export default function TourTravelPlanner({ eventId, itineraries, notifyExhibito
   );
 }
 
+function toDatetimeLocalValue(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function DayCard({
   day,
   busy,
+  editingStopId,
   isAddingStop,
   onToggleAddStop,
+  onEditStop,
+  onCancelEdit,
   onDeleteStop,
   onAddStop,
+  onUpdateStop,
 }: {
   day: SerializedTourTravelDay;
   busy: boolean;
+  editingStopId: string | null;
   isAddingStop: boolean;
   onToggleAddStop: () => void;
+  onEditStop: (stopId: string) => void;
+  onCancelEdit: () => void;
   onDeleteStop: (stopId: string) => void;
-  onAddStop: (fd: FormData) => void;
+  onAddStop: (formData: FormData) => void | Promise<void>;
+  onUpdateStop: (formData: FormData) => void | Promise<void>;
 }) {
   return (
     <div className="rounded-xl border border-border bg-background">
@@ -445,7 +484,14 @@ function DayCard({
               stop={stop}
               isLast={index === day.stops.length - 1}
               busy={busy}
+              isEditing={editingStopId === stop.id}
+              onEdit={() => onEditStop(stop.id)}
+              onCancelEdit={onCancelEdit}
               onDelete={() => onDeleteStop(stop.id)}
+              onSave={(formData) => {
+                formData.set("stopId", stop.id);
+                void onUpdateStop(formData);
+              }}
             />
           ))}
         </ol>
@@ -455,67 +501,11 @@ function DayCard({
 
       <div className="border-t border-border/60 px-4 py-3">
         {isAddingStop ? (
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              onAddStop(new FormData(e.currentTarget));
-              e.currentTarget.reset();
-            }}
-          >
-            <div>
-              <Label className="text-xs">What happens?</Label>
-              <Input
-                name="title"
-                required
-                placeholder="e.g. Leave Nairobi, Lunch break, Check in at hotel"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label className="mb-1.5 block text-xs">Type</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {STOP_TYPES.map((type) => (
-                  <label
-                    key={type.value}
-                    className="flex cursor-pointer flex-col items-center rounded-lg border border-border px-2 py-2 text-center has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-                  >
-                    <input
-                      type="radio"
-                      name="stopType"
-                      value={type.value}
-                      defaultChecked={type.value === "STOP"}
-                      className="sr-only"
-                    />
-                    <span className="text-xs font-medium">{type.label}</span>
-                    <span className="mt-0.5 text-[10px] text-muted-foreground">{type.hint}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <Label className="text-xs">Location</Label>
-                <Input name="location" placeholder="City or venue" className="mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">Date &amp; time</Label>
-                <Input name="startAt" type="datetime-local" className="mt-1" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Notes (optional)</Label>
-              <Input name="notes" placeholder="Instructions for the group" className="mt-1" />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={busy}>
-                Add stop
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={onToggleAddStop}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <QuickAddStopForm
+            busy={busy}
+            onCancel={onToggleAddStop}
+            onSubmit={(formData) => void onAddStop(formData)}
+          />
         ) : (
           <Button type="button" size="sm" variant="outline" className="gap-1" onClick={onToggleAddStop}>
             <Plus className="h-3.5 w-3.5" />
@@ -527,16 +517,258 @@ function DayCard({
   );
 }
 
+function QuickAddStopForm({
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (formData: FormData) => void | Promise<void>;
+}) {
+  return (
+    <form
+      className="flex flex-col gap-3 sm:flex-row sm:items-end"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSubmit(new FormData(e.currentTarget));
+        e.currentTarget.reset();
+      }}
+    >
+      <div className="flex-1">
+        <Label className="text-xs">Place name</Label>
+        <Input
+          name="title"
+          required
+          placeholder="e.g. BAPS Dadar Mandir, Mumbai"
+          className="mt-1"
+        />
+      </div>
+      <div className="w-full sm:w-36">
+        <Label className="text-xs">Type</Label>
+        <select
+          name="stopType"
+          defaultValue="STOP"
+          className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
+        >
+          {STOP_TYPES.map((type) => (
+            <option key={type.value} value={type.value}>
+              {type.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={busy}>
+          Add
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function EditStopForm({
+  stop,
+  busy,
+  onCancel,
+  onSave,
+}: {
+  stop: SerializedTourTravelStop;
+  busy: boolean;
+  onCancel: () => void;
+  onSave: (formData: FormData) => void | Promise<void>;
+}) {
+  const placePhotoRef = useRef<HTMLInputElement>(null);
+  const [placePhotoName, setPlacePhotoName] = useState("");
+  const [placePhotoPreview, setPlacePhotoPreview] = useState<string | null>(stop.placeImageUrl);
+  const [removePhoto, setRemovePhoto] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (placePhotoPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(placePhotoPreview);
+      }
+    };
+  }, [placePhotoPreview]);
+
+  const clearNewPhoto = () => {
+    if (placePhotoRef.current) placePhotoRef.current.value = "";
+    setPlacePhotoName("");
+    if (placePhotoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(placePhotoPreview);
+    }
+    setPlacePhotoPreview(stop.placeImageUrl);
+    setRemovePhoto(false);
+  };
+
+  const handlePlacePhotoChange = (file: File | undefined) => {
+    if (!file) return;
+
+    if (file.size > MAX_EVENT_SCHEDULE_SPEAKER_PHOTO_BYTES) {
+      notify.error("Place photo must be 1 MB or smaller");
+      clearNewPhoto();
+      return;
+    }
+
+    if (!EVENT_SCHEDULE_SPEAKER_PHOTO_MIME.has(file.type)) {
+      notify.error("Upload a JPG, PNG, or WEBP photo");
+      clearNewPhoto();
+      return;
+    }
+
+    if (placePhotoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(placePhotoPreview);
+    }
+
+    setPlacePhotoName(file.name);
+    setPlacePhotoPreview(URL.createObjectURL(file));
+    setRemovePhoto(false);
+  };
+
+  const previewSrc = removePhoto ? null : placePhotoPreview;
+
+  return (
+    <form
+      className="space-y-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        if (removePhoto) formData.set("removePlacePhoto", "true");
+        void onSave(formData);
+      }}
+    >
+      <div>
+        <Label className="text-xs">Place name</Label>
+        <Input name="title" required defaultValue={stop.title} className="mt-1" />
+      </div>
+      <div>
+        <Label className="mb-1.5 block text-xs">Stop type</Label>
+        <div className="grid grid-cols-3 gap-2">
+          {STOP_TYPES.map((type) => (
+            <label
+              key={type.value}
+              className="flex cursor-pointer flex-col items-center rounded-lg border border-border px-2 py-2 text-center has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+            >
+              <input
+                type="radio"
+                name="stopType"
+                value={type.value}
+                defaultChecked={stop.stopType === type.value}
+                className="sr-only"
+              />
+              <span className="text-xs font-medium">{type.label}</span>
+              <span className="mt-0.5 text-[10px] text-muted-foreground">{type.hint}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label className="text-xs">Location (optional)</Label>
+          <Input name="location" defaultValue={stop.location ?? ""} placeholder="City or landmark" className="mt-1" />
+        </div>
+        <div>
+          <Label className="text-xs">Date &amp; time (optional)</Label>
+          <Input
+            name="startAt"
+            type="datetime-local"
+            defaultValue={toDatetimeLocalValue(stop.startAt)}
+            className="mt-1"
+          />
+        </div>
+      </div>
+      <div>
+        <Label className="text-xs">Details about this place</Label>
+        <Textarea
+          name="notes"
+          rows={2}
+          defaultValue={stop.notes ?? ""}
+          placeholder="Visiting info, rest stops, instructions…"
+          className="mt-1"
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Place photo (optional)</Label>
+        <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
+          {previewSrc ? (
+            <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={previewSrc} alt="Place" className="h-full w-full object-cover" />
+            </div>
+          ) : (
+            <div className="flex h-20 w-28 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-[10px] text-muted-foreground">
+              No photo
+            </div>
+          )}
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+            <label
+              htmlFor={`tour-place-photo-${stop.id}`}
+              className="flex min-h-10 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm"
+            >
+              <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate text-muted-foreground">
+                {placePhotoName || "Upload JPG, PNG, or WEBP · max 1 MB"}
+              </span>
+              <input
+                ref={placePhotoRef}
+                id={`tour-place-photo-${stop.id}`}
+                name="placePhoto"
+                type="file"
+                accept={EVENT_SCHEDULE_SPEAKER_PHOTO_ACCEPT}
+                className="sr-only"
+                onChange={(e) => handlePlacePhotoChange(e.target.files?.[0])}
+              />
+            </label>
+            {(stop.placeImageUrl || placePhotoName) && !removePhoto ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearNewPhoto();
+                  setRemovePhoto(true);
+                  setPlacePhotoPreview(null);
+                }}
+              >
+                Remove
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={busy}>
+          Save stop
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function StopRow({
   stop,
   isLast,
   busy,
+  isEditing,
+  onEdit,
+  onCancelEdit,
   onDelete,
+  onSave,
 }: {
   stop: SerializedTourTravelStop;
   isLast: boolean;
   busy: boolean;
+  isEditing: boolean;
+  onEdit: () => void;
+  onCancelEdit: () => void;
   onDelete: () => void;
+  onSave: (formData: FormData) => void | Promise<void>;
 }) {
   return (
     <li className="flex gap-3">
@@ -552,39 +784,72 @@ function StopRow({
         {!isLast ? <span className="my-1 w-px flex-1 bg-border" /> : null}
       </div>
       <div className="mb-3 min-w-0 flex-1 rounded-lg border border-border/60 bg-muted/10 px-3 py-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                {TOUR_TRAVEL_STOP_LABELS[stop.stopType]}
-              </span>
-              <span className="text-sm font-medium">{stop.title}</span>
+        {isEditing ? (
+          <EditStopForm stop={stop} busy={busy} onCancel={onCancelEdit} onSave={onSave} />
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-1 gap-3">
+              {stop.placeImageUrl ? (
+                <div className="relative mt-0.5 h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                  <SafeImage src={stop.placeImageUrl} alt={stop.title} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="mt-0.5 flex h-16 w-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-border/80 bg-muted/30 text-[10px] text-muted-foreground">
+                  No photo
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                    {TOUR_TRAVEL_STOP_LABELS[stop.stopType]}
+                  </span>
+                  <span className="text-sm font-medium">{stop.title}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  {stop.location ? (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {stop.location}
+                    </span>
+                  ) : null}
+                  {stop.startAt ? (
+                    <span>{formatDate(stop.startAt, "MMM d · h:mm a")}</span>
+                  ) : (
+                    <span className="italic">No time set</span>
+                  )}
+                </div>
+                {stop.notes ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{stop.notes}</p>
+                ) : (
+                  <p className="mt-1 text-xs italic text-muted-foreground">No details yet</p>
+                )}
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-              {stop.location ? (
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  {stop.location}
-                </span>
-              ) : null}
-              {stop.startAt ? (
-                <span>{formatDate(stop.startAt, "MMM d · h:mm a")}</span>
-              ) : null}
+            <div className="flex shrink-0 gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={onEdit}
+                aria-label="Edit stop"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                disabled={busy}
+                onClick={onDelete}
+                aria-label="Remove stop"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            {stop.notes ? <p className="mt-1 text-xs text-muted-foreground">{stop.notes}</p> : null}
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-destructive"
-            disabled={busy}
-            onClick={onDelete}
-            aria-label="Remove stop"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        )}
       </div>
     </li>
   );

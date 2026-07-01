@@ -3,6 +3,8 @@ import { v2 as cloudinary } from "cloudinary";
 const EXHIBITOR_DOC_FOLDER = "akshar-events/exhibitor-documents";
 const BRANDING_ARTWORK_FOLDER = "akshar-events/branding-artwork";
 const FLOOR_PLAN_FOLDER = "akshar-events/floor-plans";
+const EVENT_SCHEDULE_FOLDER = "akshar-events/event-schedules";
+const TOUR_TRAVEL_FOLDER = "akshar-events/tour-travel";
 
 function readEnv(name: string): string | undefined {
   const raw = process.env[name];
@@ -44,6 +46,14 @@ export function brandingArtworkFolder(eventExhibitorId: string, itemMasterId: st
 
 export function eventFloorPlanFolder(eventId: string) {
   return `${FLOOR_PLAN_FOLDER}/${eventId}`;
+}
+
+export function eventScheduleSpeakerFolder(eventId: string) {
+  return `${EVENT_SCHEDULE_FOLDER}/${eventId}/speakers`;
+}
+
+export function eventTourTravelPlaceFolder(eventId: string) {
+  return `${TOUR_TRAVEL_FOLDER}/${eventId}/places`;
 }
 
 type PublicUploadResult = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   createEventHotel,
@@ -37,6 +37,11 @@ import {
   getScheduleDayKey,
   listEventCalendarDays,
 } from "@/lib/event-master-aggregations";
+import {
+  EVENT_SCHEDULE_SPEAKER_PHOTO_ACCEPT,
+  EVENT_SCHEDULE_SPEAKER_PHOTO_MIME,
+  MAX_EVENT_SCHEDULE_SPEAKER_PHOTO_BYTES,
+} from "@/lib/event-schedule-speaker-photo-constants";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import {
   Building2,
@@ -47,6 +52,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -283,6 +289,52 @@ export function EventScheduleManager({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const speakerPhotoRef = useRef<HTMLInputElement>(null);
+  const [speakerPhotoName, setSpeakerPhotoName] = useState("");
+  const [speakerPhotoPreview, setSpeakerPhotoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (speakerPhotoPreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(speakerPhotoPreview);
+      }
+    };
+  }, [speakerPhotoPreview]);
+
+  const clearSpeakerPhoto = () => {
+    if (speakerPhotoRef.current) speakerPhotoRef.current.value = "";
+    setSpeakerPhotoName("");
+    if (speakerPhotoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(speakerPhotoPreview);
+    }
+    setSpeakerPhotoPreview(null);
+  };
+
+  const handleSpeakerPhotoChange = (file: File | undefined) => {
+    if (!file) {
+      clearSpeakerPhoto();
+      return;
+    }
+
+    if (file.size > MAX_EVENT_SCHEDULE_SPEAKER_PHOTO_BYTES) {
+      notify.error("Speaker photo must be 1 MB or smaller");
+      clearSpeakerPhoto();
+      return;
+    }
+
+    if (!EVENT_SCHEDULE_SPEAKER_PHOTO_MIME.has(file.type)) {
+      notify.error("Upload a JPG, PNG, or WEBP speaker photo");
+      clearSpeakerPhoto();
+      return;
+    }
+
+    if (speakerPhotoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(speakerPhotoPreview);
+    }
+
+    setSpeakerPhotoName(file.name);
+    setSpeakerPhotoPreview(URL.createObjectURL(file));
+  };
 
   const eventDays = useMemo(
     () => listEventCalendarDays(eventStartDate, eventEndDate),
@@ -348,6 +400,7 @@ export function EventScheduleManager({
 
     notify.success("Schedule item added");
     (e.target as HTMLFormElement).reset();
+    clearSpeakerPhoto();
     router.refresh();
   };
 
@@ -445,6 +498,47 @@ export function EventScheduleManager({
                 placeholder="e.g. Dr. James Ochieng"
                 className="mt-1.5"
               />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="schedule-speaker-photo">Speaker photo (optional)</Label>
+              <div className="mt-1.5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                {speakerPhotoPreview ? (
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={speakerPhotoPreview}
+                      alt="Speaker preview"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : null}
+                <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                  <label
+                    htmlFor="schedule-speaker-photo"
+                    className="flex min-h-10 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm"
+                  >
+                    <Upload className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-muted-foreground">
+                      {speakerPhotoName || "Choose JPG, PNG, or WEBP · max 1 MB"}
+                    </span>
+                    <input
+                      ref={speakerPhotoRef}
+                      id="schedule-speaker-photo"
+                      name="speakerPhoto"
+                      type="file"
+                      accept={EVENT_SCHEDULE_SPEAKER_PHOTO_ACCEPT}
+                      className="sr-only"
+                      onChange={(e) => handleSpeakerPhotoChange(e.target.files?.[0])}
+                    />
+                  </label>
+                  {speakerPhotoName ? (
+                    <Button type="button" variant="outline" size="sm" onClick={clearSpeakerPhoto}>
+                      <X className="h-3.5 w-3.5" />
+                      Clear
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="schedule-location">Location (optional)</Label>

@@ -68,7 +68,21 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
   const faqs = uniqueFaqs(event.faqs);
   const description = descriptionWithoutShortLead(event.description, event.shortDescription);
   const scheduleItems =
-    "scheduleItems" in event && Array.isArray(event.scheduleItems) ? event.scheduleItems : [];
+    "scheduleItems" in event && Array.isArray(event.scheduleItems)
+      ? event.scheduleItems.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description ?? null,
+          speaker: item.speaker ?? null,
+          speakerImageUrl:
+            "speakerImageUrl" in item && typeof item.speakerImageUrl === "string"
+              ? item.speakerImageUrl
+              : null,
+          startAt: item.startAt,
+          endAt: item.endAt ?? null,
+          location: item.location ?? null,
+        }))
+      : [];
 
   const avgRating = event.reviews.length
     ? event.reviews.reduce((s, r) => s + r.rating, 0) / event.reviews.length

@@ -16,6 +16,7 @@ type ScheduleItem = {
   title: string;
   description: string | null;
   speaker: string | null;
+  speakerImageUrl: string | null;
   startAt: Date;
   endAt: Date | null;
   location: string | null;
@@ -33,6 +34,7 @@ export function PublicEventScheduleSection({
       id: item.id,
       title: item.title,
       speaker: item.speaker,
+      speakerImageUrl: item.speakerImageUrl,
       description: item.description,
       location: item.location,
       startAt: item.startAt.toISOString(),

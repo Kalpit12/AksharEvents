@@ -5,6 +5,7 @@ export type SerializedTourTravelStop = {
   stopType: TourTravelStopType;
   title: string;
   location: string | null;
+  placeImageUrl: string | null;
   startAt: string | null;
   endAt: string | null;
   notes: string | null;
@@ -56,6 +57,7 @@ export function serializeTourTravelItinerary(row: {
       stopType: TourTravelStopType;
       title: string;
       location: string | null;
+      placeImageUrl?: string | null;
       startAt: Date | null;
       endAt: Date | null;
       notes: string | null;
@@ -86,6 +88,7 @@ export function serializeTourTravelItinerary(row: {
             stopType: stop.stopType,
             title: stop.title,
             location: stop.location,
+            placeImageUrl: stop.placeImageUrl ?? null,
             startAt: stop.startAt?.toISOString() ?? null,
             endAt: stop.endAt?.toISOString() ?? null,
             notes: stop.notes,
