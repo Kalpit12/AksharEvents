@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Building2, Calendar, ClipboardList, LogOut, Menu, Palette, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { signOut } from "next-auth/react";
@@ -14,6 +15,8 @@ interface MobileNavProps {
 
 export function MobileNav({ session, navLinks }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const isHomepage = pathname === "/";
   const role = session?.user?.role;
   const isAdmin = role === "ADMIN";
   const isPrintingStaff = role === "PRINTING_STAFF";
@@ -64,22 +67,26 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                     <Building2 className="h-4 w-4" />
                     Exhibitor Sign In / Sign Up
                   </Link>
-                  <Link
-                    href="/auth/login"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    Event Master Sign In
-                  </Link>
-                  <Link
-                    href="/auth/printing"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                  >
-                    <Palette className="h-4 w-4" />
-                    Printing Sign In
-                  </Link>
+                  {!isHomepage ? (
+                    <>
+                      <Link
+                        href="/auth/login"
+                        onClick={() => setOpen(false)}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Event Master Sign In
+                      </Link>
+                      <Link
+                        href="/auth/printing"
+                        onClick={() => setOpen(false)}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                      >
+                        <Palette className="h-4 w-4" />
+                        Printing Sign In
+                      </Link>
+                    </>
+                  ) : null}
                   <Link
                     href="/booking-inquiries"
                     onClick={() => setOpen(false)}
@@ -91,32 +98,38 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                 </>
               ) : isAdmin ? (
                 <>
-                  <Link
-                    href="/admin"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    Event Master
-                  </Link>
+                  {!isHomepage ? (
+                    <>
+                      <Link
+                        href="/admin"
+                        onClick={() => setOpen(false)}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Event Master
+                      </Link>
+                      <Link
+                        href="/printing"
+                        onClick={() => setOpen(false)}
+                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                      >
+                        <Palette className="h-4 w-4" />
+                        Printing Dashboard
+                      </Link>
+                    </>
+                  ) : null}
+                </>
+              ) : isPrintingStaff ? (
+                !isHomepage ? (
                   <Link
                     href="/printing"
                     onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
                   >
                     <Palette className="h-4 w-4" />
                     Printing Dashboard
                   </Link>
-                </>
-              ) : isPrintingStaff ? (
-                <Link
-                  href="/printing"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
-                >
-                  <Palette className="h-4 w-4" />
-                  Printing Dashboard
-                </Link>
+                ) : null
               ) : (
                 <Link
                   href="/exhibitor"

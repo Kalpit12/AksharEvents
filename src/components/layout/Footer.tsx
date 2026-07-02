@@ -151,8 +151,7 @@ function ContactIcon({ children }: { children: ReactNode }) {
 }
 
 function ContactBlock({ mobile = false }: { mobile?: boolean }) {
-  const emailClass =
-    "min-w-0 text-[11px] leading-tight whitespace-nowrap [overflow-wrap:normal] sm:text-sm";
+  const nowrapText = "whitespace-nowrap text-sm";
 
   if (mobile) {
     return (
@@ -164,25 +163,25 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
           <ContactIcon>
             <Mail className="h-4 w-4" />
           </ContactIcon>
-          <span className={emailClass}>helpdesk@maxproinfotech.com</span>
+          <span className={nowrapText}>helpdesk@maxproinfotech.com</span>
         </a>
         <a
           href="tel:+254786658200"
-          className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-sm text-foreground transition-colors active:bg-muted"
+          className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-foreground transition-colors active:bg-muted"
         >
           <ContactIcon>
             <Phone className="h-4 w-4" />
           </ContactIcon>
-          +254 786 658 200
+          <span className={nowrapText}>+254 786 658 200</span>
         </a>
         <div className="flex gap-3 rounded-xl border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
           <ContactIcon>
             <MapPin className="h-4 w-4" />
           </ContactIcon>
           <p className="min-w-0 leading-relaxed">
-            Suite 14th – 5th floor, Parksuite Towers
+            <span className={nowrapText}>Suite 14th – 5th floor, Parksuite Towers</span>
             <br />
-            Parklands Road, Nairobi, Kenya
+            <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
           </p>
         </div>
       </div>
@@ -198,7 +197,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
         <ContactIcon>
           <Mail className="h-4 w-4" />
         </ContactIcon>
-        <span className={emailClass}>helpdesk@maxproinfotech.com</span>
+        <span className={nowrapText}>helpdesk@maxproinfotech.com</span>
       </a>
       <a
         href="tel:+254786658200"
@@ -207,16 +206,16 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
         <ContactIcon>
           <Phone className="h-4 w-4" />
         </ContactIcon>
-        +254 786 658 200
+        <span className={nowrapText}>+254 786 658 200</span>
       </a>
       <div className="flex items-start gap-2.5">
         <ContactIcon>
           <MapPin className="h-4 w-4" />
         </ContactIcon>
         <p className="min-w-0 leading-relaxed">
-          Suite 14th – 5th floor, Parksuite Towers
+          <span className={nowrapText}>Suite 14th – 5th floor, Parksuite Towers</span>
           <br />
-          Parklands Road, Nairobi, Kenya
+          <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
         </p>
       </div>
     </div>
@@ -243,20 +242,20 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Desktop layout */}
-        <div className="hidden gap-10 md:grid md:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2">
+        {/* Desktop & tablet layout */}
+        <div className="hidden items-start md:grid md:grid-cols-2 md:gap-x-10 md:gap-y-10 lg:grid-cols-12 lg:gap-x-6 xl:gap-x-10">
+          <div className="md:col-span-2 lg:col-span-3">
             <BrandBlock />
           </div>
 
           {Object.entries(footerLinks).map(([title, links]) => (
-            <div key={title}>
+            <div key={title} className="lg:col-span-2">
               <h3 className="text-sm font-semibold text-foreground">{title}</h3>
               <FooterLinkList links={links} />
             </div>
           ))}
 
-          <div>
+          <div className="min-w-[17rem] lg:col-span-3">
             <h3 className="text-sm font-semibold text-foreground">Contact</h3>
             <ContactBlock />
           </div>

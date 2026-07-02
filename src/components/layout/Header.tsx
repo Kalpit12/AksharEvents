@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { BRAND } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { MobileNav } from "@/components/layout/mobile-nav";
-import { LogoutButton } from "@/components/auth/logout-button";
-import {
-  Calendar,
-  ClipboardList,
-  Building2,
-  Palette,
-} from "lucide-react";
+import { HeaderActions } from "@/components/layout/header-actions";
 
 const navLinks = [
   { href: "/events", label: "Events" },
@@ -26,9 +19,6 @@ const navLinkClass =
 
 export default async function Header() {
   const session = await auth();
-  const role = session?.user?.role;
-  const isAdmin = role === "ADMIN";
-  const isPrintingStaff = role === "PRINTING_STAFF";
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-lg supports-[backdrop-filter]:bg-background/80">
@@ -56,69 +46,7 @@ export default async function Header() {
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
           <ThemeToggle />
 
-          {session?.user ? (
-            <div className="hidden shrink-0 flex-nowrap items-center gap-2 md:flex">
-              {isAdmin ? (
-                <>
-                  <Button variant="outline" size="sm" className="shrink-0" asChild>
-                    <Link href="/admin">
-                      <Calendar className="h-4 w-4" />
-                      Event Master
-                    </Link>
-                  </Button>
-                  <Button variant="outline" size="sm" className="shrink-0" asChild>
-                    <Link href="/printing">
-                      <Palette className="h-4 w-4" />
-                      Printing
-                    </Link>
-                  </Button>
-                </>
-              ) : isPrintingStaff ? (
-                <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href="/printing">
-                    <Palette className="h-4 w-4" />
-                    Printing Dashboard
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href="/exhibitor">
-                    <Building2 className="h-4 w-4" />
-                    Exhibitor Portal
-                  </Link>
-                </Button>
-              )}
-              <LogoutButton />
-            </div>
-          ) : (
-            <div className="hidden shrink-0 flex-nowrap items-center gap-2 md:flex">
-              <Button variant="outline" size="sm" className="shrink-0" asChild>
-                <Link href="/auth/exhibitor">
-                  <Building2 className="h-4 w-4" />
-                  Exhibitor
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" className="shrink-0" asChild>
-                <Link href="/auth/login">
-                  <Calendar className="h-4 w-4" />
-                  Event Master
-                </Link>
-              </Button>
-              <Button variant="outline" size="sm" className="shrink-0" asChild>
-                <Link href="/auth/printing">
-                  <Palette className="h-4 w-4" />
-                  Printing
-                </Link>
-              </Button>
-              <Button size="sm" className="shrink-0" asChild>
-                <Link href="/booking-inquiries">
-                  <ClipboardList className="h-4 w-4" />
-                  <span className="hidden lg:inline">Booking & Inquiries</span>
-                  <span className="lg:hidden">Inquiries</span>
-                </Link>
-              </Button>
-            </div>
-          )}
+          <HeaderActions session={session} />
 
           <MobileNav session={session} navLinks={navLinks} />
         </div>
