@@ -6,10 +6,11 @@ import type { Session } from "next-auth";
 import { Button } from "@/components/ui/Button";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Building2, Calendar, ClipboardList, Palette } from "lucide-react";
+import { shouldShowStaffHeaderLinks } from "@/lib/header-nav";
 
 export function HeaderActions({ session }: { session: Session | null }) {
   const pathname = usePathname();
-  const isHomepage = pathname === "/";
+  const showStaffLinks = shouldShowStaffHeaderLinks(pathname);
   const role = session?.user?.role;
   const isAdmin = role === "ADMIN";
   const isPrintingStaff = role === "PRINTING_STAFF";
@@ -19,7 +20,7 @@ export function HeaderActions({ session }: { session: Session | null }) {
       <div className="hidden shrink-0 flex-nowrap items-center gap-2 md:flex">
         {isAdmin ? (
           <>
-            {!isHomepage ? (
+            {showStaffLinks ? (
               <>
                 <Button variant="outline" size="sm" className="shrink-0" asChild>
                   <Link href="/admin">
@@ -37,7 +38,7 @@ export function HeaderActions({ session }: { session: Session | null }) {
             ) : null}
           </>
         ) : isPrintingStaff ? (
-          !isHomepage ? (
+          showStaffLinks ? (
             <Button variant="outline" size="sm" className="shrink-0" asChild>
               <Link href="/printing">
                 <Palette className="h-4 w-4" />
@@ -66,7 +67,7 @@ export function HeaderActions({ session }: { session: Session | null }) {
           Exhibitor
         </Link>
       </Button>
-      {!isHomepage ? (
+      {showStaffLinks ? (
         <>
           <Button variant="outline" size="sm" className="shrink-0" asChild>
             <Link href="/auth/login">

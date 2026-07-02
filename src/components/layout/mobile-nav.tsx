@@ -7,6 +7,7 @@ import { Building2, Calendar, ClipboardList, LogOut, Menu, Palette, X } from "lu
 import { Button } from "@/components/ui/Button";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
+import { shouldShowStaffHeaderLinks } from "@/lib/header-nav";
 
 interface MobileNavProps {
   session: Session | null;
@@ -16,7 +17,7 @@ interface MobileNavProps {
 export function MobileNav({ session, navLinks }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const isHomepage = pathname === "/";
+  const showStaffLinks = shouldShowStaffHeaderLinks(pathname);
   const role = session?.user?.role;
   const isAdmin = role === "ADMIN";
   const isPrintingStaff = role === "PRINTING_STAFF";
@@ -67,7 +68,7 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                     <Building2 className="h-4 w-4" />
                     Exhibitor Sign In / Sign Up
                   </Link>
-                  {!isHomepage ? (
+                  {showStaffLinks ? (
                     <>
                       <Link
                         href="/auth/login"
@@ -98,7 +99,7 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                 </>
               ) : isAdmin ? (
                 <>
-                  {!isHomepage ? (
+                  {showStaffLinks ? (
                     <>
                       <Link
                         href="/admin"
@@ -120,7 +121,7 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
                   ) : null}
                 </>
               ) : isPrintingStaff ? (
-                !isHomepage ? (
+                showStaffLinks ? (
                   <Link
                     href="/printing"
                     onClick={() => setOpen(false)}
