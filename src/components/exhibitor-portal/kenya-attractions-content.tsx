@@ -30,7 +30,7 @@ export function KenyaAttractionsContent() {
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-espresso/75 via-espresso/55 to-champagne-dark/40" />
 
-        <div className="relative z-10 flex justify-end pt-5 sm:pt-6">
+        <div className="relative z-10 flex justify-end px-5 pt-5 sm:px-7 sm:pt-6">
           <Button
             variant="ghost"
             size="sm"
@@ -44,7 +44,7 @@ export function KenyaAttractionsContent() {
           </Button>
         </div>
 
-        <div className="relative z-10 pb-10 pt-2 text-alabaster sm:pb-12">
+        <div className="relative z-10 px-5 pb-10 pt-2 text-alabaster sm:px-7 sm:pb-12">
           <div className="max-w-3xl">
             <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-alabaster/15 px-3 py-1 text-xs font-medium text-champagne-light">
               <Compass className="h-3.5 w-3.5 shrink-0" />
