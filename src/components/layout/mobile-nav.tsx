@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Building2, Calendar, ClipboardList, LogOut, Menu, Palette, X } from "lucide-react";
+import { ClipboardList, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
-import { shouldShowStaffHeaderLinks } from "@/lib/header-nav";
 
 interface MobileNavProps {
   session: Session | null;
@@ -16,11 +14,6 @@ interface MobileNavProps {
 
 export function MobileNav({ session, navLinks }: MobileNavProps) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
-  const showStaffLinks = shouldShowStaffHeaderLinks(pathname);
-  const role = session?.user?.role;
-  const isAdmin = role === "ADMIN";
-  const isPrintingStaff = role === "PRINTING_STAFF";
 
   return (
     <div className="xl:hidden">
@@ -59,88 +52,15 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
               <div className="my-2 border-t border-border" />
 
               {!session ? (
-                <>
-                  <Link
-                    href="/auth/exhibitor"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                  >
-                    <Building2 className="h-4 w-4" />
-                    Exhibitor Sign In / Sign Up
-                  </Link>
-                  {showStaffLinks ? (
-                    <>
-                      <Link
-                        href="/auth/login"
-                        onClick={() => setOpen(false)}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                      >
-                        <Calendar className="h-4 w-4" />
-                        Event Master Sign In
-                      </Link>
-                      <Link
-                        href="/auth/printing"
-                        onClick={() => setOpen(false)}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                      >
-                        <Palette className="h-4 w-4" />
-                        Printing Sign In
-                      </Link>
-                    </>
-                  ) : null}
-                  <Link
-                    href="/booking-inquiries"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
-                  >
-                    <ClipboardList className="h-4 w-4" />
-                    Booking & Inquiries
-                  </Link>
-                </>
-              ) : isAdmin ? (
-                <>
-                  {showStaffLinks ? (
-                    <>
-                      <Link
-                        href="/admin"
-                        onClick={() => setOpen(false)}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
-                      >
-                        <Calendar className="h-4 w-4" />
-                        Event Master
-                      </Link>
-                      <Link
-                        href="/printing"
-                        onClick={() => setOpen(false)}
-                        className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
-                      >
-                        <Palette className="h-4 w-4" />
-                        Printing Dashboard
-                      </Link>
-                    </>
-                  ) : null}
-                </>
-              ) : isPrintingStaff ? (
-                showStaffLinks ? (
-                  <Link
-                    href="/printing"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
-                  >
-                    <Palette className="h-4 w-4" />
-                    Printing Dashboard
-                  </Link>
-                ) : null
-              ) : (
                 <Link
-                  href="/exhibitor"
+                  href="/booking-inquiries"
                   onClick={() => setOpen(false)}
                   className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
                 >
-                  <Building2 className="h-4 w-4" />
-                  Exhibitor Portal
+                  <ClipboardList className="h-4 w-4" />
+                  Booking & Inquiries
                 </Link>
-              )}
+              ) : null}
 
               {session && (
                 <button
