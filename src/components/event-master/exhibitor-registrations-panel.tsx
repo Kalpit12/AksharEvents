@@ -26,6 +26,7 @@ import {
   Users,
 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { AdminExhibitorBadgesSection } from "@/components/event-master/admin-exhibitor-badges-section";
 
 function DetailGrid({ fields }: { fields: [string, string][] }) {
   return (
@@ -82,7 +83,15 @@ function StatusBadge({ status }: { status: AdminExhibitorRecord["registrationSta
   );
 }
 
-function ExhibitorDetail({ record, activities = [] }: { record: AdminExhibitorRecord; activities?: EventActivityOption[] }) {
+function ExhibitorDetail({
+  record,
+  eventTitle,
+  activities = [],
+}: {
+  record: AdminExhibitorRecord;
+  eventTitle: string;
+  activities?: EventActivityOption[];
+}) {
   const data = record.formData;
 
   if (!data) {
@@ -214,16 +223,28 @@ function ExhibitorDetail({ record, activities = [] }: { record: AdminExhibitorRe
           </div>
         )}
       </Section>
+
+      <AdminExhibitorBadgesSection
+        eventExhibitorId={record.id}
+        eventTitle={eventTitle}
+        members={data.members}
+        badgePhotoMemberIds={record.badgePhotoMemberIds}
+      />
     </div>
   );
 }
 
 type Props = {
   exhibitors: AdminExhibitorRecord[];
+  eventTitle: string;
   activities?: EventActivityOption[];
 };
 
-export default function ExhibitorRegistrationsPanel({ exhibitors, activities = [] }: Props) {
+export default function ExhibitorRegistrationsPanel({
+  exhibitors,
+  eventTitle,
+  activities = [],
+}: Props) {
   const [query, setQuery] = useState("");
   const { getParam, setParams } = useDashboardUrlState();
   const exhibitorParam = getParam("exhibitor");
@@ -304,7 +325,9 @@ export default function ExhibitorRegistrationsPanel({ exhibitors, activities = [
       </div>
 
       <div className="min-w-0 rounded-2xl border border-border bg-card p-5">
-        {selected ? <ExhibitorDetail record={selected} activities={activities} /> : null}
+        {selected ? (
+          <ExhibitorDetail record={selected} eventTitle={eventTitle} activities={activities} />
+        ) : null}
       </div>
     </div>
   );

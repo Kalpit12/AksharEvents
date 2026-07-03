@@ -73,6 +73,10 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
       include: {
         exhibitor: true,
         registration: true,
+        memberDocuments: {
+          where: { documentType: "BADGE_PHOTO" },
+          select: { memberLocalId: true },
+        },
       },
       orderBy: { exhibitor: { companyName: "asc" } },
     }),
@@ -122,6 +126,7 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
     formData: entry.registration?.formData
       ? (entry.registration.formData as SavedRegistrationData)
       : null,
+    badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
   }));
 
   return {

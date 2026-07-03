@@ -1,13 +1,21 @@
 import { formatBadgeDateLabel } from "@/lib/visitor-badge-format";
 import { formatExhibitorBadgeCode } from "@/lib/exhibitor-badge-codes";
 import { BRAND } from "@/lib/utils";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
 import sharp from "sharp";
 import "server-only";
 
 /** A7 portrait — 74 × 105 mm */
 export const A7_WIDTH_PT = (74 / 25.4) * 72;
 export const A7_HEIGHT_PT = (105 / 25.4) * 72;
+
+/** A4 portrait — 210 × 297 mm */
+export const A4_WIDTH_PT = (210 / 25.4) * 72;
+export const A4_HEIGHT_PT = (297 / 25.4) * 72;
+
+const A4_BADGE_COLS = 2;
+const A4_BADGE_ROWS = 2;
+const A4_BADGES_PER_PAGE = A4_BADGE_COLS * A4_BADGE_ROWS;
 
 const W = 210;
 const H = 298;
@@ -29,7 +37,7 @@ const FONT = "Arial, Helvetica, sans-serif";
 
 const LANYARD_H = 8;
 const HEADER_H = 28;
-const FOOTER_H = 11;
+const FOOTER_H = 12;
 const PAD = 10;
 const PHOTO_SIZE_MAX = 72;
 const QR_SIZE = 48;
@@ -195,7 +203,37 @@ async function photoToDataUrl(buffer: Buffer, sizePx: number) {
   return `data:image/png;base64,${png.toString("base64")}`;
 }
 
-export async function buildExhibitorBadgeSvg(input: ExhibitorBadgeAssetInput) {
+async function renderRoundedPhoto(buffer: Buffer, sizePx: number, radiusPx: number) {
+  if (!buffer?.length) {
+    throw new Error("Badge photo buffer is empty");
+  }
+
+  const resized = await sharp(buffer)
+    .rotate()
+    .resize(sizePx, sizePx, { fit: "cover", position: "attention" })
+    .png()
+    .toBuffer();
+
+  const mask = await sharp(
+    Buffer.from(
+      `<svg width="${sizePx}" height="${sizePx}"><rect width="${sizePx}" height="${sizePx}" rx="${radiusPx}" ry="${radiusPx}" fill="white"/></svg>`
+    )
+  )
+    .png()
+    .toBuffer();
+
+  return sharp(resized).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+}
+
+type BuildSvgOptions = {
+  /** Photo is composited after rasterization — more reliable on multi-badge A4 sheets */
+  omitInlinePhoto?: boolean;
+};
+
+export async function buildExhibitorBadgeSvg(
+  input: ExhibitorBadgeAssetInput,
+  options: BuildSvgOptions = {}
+) {
   const layout = computeLayout(input);
   const badgeCode = formatExhibitorBadgeCode(input.memberLocalId);
   const role = escapeXml(truncate(input.memberRole.trim() || "Exhibitor", 32));
@@ -207,7 +245,9 @@ export async function buildExhibitorBadgeSvg(input: ExhibitorBadgeAssetInput) {
   const footerText = escapeXml(`Powered by ${BRAND.name}`);
 
   const photoX = (W - layout.photoSize) / 2;
-  const photoDataUrl = await photoToDataUrl(input.photoBuffer, 400);
+  const photoImageTag = options.omitInlinePhoto
+    ? ""
+    : `<image x="${photoX}" y="${layout.photoY}" width="${layout.photoSize}" height="${layout.photoSize}" href="${await photoToDataUrl(input.photoBuffer, 400)}" clip-path="url(#photoClip)" preserveAspectRatio="xMidYMid slice"/>`;
   const qrX = (W - QR_SIZE) / 2;
   const boothPillX = (W - layout.boothPillW) / 2;
   const logoSize = 20;
@@ -255,7 +295,7 @@ export async function buildExhibitorBadgeSvg(input: ExhibitorBadgeAssetInput) {
   <!-- Photo zone -->
   <rect y="${layout.photoZoneY}" width="${W}" height="${layout.photoZoneH}" fill="${C.alabaster}" fill-opacity="0.35"/>
   <rect x="${photoX}" y="${layout.photoY}" width="${layout.photoSize}" height="${layout.photoSize}" rx="10" fill="${C.white}" stroke="${C.champagne}" stroke-width="1.2" stroke-opacity="0.55"/>
-  <image x="${photoX}" y="${layout.photoY}" width="${layout.photoSize}" height="${layout.photoSize}" href="${photoDataUrl}" clip-path="url(#photoClip)" preserveAspectRatio="xMidYMid slice"/>
+  ${photoImageTag}
 
   <!-- Identity -->
   <rect y="${layout.identityY}" width="${W}" height="${layout.identityH}" fill="${C.white}"/>
@@ -286,7 +326,7 @@ export async function buildExhibitorBadgeSvg(input: ExhibitorBadgeAssetInput) {
 
   <!-- Footer -->
   <rect y="${layout.footerY}" width="${W}" height="${FOOTER_H}" fill="${C.espresso}"/>
-  <text x="${W / 2}" y="${layout.footerY + FOOTER_H / 2}" text-anchor="middle" dominant-baseline="middle" font-family="${FONT}" font-size="5" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.75" letter-spacing="0.08em">${footerText}</text>
+  <text x="${W / 2}" y="${layout.footerY + FOOTER_H / 2 + 0.5}" text-anchor="middle" dominant-baseline="middle" font-family="${FONT}" font-size="4" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.85" letter-spacing="0.02em">${footerText}</text>
 </svg>`;
 }
 
@@ -297,9 +337,27 @@ async function svgToPng(svg: string, width: number, height: number, scale = 3) {
     .toBuffer();
 }
 
+/** Rasterize badge SVG and composite the headshot via sharp (avoids broken inline data URLs). */
+async function renderExhibitorBadgePng(input: ExhibitorBadgeAssetInput, scale = 3) {
+  const layout = computeLayout(input);
+  const photoX = (W - layout.photoSize) / 2;
+  const svg = await buildExhibitorBadgeSvg(input, { omitInlinePhoto: true });
+  const basePng = await svgToPng(svg, W, H, scale);
+
+  const photoSizePx = Math.round(layout.photoSize * scale);
+  const photoLeft = Math.round(photoX * scale);
+  const photoTop = Math.round(layout.photoY * scale);
+  const radius = Math.round(10 * scale);
+  const photoOverlay = await renderRoundedPhoto(input.photoBuffer, photoSizePx, radius);
+
+  return sharp(basePng)
+    .composite([{ input: photoOverlay, left: photoLeft, top: photoTop }])
+    .png()
+    .toBuffer();
+}
+
 export async function buildExhibitorBadgePdf(input: ExhibitorBadgeAssetInput) {
-  const svg = await buildExhibitorBadgeSvg(input);
-  const png = await svgToPng(svg, W, H, 3);
+  const png = await renderExhibitorBadgePng(input, 3);
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([A7_WIDTH_PT, A7_HEIGHT_PT]);
@@ -311,6 +369,71 @@ export async function buildExhibitorBadgePdf(input: ExhibitorBadgeAssetInput) {
     width: A7_WIDTH_PT,
     height: A7_HEIGHT_PT,
   });
+
+  return pdfDoc.save();
+}
+
+/** Multiple A7 badges on A4 portrait (2×2) for office badge-printer sheets */
+export async function buildExhibitorBadgesA4SheetPdf(inputs: ExhibitorBadgeAssetInput[]) {
+  if (inputs.length === 0) {
+    throw new Error("At least one badge is required");
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const gridW = A4_BADGE_COLS * A7_WIDTH_PT;
+  const gridH = A4_BADGE_ROWS * A7_HEIGHT_PT;
+  const offsetX = (A4_WIDTH_PT - gridW) / 2;
+  const offsetY = (A4_HEIGHT_PT - gridH) / 2;
+  const sheetScale = 3;
+
+  for (let pageStart = 0; pageStart < inputs.length; pageStart += A4_BADGES_PER_PAGE) {
+    const page = pdfDoc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT]);
+    const chunk = inputs.slice(pageStart, pageStart + A4_BADGES_PER_PAGE);
+    const pngs: Buffer[] = [];
+    for (const input of chunk) {
+      pngs.push(await renderExhibitorBadgePng(input, sheetScale));
+    }
+
+    for (let index = 0; index < chunk.length; index++) {
+      const col = index % A4_BADGE_COLS;
+      const row = Math.floor(index / A4_BADGE_COLS);
+      const image = await pdfDoc.embedPng(pngs[index]);
+
+      const x = offsetX + col * A7_WIDTH_PT;
+      const y = offsetY + (A4_BADGE_ROWS - 1 - row) * A7_HEIGHT_PT;
+
+      page.drawImage(image, {
+        x,
+        y,
+        width: A7_WIDTH_PT,
+        height: A7_HEIGHT_PT,
+      });
+    }
+
+    // Light cut guides between badges (helps trim on office printers)
+    const guideColor = rgb(0.75, 0.75, 0.75);
+    const dash = { dashArray: [2, 3], dashPhase: 0 };
+    for (let col = 1; col < A4_BADGE_COLS; col++) {
+      const lineX = offsetX + col * A7_WIDTH_PT;
+      page.drawLine({
+        start: { x: lineX, y: offsetY },
+        end: { x: lineX, y: offsetY + gridH },
+        thickness: 0.4,
+        color: guideColor,
+        ...dash,
+      });
+    }
+    for (let row = 1; row < A4_BADGE_ROWS; row++) {
+      const lineY = offsetY + row * A7_HEIGHT_PT;
+      page.drawLine({
+        start: { x: offsetX, y: lineY },
+        end: { x: offsetX + gridW, y: lineY },
+        thickness: 0.4,
+        color: guideColor,
+        ...dash,
+      });
+    }
+  }
 
   return pdfDoc.save();
 }

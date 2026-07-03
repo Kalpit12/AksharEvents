@@ -45,6 +45,27 @@ function getPrismaErrorCode(error: unknown): string | null {
   return null;
 }
 
+/** Missing table/column/enum — production DB not yet synced with schema.prisma */
+export function isPrismaSchemaDriftError(error: unknown): boolean {
+  const code = getPrismaErrorCode(error);
+  if (code === "P2021" || code === "P2022") {
+    return true;
+  }
+  if (!(error instanceof Error)) return false;
+  if (error.name === "PrismaClientValidationError") {
+    return true;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("does not exist") ||
+    message.includes("invalid input value for enum") ||
+    message.includes("unknown field") ||
+    message.includes("exhibitorbadgecheckin") ||
+    message.includes("badge_photo") ||
+    message.includes("badgecheckins")
+  );
+}
+
 export function isTransientConnectionError(error: unknown): boolean {
   const code = getPrismaErrorCode(error);
   if (code && TRANSIENT_PRISMA_CODES.has(code)) {

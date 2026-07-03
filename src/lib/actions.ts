@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma, isPrismaSchemaDriftError } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import { registerSchema, loginSchema, bookingSchema, reviewSchema, bookingInquirySchema, exhibitorRegisterSchema } from "@/lib/validations";
 import { generateBookingNumber, slugify } from "@/lib/utils";
@@ -660,29 +660,6 @@ async function verifyExhibitorBadgeScan(
     return { error: "Team member not found on this exhibitor pass" };
   }
 
-  const photoDoc = await prisma.exhibitorMemberDocument.findUnique({
-    where: {
-      eventExhibitorId_memberLocalId_documentType: {
-        eventExhibitorId,
-        memberLocalId,
-        documentType: "BADGE_PHOTO",
-      },
-    },
-  });
-
-  if (!photoDoc) {
-    return { error: "Badge photo not on file for this exhibitor" };
-  }
-
-  const existing = await prisma.exhibitorBadgeCheckIn.findUnique({
-    where: {
-      eventExhibitorId_memberLocalId: {
-        eventExhibitorId,
-        memberLocalId,
-      },
-    },
-  });
-
   const booking = {
     number: `EXP-${memberLocalId.replace(/-/g, "").slice(0, 8).toUpperCase()}`,
     name: `${member.fn} ${member.ln}`.trim(),
@@ -692,26 +669,59 @@ async function verifyExhibitorBadgeScan(
     booth: eventExhibitor.boothNumber,
   };
 
-  if (existing) {
-    return {
-      success: true,
-      exhibitor: true,
-      alreadyCheckedIn: true,
-      booking: {
-        ...booking,
-        checkedInAt: existing.checkedInAt,
+  try {
+    const photoDoc = await prisma.exhibitorMemberDocument.findUnique({
+      where: {
+        eventExhibitorId_memberLocalId_documentType: {
+          eventExhibitorId,
+          memberLocalId,
+          documentType: "BADGE_PHOTO",
+        },
       },
-    };
-  }
+    });
 
-  await prisma.exhibitorBadgeCheckIn.create({
-    data: {
-      eventId,
-      eventExhibitorId,
-      memberLocalId,
-      checkedInBy,
-    },
-  });
+    if (!photoDoc) {
+      return { error: "Badge photo not on file for this exhibitor" };
+    }
+
+    const existing = await prisma.exhibitorBadgeCheckIn.findUnique({
+      where: {
+        eventExhibitorId_memberLocalId: {
+          eventExhibitorId,
+          memberLocalId,
+        },
+      },
+    });
+
+    if (existing) {
+      return {
+        success: true,
+        exhibitor: true,
+        alreadyCheckedIn: true,
+        booking: {
+          ...booking,
+          checkedInAt: existing.checkedInAt,
+        },
+      };
+    }
+
+    await prisma.exhibitorBadgeCheckIn.create({
+      data: {
+        eventId,
+        eventExhibitorId,
+        memberLocalId,
+        checkedInBy,
+      },
+    });
+  } catch (error) {
+    if (isPrismaSchemaDriftError(error)) {
+      return {
+        error:
+          "Exhibitor badge check-in is not available yet. Run prisma db push against the Neon database.",
+      };
+    }
+    throw error;
+  }
 
   await createAuditLog({
     userId: checkedInBy,

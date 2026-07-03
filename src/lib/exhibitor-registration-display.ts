@@ -20,6 +20,8 @@ export type AdminExhibitorRecord = {
   registrationStatus: "DRAFT" | "SUBMITTED" | null;
   submittedAt: string | null;
   formData: SavedRegistrationData | null;
+  /** Team member local IDs that have a badge photo on file */
+  badgePhotoMemberIds: string[];
 };
 
 export function registrationProgress(data: SavedRegistrationData | null): number {

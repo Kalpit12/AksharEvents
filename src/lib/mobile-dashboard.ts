@@ -137,7 +137,14 @@ export async function getMobileAdminDashboard() {
 
   const eventExhibitors = await prisma.eventExhibitor.findMany({
     where: { eventId: event.id },
-    include: { exhibitor: true, registration: true },
+    include: {
+      exhibitor: true,
+      registration: true,
+      memberDocuments: {
+        where: { documentType: "BADGE_PHOTO" },
+        select: { memberLocalId: true },
+      },
+    },
     orderBy: { exhibitor: { companyName: "asc" } },
   });
 
@@ -162,6 +169,7 @@ export async function getMobileAdminDashboard() {
     formData: entry.registration?.formData
       ? (entry.registration.formData as SavedRegistrationData)
       : null,
+    badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
   }));
 
   const serializedActivities = activities.map(serializeActivity);

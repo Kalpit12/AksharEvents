@@ -285,7 +285,13 @@ export default function EventMasterDashboard({
         ))}
       </div>
 
-      {tab === "exhibitors" && <ExhibitorRegistrationsPanel exhibitors={exhibitors} activities={activities} />}
+      {tab === "exhibitors" && (
+        <ExhibitorRegistrationsPanel
+          exhibitors={exhibitors}
+          eventTitle={eventTitle}
+          activities={activities}
+        />
+      )}
 
       {tab === "floorplan" && floorPlan && (
         <FloorPlanPanel
