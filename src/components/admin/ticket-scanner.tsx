@@ -99,16 +99,29 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
     }
 
     setCameraError(null);
+
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       await stopCamera();
+      setCameraOn(true);
+
+      // Viewfinder must be visible before the scanner binds to the camera stream.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       const scanner = new Html5Qrcode(containerId);
       scannerRef.current = scanner;
 
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        {
+          fps: 10,
+          aspectRatio: 1,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const edge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.max(180, Math.floor(edge * 0.72));
+            return { width: size, height: size };
+          },
+        },
         (decoded) => {
           void handleVerify(decoded);
         },
@@ -116,10 +129,13 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
           // ignore per-frame scan misses
         }
       );
-
-      setCameraOn(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not access camera";
+      const message =
+        err instanceof Error
+          ? err.message.includes("NotAllowed") || err.message.includes("Permission")
+            ? "Camera permission denied. Allow camera access in your browser settings, then try again."
+            : err.message
+          : "Could not access camera";
       setCameraError(message);
       toast.error("Camera unavailable — use manual entry");
       await stopCamera();
@@ -193,7 +209,7 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
         <CardContent className="space-y-3">
           <div
             id={containerId}
-            className={`overflow-hidden rounded-xl bg-muted ${cameraOn ? "min-h-[280px]" : "hidden"}`}
+            className={`overflow-hidden rounded-xl bg-muted ${cameraOn ? "min-h-[280px] w-full" : "hidden"}`}
           />
           {!cameraOn && (
             <p className="text-center text-sm text-muted-foreground">

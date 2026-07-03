@@ -8,13 +8,27 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   async headers() {
+    const securityHeaders = [
+      { key: "X-Frame-Options", value: "DENY" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    ];
+
     return [
       {
-        source: "/:path*",
+        source: "/admin/scanner",
         headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          ...securityHeaders,
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      {
+        source: "/((?!admin/scanner).*)",
+        headers: [
+          ...securityHeaders,
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
