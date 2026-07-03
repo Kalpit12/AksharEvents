@@ -176,7 +176,7 @@ export async function provisionExhibitorMember({
       });
     }
 
-    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://aksharevents.com"}/auth/exhibitor?mode=signin`;
+    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://axarevents.com"}/auth/exhibitor?mode=signin`;
     const eventName = await resolveExhibitorEventName(exhibitorId);
     const html = exhibitorMemberWelcomeEmailHtml({
       name: existingUser?.name || name,

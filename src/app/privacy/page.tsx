@@ -95,7 +95,7 @@ export default function PrivacyPage() {
             <p>
               We use cookies and similar technologies to keep you signed in, remember preferences, and understand how
               our platform is used. When you accept cookies on our site, we store a first-party consent cookie named{" "}
-              <strong className="text-foreground">akshar-cookie-consent</strong> on your device for up to 12 months so
+              <strong className="text-foreground">axar-cookie-consent</strong> on your device for up to 12 months so
               we do not show the consent banner again. You can control or delete cookies through your browser settings,
               though some features may not function correctly if cookies are disabled.
             </p>
@@ -110,8 +110,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-bold text-foreground">Contact Us</h2>
             <p>
               For privacy-related questions or requests, contact us at{" "}
-              <a href="mailto:info@aksharevents.com" className="text-primary hover:underline">
-                info@aksharevents.com
+              <a href="mailto:info@axarevents.com" className="text-primary hover:underline">
+                info@axarevents.com
               </a>
               .
             </p>

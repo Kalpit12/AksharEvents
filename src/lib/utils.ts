@@ -52,7 +52,7 @@ export function truncate(text: string, length: number) {
 }
 
 export const BRAND = {
-  name: "AksharEvents",
+  name: "AxarEvents",
   tagline: "Discover. Book. Experience.",
   colors: {
     primary: "#0D9488",

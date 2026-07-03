@@ -1,4 +1,4 @@
-export const COOKIE_CONSENT_NAME = "akshar-cookie-consent";
+export const COOKIE_CONSENT_NAME = "axar-cookie-consent";
 export const COOKIE_CONSENT_VALUE = "accepted";
 /** 12 months */
 export const COOKIE_CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;

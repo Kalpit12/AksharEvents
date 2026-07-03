@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function main() {
   const passwordHash = await bcrypt.hash("password123", 12);
   const user = await prisma.user.upsert({
-    where: { email: "printing@aksharevents.com" },
+    where: { email: "printing@axarevents.com" },
     update: {
       role: "PRINTING_STAFF",
       passwordHash,
@@ -16,10 +16,10 @@ async function main() {
     },
     create: {
       name: "Printing Team",
-      email: "printing@aksharevents.com",
+      email: "printing@axarevents.com",
       passwordHash,
       role: "PRINTING_STAFF",
-      company: "AksharEvents Print & Artwork",
+      company: "AxarEvents Print & Artwork",
       isVerified: true,
     },
   });

@@ -18,7 +18,7 @@ export function BadgeDownloadButton({
 
   return (
     <Button asChild variant={variant} className={className}>
-      <a href={href} download={`aksharevents-badge-${bookingNumber}.pdf`}>
+      <a href={href} download={`axarevents-badge-${bookingNumber}.pdf`}>
         <Download className="h-4 w-4" />
         Download badge
       </a>

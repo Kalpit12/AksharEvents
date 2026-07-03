@@ -389,7 +389,7 @@ export default function LaunchPage() {
                   From career fairs to tech summits
                 </h3>
                 <p className="text-muted-foreground leading-relaxed mb-8">
-                  AksharEvents focuses on what matters in Kenya and Africa — recruitment expos, university open days, corporate networking, industry conferences, and community workshops.
+                  AxarEvents focuses on what matters in Kenya and Africa — recruitment expos, university open days, corporate networking, industry conferences, and community workshops.
                 </p>
                 <ul className="space-y-3">
                   {["AI-powered event recommendations", "Multi-tier sponsor & exhibitor modules", "Real-time attendance analytics"].map((item, i) => (

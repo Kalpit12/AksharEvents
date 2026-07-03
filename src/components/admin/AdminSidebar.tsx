@@ -20,7 +20,7 @@ export default function AdminSidebar() {
     <aside className="flex w-64 flex-col border-r border-border bg-espresso text-alabaster">
       <div className="border-b border-border p-6">
         <Link href="/admin" className="text-xl font-bold">
-          Akshar<span className="text-champagne-light">Admin</span>
+          Axar<span className="text-champagne-light">Admin</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-4">

@@ -120,8 +120,8 @@ export function downloadRegistrationInvoicePdf(invoice: RegistrationInvoice, met
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(120);
-  doc.text(`${BRAND.name} · info@aksharevents.com`, margin, y);
+  doc.text(`${BRAND.name} · info@axarevents.com`, margin, y);
 
   const slug = meta.companyName.replace(/[^\w]+/g, "-").slice(0, 24) || "exhibitor";
-  doc.save(`${slug}-aksharevents-invoice.pdf`);
+  doc.save(`${slug}-axarevents-invoice.pdf`);
 }

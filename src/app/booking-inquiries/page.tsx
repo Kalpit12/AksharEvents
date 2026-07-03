@@ -3,7 +3,7 @@ import { BookingInquiryForm } from "@/components/inquiries/booking-inquiry-form"
 
 export const metadata: Metadata = {
   title: "Booking & Inquiries",
-  description: "Plan your event with AksharEvents. Submit a booking or inquiry and our team will get back to you.",
+  description: "Plan your event with AxarEvents. Submit a booking or inquiry and our team will get back to you.",
 };
 
 export default function BookingInquiriesPage() {

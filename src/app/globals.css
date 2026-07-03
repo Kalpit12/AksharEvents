@@ -215,7 +215,7 @@ body {
 }
 
 /* Custom pill notifications (Sonner) */
-.akshar-toast {
+.axar-toast {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -234,26 +234,26 @@ body {
   line-height: 1.35;
 }
 
-.akshar-toast__content {
+.axar-toast__content {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
   min-width: 0;
 }
 
-.akshar-toast__title {
+.axar-toast__title {
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.35;
 }
 
-.akshar-toast__description {
+.axar-toast__description {
   font-size: 0.75rem;
   opacity: 0.82;
   line-height: 1.3;
 }
 
-.akshar-toast__close {
+.axar-toast__close {
   position: static !important;
   order: -1;
   display: inline-flex !important;
@@ -270,16 +270,16 @@ body {
   opacity: 1;
 }
 
-.akshar-toast__close:hover {
+.axar-toast__close:hover {
   color: #6b7280 !important;
 }
 
-.akshar-toast__close svg {
+.axar-toast__close svg {
   width: 0.75rem;
   height: 0.75rem;
 }
 
-.akshar-toast__icon {
+.axar-toast__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -289,95 +289,95 @@ body {
   border-radius: 9999px;
 }
 
-.akshar-toast__glyph {
+.axar-toast__glyph {
   width: 0.625rem;
   height: 0.625rem;
 }
 
-.akshar-toast--success {
+.axar-toast--success {
   border-color: rgb(31 77 53 / 8%);
   background: #eef7f1;
   color: #1f4d35;
 }
 
-.akshar-toast--success .akshar-toast__icon {
+.axar-toast--success .axar-toast__icon {
   background: #1f4d35;
   color: #fff;
 }
 
-.akshar-toast--error {
+.axar-toast--error {
   border-color: rgb(122 36 36 / 10%);
   background: #fdf0f0;
   color: #7a2424;
 }
 
-.akshar-toast--error .akshar-toast__icon {
+.axar-toast--error .axar-toast__icon {
   background: #7a2424;
   color: #fff;
 }
 
-.akshar-toast--info {
+.axar-toast--info {
   border-color: rgb(74 63 47 / 10%);
   background: #f7f3ec;
   color: #4a3f2f;
 }
 
-.akshar-toast--info .akshar-toast__icon {
+.axar-toast--info .axar-toast__icon {
   background: #4a3f2f;
   color: #f7f3ec;
 }
 
-.akshar-toast--warning {
+.axar-toast--warning {
   border-color: rgb(107 78 15 / 10%);
   background: #fef9ec;
   color: #6b4e0f;
 }
 
-.akshar-toast--warning .akshar-toast__icon {
+.axar-toast--warning .axar-toast__icon {
   background: #b45309;
   color: #fff;
 }
 
-.dark .akshar-toast--success {
+.dark .axar-toast--success {
   border-color: rgb(184 224 200 / 12%);
   background: #1a2e24;
   color: #b8e0c8;
 }
 
-.dark .akshar-toast--success .akshar-toast__icon {
+.dark .axar-toast--success .axar-toast__icon {
   background: #2f6b4a;
   color: #eef7f1;
 }
 
-.dark .akshar-toast--error {
+.dark .axar-toast--error {
   border-color: rgb(240 184 184 / 12%);
   background: #2a1818;
   color: #f0b8b8;
 }
 
-.dark .akshar-toast--error .akshar-toast__icon {
+.dark .axar-toast--error .axar-toast__icon {
   background: #9a3030;
   color: #fff;
 }
 
-.dark .akshar-toast--info {
+.dark .axar-toast--info {
   border-color: rgb(217 201 168 / 12%);
   background: #221e19;
   color: #d9c9a8;
 }
 
-.dark .akshar-toast--info .akshar-toast__icon {
+.dark .axar-toast--info .axar-toast__icon {
   background: #5c4f3d;
   color: #f7f3ec;
 }
 
-.dark .akshar-toast--warning {
+.dark .axar-toast--warning {
   border-color: rgb(251 191 36 / 12%);
   background: #2a2214;
   color: #fcd34d;
 }
 
-.dark .akshar-toast--warning .akshar-toast__icon {
+.dark .axar-toast--warning .axar-toast__icon {
   background: #b45309;
   color: #fff;
 }

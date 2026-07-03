@@ -31,8 +31,8 @@ export default function AboutPage() {
             </p>
 
             <p className="leading-relaxed">
-              At Akshar Events, we design and execute seamless, unforgettable experiences that leave a lasting
-              impression. True to the meaning of Akshar, eternal and foundational, we specialize in bringing your
+              At Axar Events, we design and execute seamless, unforgettable experiences that leave a lasting
+              impression. We specialize in bringing your
               unique vision to life through bespoke storytelling, meticulous coordination, and creative flair. We offer a
               comprehensive suite of event planning and management services, encompassing everything from high-profile
               corporate galas and innovative product launches to vibrant cultural festivals and elegant private
@@ -55,7 +55,7 @@ export default function AboutPage() {
               <li>Community workshops and training programs</li>
             </ul>
 
-            <h2 className="text-xl font-bold text-foreground">Why AksharEvents?</h2>
+            <h2 className="text-xl font-bold text-foreground">Why AxarEvents?</h2>
             <p>
               Unlike traditional event platforms, we focus on the unique needs of the African market, from
               M-Pesa-ready payments to mobile-first design, QR ticket verification, and AI-powered event recommendations

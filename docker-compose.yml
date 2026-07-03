@@ -1,21 +1,21 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: akshar-events-db
+    container_name: axar-events-db
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: akshar_events
+      POSTGRES_DB: axar_events
     volumes:
-      - akshar_postgres_data:/var/lib/postgresql/data
+      - axar_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d akshar_events"]
+      test: ["CMD-SHELL", "pg_isready -U user -d axar_events"]
       interval: 5s
       timeout: 5s
       retries: 5
 
 volumes:
-  akshar_postgres_data:
+  axar_postgres_data:

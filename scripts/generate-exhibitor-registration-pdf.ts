@@ -273,7 +273,7 @@ function generatePdf(): Buffer {
   doc.text("Exhibitor Registration Form", margin, 22);
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text("Akshar Events — Exhibitor Portal", margin, 32);
+  doc.text("Axar Events — Exhibitor Portal", margin, 32);
   doc.setTextColor(60, 60, 60);
   y = 52;
 
@@ -324,7 +324,7 @@ function generatePdf(): Buffer {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(120, 120, 120);
-    doc.text(`Akshar Events Exhibitor Portal — Page ${i} of ${totalPages}`, margin, pageHeight - 10);
+    doc.text(`Axar Events Exhibitor Portal — Page ${i} of ${totalPages}`, margin, pageHeight - 10);
   }
 
   return Buffer.from(doc.output("arraybuffer"));

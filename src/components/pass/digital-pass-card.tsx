@@ -24,7 +24,7 @@ export type EventBadgeProps = {
   embedded?: boolean;
 };
 
-/** Portrait event badge — GITEX-style lanyard pass with AksharEvents branding. */
+/** Portrait event badge — GITEX-style lanyard pass with AxarEvents branding. */
 export function EventVisitorBadge({
   attendeeName,
   attendeeDesignation,

@@ -17,8 +17,8 @@ export const faqSections: FaqSection[] = [
     description: "Event discovery, ticketing, and platform basics.",
     faqs: [
       {
-        q: "What is Akshar Events?",
-        a: "Akshar Events is Kenya's premier event discovery and booking platform. Attendees can browse and book tickets for career fairs, conferences, expos, and networking events. Organisers can create events, manage registrations, and verify tickets with QR codes.",
+        q: "What is Axar Events?",
+        a: "Axar Events is Kenya's premier event discovery and booking platform. Attendees can browse and book tickets for career fairs, conferences, expos, and networking events. Organisers can create events, manage registrations, and verify tickets with QR codes.",
       },
       {
         q: "How do I book tickets?",
@@ -41,7 +41,7 @@ export const faqSections: FaqSection[] = [
         a: "Register as an Organiser during sign-up or switch your account type in settings. You can then create events, manage ticket types, and scan QR codes at your events.",
       },
       {
-        q: "Is Akshar Events available outside Kenya?",
+        q: "Is Axar Events available outside Kenya?",
         a: "Yes. While based in Kenya, the platform supports events across Africa, with multi-currency support planned for broader use.",
       },
     ],

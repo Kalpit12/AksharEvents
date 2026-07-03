@@ -22,7 +22,7 @@ async function main() {
     companyName,
     eventName,
     loginUrl: `${APP_URL}/auth/exhibitor`,
-    invitedByName: "AksharEvents Admin",
+    invitedByName: "AxarEvents Admin",
   });
 
   const subject = exhibitorMemberWelcomeEmailSubject(eventName);

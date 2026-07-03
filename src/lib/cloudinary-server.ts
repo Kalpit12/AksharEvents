@@ -1,10 +1,10 @@
 import { v2 as cloudinary } from "cloudinary";
 
-const EXHIBITOR_DOC_FOLDER = "akshar-events/exhibitor-documents";
-const BRANDING_ARTWORK_FOLDER = "akshar-events/branding-artwork";
-const FLOOR_PLAN_FOLDER = "akshar-events/floor-plans";
-const EVENT_SCHEDULE_FOLDER = "akshar-events/event-schedules";
-const TOUR_TRAVEL_FOLDER = "akshar-events/tour-travel";
+const EXHIBITOR_DOC_FOLDER = "axar-events/exhibitor-documents";
+const BRANDING_ARTWORK_FOLDER = "axar-events/branding-artwork";
+const FLOOR_PLAN_FOLDER = "axar-events/floor-plans";
+const EVENT_SCHEDULE_FOLDER = "axar-events/event-schedules";
+const TOUR_TRAVEL_FOLDER = "axar-events/tour-travel";
 
 function readEnv(name: string): string | undefined {
   const raw = process.env[name];

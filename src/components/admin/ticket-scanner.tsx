@@ -121,14 +121,25 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
         }
       );
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message.includes("NotAllowed") || err.message.includes("Permission")
-            ? "Camera permission denied. Allow camera access in your browser settings, then try again."
-            : err.message
-          : "Could not access camera";
+      const errMessage = err instanceof Error ? err.message : "";
+      const isPolicyBlock =
+        errMessage.includes("Permissions policy") ||
+        errMessage.includes("permission policy") ||
+        errMessage.includes("not allowed in this document");
+      const isUserDenial =
+        errMessage.includes("NotAllowed") || errMessage.includes("Permission");
+
+      const message = isPolicyBlock
+        ? "Camera blocked by browser policy. Open the scanner in a new tab (full page reload), then try again."
+        : isUserDenial
+          ? "Camera permission denied. Allow camera access in your browser settings, then try again."
+          : errMessage || "Could not access camera";
       setCameraError(message);
-      toast.error("Camera unavailable — use manual entry");
+      toast.error(
+        isPolicyBlock
+          ? "Reload scanner page to enable camera"
+          : "Camera unavailable — use manual entry"
+      );
       await stopCamera();
     }
   }, [eventId, handleVerify, stopCamera]);

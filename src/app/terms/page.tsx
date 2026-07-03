@@ -113,8 +113,8 @@ export default function TermsPage() {
             <h2 className="text-xl font-bold text-foreground">Contact Us</h2>
             <p>
               For questions about these Terms, contact us at{" "}
-              <a href="mailto:info@aksharevents.com" className="text-primary hover:underline">
-                info@aksharevents.com
+              <a href="mailto:info@axarevents.com" className="text-primary hover:underline">
+                info@axarevents.com
               </a>
               .
             </p>

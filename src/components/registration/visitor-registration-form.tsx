@@ -143,7 +143,7 @@ export function VisitorRegistrationForm({
             Register to visit
           </RegistrationCardTitle>
           <RegistrationCardDescription>
-            Complete the form for <strong>{eventTitle}</strong>. Your personalised AksharEvents badge
+            Complete the form for <strong>{eventTitle}</strong>. Your personalised AxarEvents badge
             updates live alongside as you type.
           </RegistrationCardDescription>
           <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">

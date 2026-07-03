@@ -1,4 +1,4 @@
-# AksharEvents
+# AxarEvents
 
 **Discover. Book. Experience.**
 
@@ -84,9 +84,9 @@ Open [http://localhost:5001](http://localhost:5001)
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@aksharevents.com | admin123 |
-| Organizer | organizer@aksharevents.com | password123 |
-| Attendee | attendee@aksharevents.com | password123 |
+| Admin | admin@axarevents.com | admin123 |
+| Organizer | organizer@axarevents.com | password123 |
+| Attendee | attendee@axarevents.com | password123 |
 
 ## Project Structure
 
@@ -130,7 +130,7 @@ prisma/
 ```bash
 git init
 git add .
-git commit -m "Initial AksharEvents platform"
+git commit -m "Initial AxarEvents platform"
 git remote add origin <your-repo-url>
 git push -u origin main
 ```
@@ -182,4 +182,4 @@ Events: `checkout.session.completed`
 
 ## License
 
-Proprietary — AksharEvents © 2026
+Proprietary — AxarEvents © 2026

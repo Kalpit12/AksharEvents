@@ -1,5 +1,5 @@
 /**
- * Generates public/akshar-events-portal-features.pdf
+ * Generates public/axar-events-portal-features.pdf
  * Run: npx tsx scripts/generate-portal-features-pdf.ts
  */
 
@@ -316,7 +316,7 @@ function generatePdf(): Buffer {
   doc.setTextColor(60, 60, 60);
 
   writeLines(
-    "This guide summarises the three main portals in the Akshar Events platform: what each portal is for, who can access it, and the key features available.",
+    "This guide summarises the three main portals in the Axar Events platform: what each portal is for, who can access it, and the key features available.",
     10
   );
   y += 8;
@@ -385,14 +385,14 @@ function generatePdf(): Buffer {
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(120, 120, 120);
-    doc.text(`Akshar Events Portal Features - Page ${i - 1} of ${totalPages - 1}`, margin, pageHeight - 10);
+    doc.text(`Axar Events Portal Features - Page ${i - 1} of ${totalPages - 1}`, margin, pageHeight - 10);
   }
 
   return Buffer.from(doc.output("arraybuffer"));
 }
 
 const outDir = join(process.cwd(), "public");
-const outPath = join(outDir, "akshar-events-portal-features.pdf");
+const outPath = join(outDir, "axar-events-portal-features.pdf");
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(outPath, generatePdf());

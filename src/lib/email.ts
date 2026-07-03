@@ -17,7 +17,7 @@ import {
   dataUrlToBase64,
   pdfToBase64,
 } from "@/lib/visitor-badge-asset";
-import { getBadgeDownloadUrl } from "@/lib/visitor-pass";
+import { getBadgeDownloadUrl, getQrImageUrl } from "@/lib/visitor-pass";
 
 function getPostmarkClient() {
   const apiKey = process.env.POSTMARK_API_KEY;
@@ -27,7 +27,7 @@ function getPostmarkClient() {
 function getFromAddress() {
   return process.env.POSTMARK_SENDER_EMAIL && process.env.POSTMARK_SENDER_NAME
     ? `${process.env.POSTMARK_SENDER_NAME} <${process.env.POSTMARK_SENDER_EMAIL}>`
-    : process.env.EMAIL_FROM || `${BRAND.name} <noreply@aksharevents.com>`;
+    : process.env.EMAIL_FROM || `${BRAND.name} <noreply@axarevents.com>`;
 }
 
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || "outbound";
@@ -137,6 +137,7 @@ export async function sendTicketConfirmation({
   passLabel?: string;
 }) {
   const badgeDownloadUrl = getBadgeDownloadUrl(bookingNumber);
+  const qrImageUrl = getQrImageUrl(bookingNumber);
   const badgePdf = await buildVisitorBadgePdf({
     attendeeName: name,
     attendeeDesignation: designation,
@@ -151,12 +152,13 @@ export async function sendTicketConfirmation({
   });
 
   const qrBase64 = dataUrlToBase64(qrCodeUrl);
+  const qrAttachmentName = `qr-${bookingNumber}.png`;
   const attachments = [
     ...(qrBase64
-      ? [{ name: `qr-${bookingNumber}.png`, content: qrBase64, contentType: "image/png" }]
+      ? [{ name: qrAttachmentName, content: qrBase64, contentType: "image/png" }]
       : []),
     {
-      name: `aksharevents-badge-${bookingNumber}.pdf`,
+      name: `axarevents-badge-${bookingNumber}.pdf`,
       content: pdfToBase64(badgePdf),
       contentType: "application/pdf",
     },
@@ -180,7 +182,7 @@ export async function sendTicketConfirmation({
       venueName,
       venueCity,
       bookingNumber,
-      qrCodeUrl,
+      qrCodeUrl: qrImageUrl,
       passLabel,
       badgeDownloadUrl,
     }),
@@ -268,7 +270,7 @@ export async function sendBookingInquiryEmail(data: {
   country: string;
   message: string;
 }) {
-  const to = process.env.INQUIRY_EMAIL || "hello@aksharevents.com";
+  const to = process.env.INQUIRY_EMAIL || "hello@axarevents.com";
   const fullName = `${data.title} ${data.firstName} ${data.lastName}`.trim();
 
   return sendEmail({
@@ -312,7 +314,7 @@ export async function sendFlightBookingRequestNotification({
     process.env.EVENT_MASTER_NOTIFICATION_EMAIL ||
     process.env.FLIGHT_BOOKING_CC_EMAIL ||
     process.env.POSTMARK_SENDER_EMAIL ||
-    "info@aksharevents.com";
+    "info@axarevents.com";
   const adminUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5001"}/admin`;
 
   return sendEmail({

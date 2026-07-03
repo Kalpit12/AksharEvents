@@ -19,7 +19,7 @@ async function waitForDatabase(maxAttempts = 5) {
 }
 
 async function main() {
-  console.log("🌱 Seeding AksharEvents database...");
+  console.log("🌱 Seeding AxarEvents database...");
   await waitForDatabase();
 
   const passwordHash = await bcrypt.hash("admin123", 12);
@@ -27,11 +27,11 @@ async function main() {
 
   // Users
   const admin = await prisma.user.upsert({
-    where: { email: "admin@aksharevents.com" },
+    where: { email: "admin@axarevents.com" },
     update: {},
     create: {
       name: "Platform Admin",
-      email: "admin@aksharevents.com",
+      email: "admin@axarevents.com",
       passwordHash,
       role: "ADMIN",
       isVerified: true,
@@ -39,11 +39,11 @@ async function main() {
   });
 
   const organizer = await prisma.user.upsert({
-    where: { email: "organizer@aksharevents.com" },
+    where: { email: "organizer@axarevents.com" },
     update: {},
     create: {
       name: "Kenya Events Co.",
-      email: "organizer@aksharevents.com",
+      email: "organizer@axarevents.com",
       passwordHash: userPassword,
       role: "ORGANIZER",
       company: "Kenya Events Co.",
@@ -53,11 +53,11 @@ async function main() {
   });
 
   const attendee = await prisma.user.upsert({
-    where: { email: "attendee@aksharevents.com" },
+    where: { email: "attendee@axarevents.com" },
     update: {},
     create: {
       name: "Jane Wanjiku",
-      email: "attendee@aksharevents.com",
+      email: "attendee@axarevents.com",
       passwordHash: userPassword,
       role: "ATTENDEE",
       location: "Nairobi, Kenya",
@@ -66,11 +66,11 @@ async function main() {
   });
 
   const exhibitorUser = await prisma.user.upsert({
-    where: { email: "exhibitor@aksharevents.com" },
+    where: { email: "exhibitor@axarevents.com" },
     update: {},
     create: {
       name: "Alex Mwangi",
-      email: "exhibitor@aksharevents.com",
+      email: "exhibitor@axarevents.com",
       passwordHash: userPassword,
       role: "ATTENDEE",
       phone: "+254712345678",
@@ -79,14 +79,14 @@ async function main() {
   });
 
   const printingStaff = await prisma.user.upsert({
-    where: { email: "printing@aksharevents.com" },
+    where: { email: "printing@axarevents.com" },
     update: { role: "PRINTING_STAFF", passwordHash: userPassword },
     create: {
       name: "Printing Team",
-      email: "printing@aksharevents.com",
+      email: "printing@axarevents.com",
       passwordHash: userPassword,
       role: "PRINTING_STAFF",
-      company: "AksharEvents Print & Artwork",
+      company: "AxarEvents Print & Artwork",
       isVerified: true,
     },
   });
@@ -230,7 +230,7 @@ async function main() {
         create: {
           companyName: e.companyName,
           slug: slugify(e.companyName),
-          description: `${e.companyName} showcasing innovative solutions at AksharEvents.`,
+          description: `${e.companyName} showcasing innovative solutions at AxarEvents.`,
           products: e.products,
           website: `https://${slugify(e.companyName)}.com`,
           contactName: e.ownerUserId ? exhibitorUser.name! : "Sales Team",
@@ -630,8 +630,8 @@ async function main() {
   // Testimonials
   await prisma.testimonial.createMany({
     data: [
-      { name: "Peter Kamau", role: "HR Manager", company: "Safaricom", content: "AksharEvents helped us connect with over 500 qualified candidates at the Career Expo. Outstanding platform!", rating: 5 },
-      { name: "Grace Akinyi", role: "Student", company: "University of Nairobi", content: "Found my internship through a university event listed on AksharEvents. The booking process was seamless!", rating: 5 },
+      { name: "Peter Kamau", role: "HR Manager", company: "Safaricom", content: "AxarEvents helped us connect with over 500 qualified candidates at the Career Expo. Outstanding platform!", rating: 5 },
+      { name: "Grace Akinyi", role: "Student", company: "University of Nairobi", content: "Found my internship through a university event listed on AxarEvents. The booking process was seamless!", rating: 5 },
       { name: "David Omondi", role: "Event Organizer", company: "Kenya Events Co.", content: "The organizer dashboard makes managing events, tickets, and check-ins incredibly easy. Highly recommended.", rating: 5 },
     ],
     skipDuplicates: true,
@@ -639,11 +639,11 @@ async function main() {
 
   console.log("✅ Seed completed!");
   console.log("\n📋 Demo Accounts:");
-  console.log("  Admin:     admin@aksharevents.com / admin123");
-  console.log("  Organizer: organizer@aksharevents.com / password123");
-  console.log("  Attendee:  attendee@aksharevents.com / password123");
-  console.log("  Exhibitor: exhibitor@aksharevents.com / password123");
-  console.log("  Printing:  printing@aksharevents.com / password123");
+  console.log("  Admin:     admin@axarevents.com / admin123");
+  console.log("  Organizer: organizer@axarevents.com / password123");
+  console.log("  Attendee:  attendee@axarevents.com / password123");
+  console.log("  Exhibitor: exhibitor@axarevents.com / password123");
+  console.log("  Printing:  printing@axarevents.com / password123");
 }
 
 main()

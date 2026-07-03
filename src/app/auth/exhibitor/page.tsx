@@ -5,7 +5,7 @@ import { getOpenExhibitorEvents } from "@/lib/exhibitor-events";
 
 export const metadata: Metadata = {
   title: "Exhibitor Portal",
-  description: "Sign in or create an exhibitor account on AksharEvents.",
+  description: "Sign in or create an exhibitor account on AxarEvents.",
 };
 
 export const dynamic = "force-dynamic";

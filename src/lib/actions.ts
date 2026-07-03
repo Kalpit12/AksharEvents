@@ -756,7 +756,7 @@ export async function verifyTicket(qrData: string, eventId: string): Promise<Tic
       eventExhibitor?: string;
     };
 
-    if (payload.type === "akshar-exhibitor") {
+    if (payload.type === "axar-exhibitor" || payload.type === "akshar-exhibitor") {
       return verifyExhibitorBadgeScan(payload, eventId, user.id);
     }
 
@@ -896,6 +896,6 @@ export async function submitBookingInquiry(formData: FormData) {
     await sendBookingInquiryEmail({ ...parsed.data, additionalServices });
     return { success: true };
   } catch {
-    return { error: "Failed to send inquiry. Please try again or email hello@aksharevents.com." };
+    return { error: "Failed to send inquiry. Please try again or email hello@axarevents.com." };
   }
 }

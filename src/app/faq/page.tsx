@@ -74,7 +74,7 @@ export default function FAQPage() {
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a
-              href="/akshar-events-portal-features.pdf"
+              href="/axar-events-portal-features.pdf"
               download
               className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >

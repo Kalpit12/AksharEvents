@@ -141,8 +141,7 @@ export const VISITOR_REGISTRATION_EMAIL_SAMPLE: VisitorRegistrationEmailParams =
   venueName: "KICC Convention Centre",
   venueCity: "Nairobi",
   bookingNumber: "AE-MC3X9K2A-7F3B",
-  qrCodeUrl:
-    "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=akshar-ticket-preview",
+  qrCodeUrl: "http://localhost:5001/api/pass/AE-MC3X9K2A-7F3B/qr",
   passLabel: "VISITOR",
   badgeDownloadUrl: "http://localhost:5001/api/pass/AE-MC3X9K2A-7F3B/badge",
 };

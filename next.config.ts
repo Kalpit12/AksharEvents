@@ -12,28 +12,18 @@ const nextConfig: NextConfig = {
       { key: "X-Frame-Options", value: "DENY" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      {
+        // Allow camera on same origin — required for /admin/scanner. Policy is fixed
+        // at first document load; client-side nav from /admin would otherwise keep camera=().
+        key: "Permissions-Policy",
+        value: "camera=(self), microphone=(), geolocation=()",
+      },
     ];
 
     return [
       {
-        source: "/admin/scanner",
-        headers: [
-          ...securityHeaders,
-          {
-            key: "Permissions-Policy",
-            value: "camera=(self), microphone=(), geolocation=()",
-          },
-        ],
-      },
-      {
-        source: "/((?!admin/scanner).*)",
-        headers: [
-          ...securityHeaders,
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
+        source: "/:path*",
+        headers: securityHeaders,
       },
     ];
   },

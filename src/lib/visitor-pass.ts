@@ -33,6 +33,11 @@ export function getBadgeDownloadUrl(bookingNumber: string) {
   return `${base}/api/pass/${encodeURIComponent(bookingNumber)}/badge`;
 }
 
+export function getQrImageUrl(bookingNumber: string) {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  return `${base}/api/pass/${encodeURIComponent(bookingNumber)}/qr`;
+}
+
 /** Prefer General Pass / Visitor Pass, else first free ticket. */
 export function pickVisitorTicketType<T extends TicketTypeLike>(ticketTypes: T[]): T | undefined {
   if (ticketTypes.length === 0) return undefined;

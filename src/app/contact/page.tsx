@@ -97,7 +97,7 @@ export default function ContactPage() {
             <div className="mt-8 rounded-2xl border border-champagne/25 bg-espresso p-6 text-alabaster dark:border-champagne/30 dark:bg-card/90 dark:shadow-inner lg:mt-8">
               <p className="text-sm font-medium text-champagne-light dark:text-champagne">Based in Nairobi</p>
               <p className="mt-2 text-sm leading-relaxed text-alabaster/75 dark:text-muted-foreground">
-                AksharEvents connects organizers, exhibitors, and attendees across Kenya and Africa — from career fairs to conferences and expos.
+                AxarEvents connects organizers, exhibitors, and attendees across Kenya and Africa — from career fairs to conferences and expos.
               </p>
             </div>
           </div>

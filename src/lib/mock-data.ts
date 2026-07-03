@@ -334,7 +334,7 @@ export function getMockTestimonials() {
       name: "James Ochieng",
       role: "HR Director",
       company: "Safaricom",
-      content: "AksharEvents made our career fair seamless. Over 2,000 attendees registered online.",
+      content: "AxarEvents made our career fair seamless. Over 2,000 attendees registered online.",
       rating: 5,
       isActive: true,
     },

@@ -13,7 +13,7 @@ export async function generateQRCodeDataUrl(data: string): Promise<string> {
 
 export function getTicketQRPayload(bookingNumber: string, eventId: string) {
   return JSON.stringify({
-    type: "akshar-ticket",
+    type: "axar-ticket",
     booking: bookingNumber,
     event: eventId,
     v: 1,
@@ -26,7 +26,7 @@ export function getExhibitorBadgeQRPayload(
   eventId: string
 ) {
   return JSON.stringify({
-    type: "akshar-exhibitor",
+    type: "axar-exhibitor",
     member: memberLocalId,
     eventExhibitor: eventExhibitorId,
     event: eventId,

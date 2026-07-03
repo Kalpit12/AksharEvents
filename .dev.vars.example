@@ -5,9 +5,9 @@ DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?s
 DIRECT_URL="postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
 
 AUTH_SECRET="generate-with-openssl-rand-base64-32"
-AUTH_URL="https://aksharevents.pages.dev"
-NEXT_PUBLIC_APP_URL="https://aksharevents.pages.dev"
-NEXT_PUBLIC_APP_NAME="AksharEvents"
+AUTH_URL="https://axarevents.pages.dev"
+NEXT_PUBLIC_APP_URL="https://axarevents.pages.dev"
+NEXT_PUBLIC_APP_NAME="AxarEvents"
 FRONTEND_ONLY="false"
 
 STRIPE_SECRET_KEY=""
@@ -21,5 +21,5 @@ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=""
 
 POSTMARK_API_KEY=""
 POSTMARK_SENDER_EMAIL="info@aksharjobs.com"
-POSTMARK_SENDER_NAME="AksharEvents"
+POSTMARK_SENDER_NAME="AxarEvents"
 POSTMARK_MESSAGE_STREAM="outbound"

@@ -39,7 +39,7 @@ export default function RegisterForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Join AksharEvents — Discover. Book. Experience.</CardDescription>
+          <CardDescription>Join AxarEvents — Discover. Book. Experience.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-6">

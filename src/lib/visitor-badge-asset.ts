@@ -193,7 +193,10 @@ function mapPinIcon(x: number, y: number) {
 /**
  * Single-source SVG badge — mirrors `EventVisitorBadge` (register page live preview).
  */
-export function buildVisitorBadgeSvg(input: VisitorBadgeAssetInput) {
+export function buildVisitorBadgeSvg(
+  input: VisitorBadgeAssetInput,
+  options: { omitInlineQr?: boolean } = {}
+) {
   const layout = computeBadgeLayout(input);
   const passLabel = escapeXml((input.passLabel ?? "VISITOR").toUpperCase());
   const designation = input.attendeeDesignation?.trim();
@@ -208,6 +211,9 @@ export function buildVisitorBadgeSvg(input: VisitorBadgeAssetInput) {
   const H = layout.height;
   const qrBoxX = (W - QR_BOX) / 2;
   const qrImgSize = QR_BOX - QR_PAD * 2;
+  const qrImageTag = options.omitInlineQr
+    ? ""
+    : `<image x="${qrBoxX + QR_PAD}" y="${layout.qrBoxY + QR_PAD}" width="${qrImgSize}" height="${qrImgSize}" xlink:href="${qrHref}" preserveAspectRatio="xMidYMid meet"/>`;
 
   const dateY = layout.eventY + 44 + layout.titleLines.length * 17;
   const venueStartY = dateY + 18;
@@ -283,20 +289,53 @@ export function buildVisitorBadgeSvg(input: VisitorBadgeAssetInput) {
     <rect y="${layout.qrY}" width="${W}" height="${layout.qrSectionH}" fill="url(#qrBgGrad)"/>
     <line x1="0" y1="${layout.qrY}" x2="${W}" y2="${layout.qrY}" stroke="${C.border}" stroke-width="1" stroke-dasharray="5 5"/>
     <rect x="${qrBoxX}" y="${layout.qrBoxY}" width="${QR_BOX}" height="${QR_BOX}" rx="12" fill="${C.white}" stroke="${C.espresso}" stroke-width="1.5" stroke-opacity="0.1"/>
-    <image x="${qrBoxX + QR_PAD}" y="${layout.qrBoxY + QR_PAD}" width="${qrImgSize}" height="${qrImgSize}" xlink:href="${qrHref}" preserveAspectRatio="xMidYMid meet"/>
+    ${qrImageTag}
     <text x="${W / 2}" y="${scanY}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="500" fill="${C.mutedFg}">Scan at entrance for check-in</text>
     <text x="${W / 2}" y="${bookingY}" text-anchor="middle" font-family="Courier New, monospace" font-size="10" fill="${C.mutedFg}" fill-opacity="0.85">${bookingNumber}</text>
 
     <!-- Footer -->
     <rect y="${layout.footerY}" width="${W}" height="${FOOTER_H}" fill="${C.espresso}"/>
-    <text x="${W / 2}" y="${layout.footerY + 20}" text-anchor="middle" font-family="${FONT}" font-size="9" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.65" letter-spacing="0.08em">${footerText}</text>
+    <text x="${W / 2}" y="${layout.footerY + 20}" text-anchor="middle" font-family="${FONT}" font-size="8" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.85" letter-spacing="0.02em">${footerText}</text>
   </g>
 </svg>`;
 }
 
 export function dataUrlToBase64(dataUrl: string) {
-  const match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
-  return match?.[1] ?? "";
+  const match = dataUrl.match(/^data:[^;]+;base64,(.+)$/s);
+  return match?.[1]?.replace(/\s/g, "") ?? "";
+}
+
+async function qrDataUrlToPngBuffer(dataUrl: string, sizePx: number): Promise<Buffer> {
+  const base64 = dataUrlToBase64(dataUrl);
+  if (!base64) {
+    throw new Error("Invalid QR code data URL");
+  }
+  return sharp(Buffer.from(base64, "base64"))
+    .resize(sizePx, sizePx, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .png()
+    .toBuffer();
+}
+
+/** Rasterise badge and composite QR via sharp (reliable for PDF/email attachments). */
+export async function renderVisitorBadgePng(
+  input: VisitorBadgeAssetInput,
+  scale = 2
+): Promise<Buffer> {
+  const layout = computeBadgeLayout(input);
+  const svg = buildVisitorBadgeSvg(input, { omitInlineQr: true });
+  const basePng = await svgToPng(svg, layout.width, layout.height, scale);
+
+  const qrBoxX = (layout.width - QR_BOX) / 2;
+  const qrImgSize = QR_BOX - QR_PAD * 2;
+  const qrLeft = Math.round((qrBoxX + QR_PAD) * scale);
+  const qrTop = Math.round((layout.qrBoxY + QR_PAD) * scale);
+  const qrSizePx = Math.round(qrImgSize * scale);
+  const qrOverlay = await qrDataUrlToPngBuffer(input.qrDataUrl, qrSizePx);
+
+  return sharp(basePng)
+    .composite([{ input: qrOverlay, left: qrLeft, top: qrTop }])
+    .png()
+    .toBuffer();
 }
 
 export function svgToBase64(svg: string) {
@@ -318,8 +357,7 @@ export async function svgToPng(svg: string, width: number, height: number, scale
 /** PDF = embedded 2× PNG scaled to badge dimensions (matches live preview). */
 export async function buildVisitorBadgePdf(input: VisitorBadgeAssetInput) {
   const layout = computeBadgeLayout(input);
-  const svg = buildVisitorBadgeSvg(input);
-  const png = await svgToPng(svg, layout.width, layout.height, 2);
+  const png = await renderVisitorBadgePng(input, 2);
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([layout.width, layout.height]);

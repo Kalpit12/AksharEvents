@@ -48,7 +48,7 @@ export async function GET(_request: Request, { params }: RouteProps) {
     qrDataUrl,
   });
 
-  const filename = `aksharevents-badge-${booking.bookingNumber}.pdf`;
+  const filename = `axarevents-badge-${booking.bookingNumber}.pdf`;
 
   return new NextResponse(Buffer.from(pdfBytes), {
     headers: {

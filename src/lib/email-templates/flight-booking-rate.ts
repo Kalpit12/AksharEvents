@@ -21,7 +21,7 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AksharEvents: Flight rate quote ({{shortEventName}})</title>
+  <title>AxarEvents: Flight rate quote ({{shortEventName}})</title>
 </head>
 <body style="margin: 0; padding: 0; background: #f9f6f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #f9f6f0; padding: 32px 16px;">
@@ -77,10 +77,10 @@ const EMAIL_TEMPLATE = `<!DOCTYPE html>
           <tr>
             <td style="padding: 22px 32px 26px; border-top: 1px solid #e5dfd4; background: #efece6;">
               <p style="margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: #6b6560; text-align: center;">
-                Sent via AksharEvents
+                Sent via AxarEvents
               </p>
               <p style="margin: 0 0 8px; font-size: 12px; line-height: 1.6; color: #6b6560; text-align: center;">
-                For any queries, contact us at <a href="mailto:info@aksharevents.com" style="color: #b3966e; text-decoration: none; font-weight: 600;">info@aksharevents.com</a>
+                For any queries, contact us at <a href="mailto:info@axarevents.com" style="color: #b3966e; text-decoration: none; font-weight: 600;">info@axarevents.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #6b6560; text-align: center;">
                 © {{year}} {{brandName}}. All rights reserved.
