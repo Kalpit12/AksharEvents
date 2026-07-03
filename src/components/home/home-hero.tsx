@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Search, ArrowRight, ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { Search, ArrowRight, Play } from "lucide-react";
 
 export interface HeroSlide {
   id: string;
@@ -15,7 +15,7 @@ export interface HeroSlide {
   cta: string;
 }
 
-const SLIDE_DURATION_MS = 8000;
+const SLIDE_DURATION_MS = 5000;
 
 export function HomeHero({ slides }: { slides: HeroSlide[] }) {
   const [current, setCurrent] = useState(0);
@@ -40,7 +40,6 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
   );
 
   const goNext = useCallback(() => goTo(current + 1), [current, goTo]);
-  const goPrev = useCallback(() => goTo(current - 1), [current, goTo]);
 
   useEffect(() => {
     if (slideCount <= 1 || paused) return;
@@ -129,28 +128,6 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
         <div className="absolute inset-0 bg-gradient-to-t from-espresso via-espresso/40 to-espresso/10" />
         <div className="absolute inset-0 bg-gradient-to-r from-espresso/90 via-espresso/45 to-transparent" />
       </div>
-
-      {/* Side navigation */}
-      {slideCount > 1 ? (
-        <>
-          <button
-            type="button"
-            onClick={goPrev}
-            className="absolute left-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white opacity-70 backdrop-blur-sm transition-all hover:bg-black/60 hover:opacity-100 group-hover/hero:opacity-100 sm:left-6 sm:h-11 sm:w-11"
-            aria-label="Previous slide"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white opacity-70 backdrop-blur-sm transition-all hover:bg-black/60 hover:opacity-100 group-hover/hero:opacity-100 sm:right-6 sm:h-11 sm:w-11"
-            aria-label="Next slide"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-        </>
-      ) : null}
 
       {/* Content — bottom-left like Netflix */}
       <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col justify-end px-4 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">

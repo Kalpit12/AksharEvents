@@ -46,8 +46,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} h-full`}>
-      <body className="min-h-full flex flex-col overflow-x-hidden font-sans antialiased bg-background text-foreground">
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} min-h-dvh`}>
+      <body className="flex min-h-dvh flex-col overflow-x-clip font-sans antialiased bg-background text-foreground">
         <Providers>
           <LayoutShell>{children}</LayoutShell>
         </Providers>

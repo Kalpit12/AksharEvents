@@ -51,10 +51,10 @@ export function LayoutShellClient({
   }
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       {header}
-      <main className="flex-1 overflow-x-hidden">{children}</main>
-      {footer}
-    </>
+      <main className="min-h-0 flex-1 overflow-x-clip">{children}</main>
+      <div className="shrink-0">{footer}</div>
+    </div>
   );
 }

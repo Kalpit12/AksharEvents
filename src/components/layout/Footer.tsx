@@ -103,7 +103,7 @@ function FooterAccordion({
         {title}
         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
-      <div className="pb-3 pl-1">{children}</div>
+      <div className="overflow-visible pb-4 pl-1">{children}</div>
     </details>
   );
 }
@@ -155,7 +155,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
 
   if (mobile) {
     return (
-      <div className="space-y-2 pb-1">
+      <div className="space-y-2 pb-2">
         <a
           href="mailto:info@aksharevents.com"
           className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-foreground transition-colors active:bg-muted"
@@ -224,21 +224,25 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
 
 export default function Footer() {
   return (
-    <footer className="border-t border-border bg-muted">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <footer className="relative z-10 shrink-0 border-t border-border bg-muted">
+      <div className="mx-auto max-w-7xl px-4 py-8 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-12 lg:px-8">
         {/* Mobile layout */}
         <div className="md:hidden">
           <BrandBlock centered />
 
-          <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card/50">
+          <div className="mt-8 rounded-2xl border border-border bg-card/50 px-1">
             {Object.entries(footerLinks).map(([title, links]) => (
               <FooterAccordion key={title} title={title}>
                 <FooterLinkList links={links} mobile />
               </FooterAccordion>
             ))}
-            <FooterAccordion title="Contact" defaultOpen>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-foreground">Contact</h3>
+            <div className="mt-3">
               <ContactBlock mobile />
-            </FooterAccordion>
+            </div>
           </div>
         </div>
 
@@ -261,9 +265,9 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-8 border-t border-border pt-6 sm:mt-10">
+        <div className="mt-8 border-t border-border pt-6 max-md:pb-6 sm:mt-10">
           <p className="text-center text-xs text-muted-foreground sm:text-sm">
-            © {new Date().getFullYear()} {BRAND.name}. All rights reserved.
+            © {new Date().getFullYear()} Maxpro Infotech Ltd. All rights reserved.
           </p>
         </div>
       </div>
