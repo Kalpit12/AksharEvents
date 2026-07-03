@@ -6,14 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { BookingForm } from "@/components/booking/booking-form";
+import { Card, CardContent } from "@/components/ui/Card";
+import { pickVisitorTicketType } from "@/lib/visitor-pass";
 import { EventCard } from "@/components/events/event-card";
 import { CountdownTimer } from "@/components/events/countdown-timer";
-import { formatDate, formatCurrency, BRAND } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { auth } from "@/lib/auth";
 import {
   Calendar, MapPin, Users, Clock, Share2, BadgeCheck,
-  Mic, Building2, HelpCircle, Star,
+  Mic, Building2, HelpCircle, Star, IdCard,
 } from "lucide-react";
 import type { Metadata } from "next";
 import {
@@ -105,6 +106,8 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
     maxPerOrder: t.maxPerOrder,
     minPerOrder: t.minPerOrder,
   }));
+
+  const visitorTicket = pickVisitorTicketType(ticketTypes);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -317,15 +320,24 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
             </section>
           </div>
 
-          {/* Booking Sidebar — shown first on mobile for easier ticket access */}
-          <div className="order-1 lg:order-2">
-            <BookingForm
-              eventId={event.id}
-              eventSlug={event.slug}
-              ticketTypes={ticketTypes}
-              defaultName={session?.user?.name || ""}
-              defaultEmail={session?.user?.email || ""}
-            />
+          {/* Registration sidebar */}
+          <div className="order-1 space-y-4 lg:order-2">
+            {visitorTicket && (
+              <Card className="lg:sticky lg:top-24 border-champagne/30 bg-gradient-to-br from-card to-muted/30">
+                <CardContent className="p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <IdCard className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Register to visit</h3>
+                  </div>
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    Get your free personalised badge with name, designation, and QR code for expo check-in.
+                  </p>
+                  <Button asChild className="w-full" size="lg">
+                    <Link href={`/events/${event.slug}/register`}>Get my visitor badge</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 

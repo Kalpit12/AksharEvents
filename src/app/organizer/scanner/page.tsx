@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function OrganizerScannerRedirect() {
-  redirect("/admin");
+  redirect("/admin/scanner");
 }

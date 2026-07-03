@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CookieConsent } from "@/components/layout/cookie-consent";
 import { Toaster } from "sonner";
 import { useState } from "react";
 
@@ -19,6 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
         {children}
+        <CookieConsent />
         <Toaster
           position="top-right"
           closeButton

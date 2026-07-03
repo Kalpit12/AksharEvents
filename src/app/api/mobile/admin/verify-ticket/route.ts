@@ -38,12 +38,18 @@ export async function POST(request: Request) {
     });
   }
 
-  const attendance = await prisma.attendance.create({
-    data: {
-      bookingId: booking.id,
-      checkedInBy: user.id,
-      deviceInfo: "QR_SCAN",
-    },
+  const attendance = await prisma.$transaction(async (tx) => {
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: { checkedIn: true, checkedInAt: new Date() },
+    });
+    return tx.attendance.create({
+      data: {
+        bookingId: booking.id,
+        checkedInBy: user.id,
+        deviceInfo: "QR_SCAN",
+      },
+    });
   });
 
   return jsonOk({

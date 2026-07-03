@@ -16,6 +16,7 @@ import {
   toSelectOptionsWithAll,
 } from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
+import VisitorCheckInsPanel from "@/components/event-master/visitor-check-ins-panel";
 import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
 import ItineraryPanel from "@/components/event-master/itinerary-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
@@ -27,6 +28,7 @@ import type {
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
 import type { FloorPlanBoothRecord, EventFloorPlanConfig } from "@/lib/floor-plan-types";
+import type { VisitorCheckInStats } from "@/lib/visitor-check-ins";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import {
   EventHotelsManager,
@@ -104,6 +106,7 @@ type Props = {
   tourTravelItineraries?: SerializedTourTravelItinerary[];
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
+  visitorCheckIns?: VisitorCheckInStats;
 };
 
 const EVENT_MASTER_TAB_IDS = [
@@ -118,6 +121,7 @@ const EVENT_MASTER_TAB_IDS = [
   "schedule",
   "itinerary",
   "floorplan",
+  "checkins",
 ] as const satisfies readonly EventMasterTab[];
 
 const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -132,6 +136,7 @@ const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ cla
   { id: "food", label: "Food", icon: ForkKnife },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "itinerary", label: "Itinerary", icon: Route },
+  { id: "checkins", label: "Visitor check-ins", icon: IdCard },
 ];
 
 function initialsFromName(fn: string, ln: string) {
@@ -155,6 +160,7 @@ export default function EventMasterDashboard({
   tourTravelItineraries = [],
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
+  visitorCheckIns,
 }: Props) {
   const [tab, setTab] = useUrlEnumState("tab", EVENT_MASTER_TAB_IDS, "exhibitors");
   const [roleFilter, setRoleFilter] = useUrlStringState("role", "");
@@ -550,6 +556,20 @@ export default function EventMasterDashboard({
           scheduleItems={scheduleItems}
           exhibitors={exhibitors}
           activities={activities}
+        />
+      )}
+
+      {tab === "checkins" && (
+        <VisitorCheckInsPanel
+          eventId={eventId}
+          stats={
+            visitorCheckIns ?? {
+              totalRegistrations: 0,
+              checkedIn: 0,
+              pending: 0,
+              records: [],
+            }
+          }
         />
       )}
       </div>

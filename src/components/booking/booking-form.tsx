@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { bookingSchema, type BookingInput } from "@/lib/validations";
 import { createBooking } from "@/lib/actions";
+import { isVisitorRegistrationMode } from "@/lib/visitor-pass";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
-import { Minus, Plus, Ticket } from "lucide-react";
+import { Minus, Plus, Ticket, IdCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface BookingFormProps {
@@ -49,6 +48,7 @@ export function BookingForm({
       attendeeName: defaultName,
       attendeeEmail: defaultEmail,
       attendeePhone: "",
+      attendeeDesignation: "",
     },
   });
 
@@ -69,9 +69,21 @@ export function BookingForm({
     return sum + (ticket ? ticket.price * item.quantity : 0);
   }, 0);
 
-  const onSubmit = async (data: { attendeeName: string; attendeeEmail: string; attendeePhone?: string }) => {
+  const visitorMode = isVisitorRegistrationMode(ticketTypes);
+
+  const onSubmit = async (data: {
+    attendeeName: string;
+    attendeeEmail: string;
+    attendeePhone?: string;
+    attendeeDesignation?: string;
+  }) => {
     if (items.length === 0) {
-      toast.error("Please select at least one ticket");
+      toast.error(visitorMode ? "Please select a visitor pass" : "Please select at least one ticket");
+      return;
+    }
+
+    if (visitorMode && !data.attendeeDesignation?.trim()) {
+      toast.error("Please enter your designation (job title)");
       return;
     }
 
@@ -92,7 +104,7 @@ export function BookingForm({
     if (result.checkoutUrl) {
       window.location.href = result.checkoutUrl;
     } else {
-      toast.success("Booking confirmed!");
+      toast.success(visitorMode ? "You're registered! Your pass is ready." : "Booking confirmed!");
       router.push(`/booking/success?booking=${result.bookingNumber}`);
     }
   };
@@ -101,9 +113,18 @@ export function BookingForm({
     <Card className="lg:sticky lg:top-24">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Ticket className="h-5 w-5 text-primary" />
-          Book Tickets
+          {visitorMode ? (
+            <IdCard className="h-5 w-5 text-primary" />
+          ) : (
+            <Ticket className="h-5 w-5 text-primary" />
+          )}
+          {visitorMode ? "Register to Visit" : "Book Tickets"}
         </CardTitle>
+        {visitorMode && (
+          <p className="text-sm text-muted-foreground">
+            Get your personalised visitor badge with name, designation, and QR code for check-in.
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -172,6 +193,20 @@ export function BookingForm({
               {errors.attendeeName && <p className="text-xs text-red-500 mt-1">Name is required</p>}
             </div>
             <div>
+              <Label htmlFor="designation">
+                Designation {visitorMode ? "" : "(optional)"}
+              </Label>
+              <Input
+                id="designation"
+                {...register("attendeeDesignation", { required: visitorMode })}
+                placeholder="e.g. Marketing Manager, CEO, Student"
+                className="mt-1"
+              />
+              {errors.attendeeDesignation && (
+                <p className="text-xs text-red-500 mt-1">Designation is required</p>
+              )}
+            </div>
+            <div>
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register("attendeeEmail", { required: true })} className="mt-1" />
               {errors.attendeeEmail && <p className="text-xs text-red-500 mt-1">Email is required</p>}
@@ -190,7 +225,15 @@ export function BookingForm({
           </div>
 
           <Button type="submit" className="w-full" size="lg" disabled={loading || items.length === 0}>
-            {loading ? "Processing..." : total === 0 ? "Confirm Booking" : "Proceed to Payment"}
+            {loading
+              ? "Processing..."
+              : visitorMode
+                ? total === 0
+                  ? "Get My Visitor Badge"
+                  : "Proceed to Payment"
+                : total === 0
+                  ? "Confirm Booking"
+                  : "Proceed to Payment"}
           </Button>
         </form>
       </CardContent>

@@ -8,6 +8,16 @@ import {
   flightBookingRateEmailSubject,
 } from "@/lib/email-templates/flight-booking-rate";
 import { BRAND } from "./utils";
+import {
+  visitorRegistrationEmailHtml,
+  visitorRegistrationEmailSubject,
+} from "@/lib/email-templates/visitor-registration-confirmation";
+import {
+  buildVisitorBadgePdf,
+  dataUrlToBase64,
+  pdfToBase64,
+} from "@/lib/visitor-badge-asset";
+import { getBadgeDownloadUrl } from "@/lib/visitor-pass";
 
 function getPostmarkClient() {
   const apiKey = process.env.POSTMARK_API_KEY;
@@ -92,39 +102,88 @@ export async function sendWelcomeEmail(to: string, name: string) {
 export async function sendTicketConfirmation({
   to,
   name,
+  designation,
+  company,
   eventTitle,
+  eventSlug,
+  startDate,
+  endDate,
+  startTime,
+  endTime,
+  venueName,
+  venueCity,
   bookingNumber,
   qrCodeUrl,
   totalAmount,
   currency,
+  passLabel = "VISITOR",
 }: {
   to: string;
   name: string;
+  designation?: string | null;
+  company?: string | null;
   eventTitle: string;
+  eventSlug: string;
+  startDate: Date | string;
+  endDate?: Date | string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  venueName?: string | null;
+  venueCity?: string | null;
   bookingNumber: string;
   qrCodeUrl: string;
   totalAmount: string;
   currency: string;
+  passLabel?: string;
 }) {
+  const badgeDownloadUrl = getBadgeDownloadUrl(bookingNumber);
+  const badgePdf = await buildVisitorBadgePdf({
+    attendeeName: name,
+    attendeeDesignation: designation,
+    eventTitle,
+    startDate,
+    endDate,
+    venueName,
+    venueCity,
+    bookingNumber,
+    passLabel,
+    qrDataUrl: qrCodeUrl,
+  });
+
+  const qrBase64 = dataUrlToBase64(qrCodeUrl);
+  const attachments = [
+    ...(qrBase64
+      ? [{ name: `qr-${bookingNumber}.png`, content: qrBase64, contentType: "image/png" }]
+      : []),
+    {
+      name: `aksharevents-badge-${bookingNumber}.pdf`,
+      content: pdfToBase64(badgePdf),
+      contentType: "application/pdf",
+    },
+  ];
+
   return sendEmail({
     to,
-    subject: `Ticket Confirmed — ${eventTitle}`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #0D9488;">Your Ticket is Confirmed!</h1>
-        <p>Hi ${name},</p>
-        <p>Your booking for <strong>${eventTitle}</strong> has been confirmed.</p>
-        <div style="background: #f3f4f6; padding: 20px; border-radius: 12px; margin: 20px 0;">
-          <p><strong>Booking #:</strong> ${bookingNumber}</p>
-          <p><strong>Total:</strong> ${currency} ${totalAmount}</p>
-        </div>
-        <div style="text-align: center; margin: 24px 0;">
-          <img src="${qrCodeUrl}" alt="QR Code" width="200" height="200" />
-          <p style="color: #6b7280; font-size: 14px;">Show this QR code at the event entrance</p>
-        </div>
-        <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/bookings" style="display: inline-block; background: #0D9488; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none;">View My Bookings</a>
-      </div>
-    `,
+    subject: visitorRegistrationEmailSubject(eventTitle),
+    tag: "visitor-registration",
+    attachments,
+    html: visitorRegistrationEmailHtml({
+      name,
+      designation,
+      company,
+      eventTitle,
+      eventSlug,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      venueName,
+      venueCity,
+      bookingNumber,
+      qrCodeUrl,
+      passLabel,
+      badgeDownloadUrl,
+    }),
   });
 }
 

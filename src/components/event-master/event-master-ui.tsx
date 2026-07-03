@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { Calendar, CalendarDays, Plus, Settings2, Sparkles, Store, Users } from "lucide-react";
+import { Calendar, CalendarDays, Plus, ScanLine, Settings2, Sparkles, Store, Users } from "lucide-react";
 
 export function EventMasterHero({
   eventTitle,
@@ -70,6 +70,14 @@ export function EventMasterHero({
               Manage events
             </Link>
           </Button>
+          {eventId && (
+            <Button asChild variant="outline" className="border-alabaster/30 bg-transparent text-alabaster hover:bg-alabaster/10 hover:text-alabaster">
+              <Link href={`/admin/scanner?eventId=${eventId}`}>
+                <ScanLine className="h-4 w-4" />
+                Scan passes
+              </Link>
+            </Button>
+          )}
           {eventId && (
             <Button asChild variant="outline" className="border-alabaster/30 bg-transparent text-alabaster hover:bg-alabaster/10 hover:text-alabaster">
               <Link href={`/admin/events/${eventId}/activities`}>

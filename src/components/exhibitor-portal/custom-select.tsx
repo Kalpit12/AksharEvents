@@ -49,10 +49,11 @@ export function CustomSelect({
   }));
   const radixValue = normalizeSelectValue(value);
   const selected = normalizedOptions.find((o) => o.value === radixValue);
+  const hasSelection = value !== "" && Boolean(selected);
 
   return (
     <SelectPrimitive.Root
-      value={radixValue}
+      value={hasSelection ? radixValue : undefined}
       onValueChange={(next) => onChange(denormalizeSelectValue(next))}
     >
       <SelectPrimitive.Trigger
@@ -80,11 +81,15 @@ export function CustomSelect({
       <SelectPrimitive.Portal>
         <SelectPrimitive.Content
           className={cn(
-            "relative z-[9999] max-h-[min(24rem,70vh)] w-[var(--radix-select-trigger-width)] max-w-[min(100vw-2rem,36rem)] overflow-hidden rounded-xl border border-border",
+            "z-[9999] max-h-[min(24rem,70vh)] w-[var(--radix-select-trigger-width)] max-w-[min(100vw-2rem,36rem)] overflow-hidden rounded-xl border border-border",
             "bg-card text-foreground shadow-xl"
           )}
           position="popper"
+          side="bottom"
+          align="start"
           sideOffset={4}
+          collisionPadding={12}
+          avoidCollisions
         >
           <SelectPrimitive.Viewport className="max-h-[min(24rem,70vh)] overflow-y-auto bg-card p-1">
             {normalizedOptions.map((option) => (

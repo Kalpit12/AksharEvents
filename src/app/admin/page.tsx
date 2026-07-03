@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
+import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
@@ -47,7 +48,10 @@ export default async function AdminEventMasterPage({
   }
 
   const location = event.venue?.city ?? "Kenya";
-  const data = await loadAdminEventMasterPageDataWithRetry(event.id);
+  const [data, visitorCheckIns] = await Promise.all([
+    loadAdminEventMasterPageDataWithRetry(event.id),
+    loadVisitorCheckInStatsWithRetry(event.id),
+  ]);
 
   return (
     <div
@@ -80,6 +84,7 @@ export default async function AdminEventMasterPage({
           flightBookingCcEmail={
             process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
           }
+          visitorCheckIns={visitorCheckIns}
         />
       </Suspense>
     </div>

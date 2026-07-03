@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loginExhibitor, registerExhibitor } from "@/lib/actions";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +32,7 @@ export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhi
   const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,6 +51,12 @@ export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhi
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (!acceptedTerms) {
+      toast.error("Please agree to the Terms and Conditions and Privacy Policy.");
+      return;
+    }
+
     setLoading(true);
     const result = await registerExhibitor(new FormData(e.currentTarget));
     setLoading(false);
@@ -275,7 +283,34 @@ export default function ExhibitorAuthForm({ openEvents }: { openEvents: OpenExhi
                 </div>
               </fieldset>
 
-              <Button type="submit" className="min-h-11 w-full text-base sm:text-sm" disabled={loading || openEvents.length === 0}>
+              <div className="flex items-start gap-3">
+                <input
+                  id="acceptTerms"
+                  name="acceptTerms"
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  required
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                />
+                <Label htmlFor="acceptTerms" className="text-sm font-normal leading-relaxed text-muted-foreground">
+                  I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-medium text-primary hover:underline">
+                    Terms and Conditions
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/privacy" target="_blank" className="font-medium text-primary hover:underline">
+                    Privacy Policy
+                  </Link>
+                  .
+                </Label>
+              </div>
+
+              <Button
+                type="submit"
+                className="min-h-11 w-full text-base sm:text-sm"
+                disabled={loading || openEvents.length === 0 || !acceptedTerms}
+              >
                 {loading ? "Creating account..." : (
                   <>
                     <span className="sm:hidden">Create Account</span>

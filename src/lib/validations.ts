@@ -75,7 +75,21 @@ export const bookingSchema = z.object({
   attendeeName: z.string().min(2),
   attendeeEmail: z.string().email(),
   attendeePhone: z.string().optional(),
+  attendeeDesignation: z.string().min(2, "Designation is required").optional(),
+  attendeeCompany: z.string().min(2, "Company is required").optional(),
+  attendeeSector: z.string().min(1, "Sector is required").optional(),
   couponCode: z.string().optional(),
+});
+
+export const visitorRegistrationSchema = z.object({
+  eventId: z.string(),
+  ticketTypeId: z.string(),
+  attendeeName: z.string().min(2, "Full name is required"),
+  attendeeEmail: z.string().email("Invalid email address"),
+  attendeePhone: z.string().min(8, "Enter a valid phone number"),
+  attendeeCompany: z.string().min(2, "Company name is required"),
+  attendeeDesignation: z.string().min(2, "Designation is required"),
+  attendeeSector: z.string().min(1, "Select your sector"),
 });
 
 export const reviewSchema = z.object({

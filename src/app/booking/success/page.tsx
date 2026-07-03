@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { CheckCircle } from "lucide-react";
+import { getPassBadgeLabel } from "@/lib/pass-badge";
+import { RegistrationConfirmedPanel } from "@/components/registration/registration-confirmed-panel";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Booking Confirmed",
+  title: "Registration Confirmed",
 };
 
 interface BookingSuccessProps {
@@ -20,43 +18,60 @@ export default async function BookingSuccessPage({ searchParams }: BookingSucces
   const booking = bookingNumber
     ? await prisma.booking.findUnique({
         where: { bookingNumber },
-        include: { event: { select: { title: true, slug: true, startDate: true } } },
+        include: {
+          event: {
+            select: {
+              title: true,
+              slug: true,
+              startDate: true,
+              endDate: true,
+              startTime: true,
+              endTime: true,
+              venue: { select: { name: true, city: true } },
+            },
+          },
+          items: { include: { ticketType: true } },
+        },
       })
     : null;
 
-  const qrDataUrl = booking
-    ? await generateQRCodeDataUrl(getTicketQRPayload(booking.bookingNumber, booking.eventId))
-    : null;
+  const qrDataUrl =
+    booking && booking.status === "CONFIRMED"
+      ? await generateQRCodeDataUrl(getTicketQRPayload(booking.bookingNumber, booking.eventId))
+      : null;
+
+  const primaryTicket = booking?.items[0]?.ticketType;
+  const passLabel = primaryTicket
+    ? getPassBadgeLabel(primaryTicket.name, primaryTicket.tier)
+    : "VISITOR";
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-12 text-center sm:py-16">
-      <CheckCircle className="mx-auto mb-4 h-14 w-14 text-green-600 sm:h-16 sm:w-16" />
-      <h1 className="mb-2 text-2xl font-bold sm:text-3xl">Booking Confirmed!</h1>
-
-      {booking ? (
-        <>
-          <p className="text-muted-foreground mb-6">
-            Your tickets for <strong>{booking.event.title}</strong> are confirmed.
-          </p>
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Booking Number</p>
-              <p className="text-xl font-bold font-mono">{booking.bookingNumber}</p>
-              {qrDataUrl && (
-                <div className="mt-4">
-                  <img src={qrDataUrl} alt="QR Ticket" className="mx-auto w-48 h-48 rounded-xl" />
-                  <p className="text-xs text-muted-foreground mt-2">Show this QR code at the event entrance</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild><Link href="/events">Browse More Events</Link></Button>
-            <Button variant="outline" asChild><Link href={`/events/${booking.event.slug}`}>Event Details</Link></Button>
-          </div>
-        </>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
+      {booking && qrDataUrl ? (
+        <RegistrationConfirmedPanel
+          attendeeName={booking.attendeeName}
+          attendeeEmail={booking.attendeeEmail}
+          attendeeDesignation={booking.attendeeDesignation}
+          bookingNumber={booking.bookingNumber}
+          qrDataUrl={qrDataUrl}
+          passLabel={passLabel}
+          event={{
+            title: booking.event.title,
+            slug: booking.event.slug,
+            startDate: booking.event.startDate,
+            endDate: booking.event.endDate,
+            startTime: booking.event.startTime,
+            endTime: booking.event.endTime,
+            venueName: booking.event.venue?.name,
+            venueCity: booking.event.venue?.city,
+          }}
+        />
       ) : (
-        <p className="text-muted-foreground">Thank you for your booking. Check your email for confirmation.</p>
+        <div className="text-center">
+          <p className="text-muted-foreground">
+            Thank you for your booking. Check your email for confirmation.
+          </p>
+        </div>
       )}
     </div>
   );

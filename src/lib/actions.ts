@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
 import { registerSchema, loginSchema, bookingSchema, reviewSchema, bookingInquirySchema, exhibitorRegisterSchema } from "@/lib/validations";
 import { generateBookingNumber, slugify } from "@/lib/utils";
+import { getPassBadgeLabel } from "@/lib/pass-badge";
 import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
 import { sendTicketConfirmation, sendWelcomeEmail, sendBookingInquiryEmail } from "@/lib/email";
 import { createCheckoutSession, isStripeEnabled } from "@/lib/stripe";
@@ -75,6 +76,10 @@ async function uniqueExhibitorSlug(base: string) {
 
 export async function registerExhibitor(formData: FormData) {
   try {
+  if (formData.get("acceptTerms") !== "on") {
+    return { error: "You must agree to the Terms and Conditions and Privacy Policy." };
+  }
+
   const raw = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -304,6 +309,9 @@ export async function createBooking(data: {
   attendeeName: string;
   attendeeEmail: string;
   attendeePhone?: string;
+  attendeeDesignation?: string;
+  attendeeCompany?: string;
+  attendeeSector?: string;
   couponCode?: string;
 }) {
   const parsed = bookingSchema.safeParse(data);
@@ -312,7 +320,10 @@ export async function createBooking(data: {
   const user = await getCurrentUser();
   const event = await prisma.event.findUnique({
     where: { id: data.eventId, status: "PUBLISHED" },
-    include: { ticketTypes: { where: { isActive: true } } },
+    include: {
+      ticketTypes: { where: { isActive: true } },
+      venue: { select: { name: true, city: true } },
+    },
   });
 
   if (!event) return { error: "Event not found" };
@@ -376,6 +387,9 @@ export async function createBooking(data: {
       attendeeName: data.attendeeName,
       attendeeEmail: data.attendeeEmail,
       attendeePhone: data.attendeePhone,
+      attendeeDesignation: data.attendeeDesignation?.trim() || null,
+      attendeeCompany: data.attendeeCompany?.trim() || null,
+      attendeeSector: data.attendeeSector?.trim() || null,
       qrCode,
       userId: user?.id,
       eventId: event.id,
@@ -408,14 +422,25 @@ export async function createBooking(data: {
 
   if (totalAmount === 0) {
     const qrDataUrl = await generateQRCodeDataUrl(qrPayload);
+    const primaryTicket = booking.items[0]?.ticketType;
     await sendTicketConfirmation({
       to: data.attendeeEmail,
       name: data.attendeeName,
+      designation: data.attendeeDesignation,
+      company: data.attendeeCompany,
       eventTitle: event.title,
+      eventSlug: event.slug,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      venueName: event.venue?.name,
+      venueCity: event.venue?.city,
       bookingNumber,
       qrCodeUrl: qrDataUrl,
       totalAmount: "0",
       currency: "KES",
+      passLabel: getPassBadgeLabel(primaryTicket?.name, primaryTicket?.tier),
     });
 
     if (user) {
@@ -425,7 +450,7 @@ export async function createBooking(data: {
           type: "BOOKING_CONFIRMED",
           title: "Booking Confirmed",
           message: `Your tickets for ${event.title} are confirmed.`,
-          link: `/dashboard/bookings`,
+          link: `/pass/${bookingNumber}`,
         },
       });
     }
@@ -476,14 +501,25 @@ export async function createBooking(data: {
   });
 
   const qrDataUrl = await generateQRCodeDataUrl(qrPayload);
+  const primaryTicket = booking.items[0]?.ticketType;
   await sendTicketConfirmation({
     to: data.attendeeEmail,
     name: data.attendeeName,
+    designation: data.attendeeDesignation,
+    company: data.attendeeCompany,
     eventTitle: event.title,
+    eventSlug: event.slug,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    venueName: event.venue?.name,
+    venueCity: event.venue?.city,
     bookingNumber,
     qrCodeUrl: qrDataUrl,
     totalAmount: totalAmount.toString(),
     currency: "KES",
+    passLabel: getPassBadgeLabel(primaryTicket?.name, primaryTicket?.tier),
   });
 
   return { success: true, bookingId: booking.id, bookingNumber };
@@ -542,17 +578,23 @@ export async function verifyTicket(qrData: string, eventId: string) {
     return { error: "Unauthorized" };
   }
 
-  let payload: { booking?: string; event?: string };
+  let bookingNumber: string | undefined;
+  const trimmed = qrData.trim();
+
   try {
-    payload = JSON.parse(qrData);
+    const payload = JSON.parse(trimmed) as { booking?: string; event?: string };
+    if (payload.event && payload.event !== eventId) {
+      return { error: "Ticket is for a different event" };
+    }
+    bookingNumber = payload.booking;
   } catch {
-    return { error: "Invalid QR code" };
+    bookingNumber = trimmed;
   }
 
-  if (payload.event !== eventId) return { error: "Ticket is for a different event" };
+  if (!bookingNumber) return { error: "Invalid QR code" };
 
   const booking = await prisma.booking.findFirst({
-    where: { bookingNumber: payload.booking, eventId, status: "CONFIRMED" },
+    where: { bookingNumber, eventId, status: "CONFIRMED" },
     include: {
       items: { include: { ticketType: true } },
       attendance: true,
@@ -569,6 +611,7 @@ export async function verifyTicket(qrData: string, eventId: string) {
         number: booking.bookingNumber,
         name: booking.attendeeName,
         email: booking.attendeeEmail,
+        designation: booking.attendeeDesignation,
         checkedInAt: booking.checkedInAt || booking.attendance?.checkedInAt,
       },
     };
@@ -598,6 +641,7 @@ export async function verifyTicket(qrData: string, eventId: string) {
       number: booking.bookingNumber,
       name: booking.attendeeName,
       email: booking.attendeeEmail,
+      designation: booking.attendeeDesignation,
       tickets: booking.items.map((i) => `${i.quantity}x ${i.ticketType.name}`),
     },
   };

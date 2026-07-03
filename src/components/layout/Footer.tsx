@@ -57,7 +57,7 @@ const footerLinks = {
   ],
   Legal: [
     { href: "/privacy", label: "Privacy Policy" },
-    { href: "/terms", label: "Terms of Service" },
+    { href: "/terms", label: "Terms and Conditions" },
   ],
 } as const;
 
@@ -157,13 +157,13 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
     return (
       <div className="space-y-2 pb-1">
         <a
-          href="mailto:helpdesk@maxproinfotech.com"
+          href="mailto:info@aksharevents.com"
           className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-foreground transition-colors active:bg-muted"
         >
           <ContactIcon>
             <Mail className="h-4 w-4" />
           </ContactIcon>
-          <span className={nowrapText}>helpdesk@maxproinfotech.com</span>
+          <span className={nowrapText}>info@aksharevents.com</span>
         </a>
         <a
           href="tel:+254786658200"
@@ -191,13 +191,13 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
   return (
     <div className="mt-3 space-y-3 text-sm text-muted-foreground">
       <a
-        href="mailto:helpdesk@maxproinfotech.com"
+        href="mailto:info@aksharevents.com"
         className="flex items-center gap-2.5 transition-colors hover:text-primary"
       >
         <ContactIcon>
           <Mail className="h-4 w-4" />
         </ContactIcon>
-        <span className={nowrapText}>helpdesk@maxproinfotech.com</span>
+        <span className={nowrapText}>info@aksharevents.com</span>
       </a>
       <a
         href="tel:+254786658200"

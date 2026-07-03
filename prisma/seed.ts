@@ -442,7 +442,7 @@ async function main() {
     // Ticket types
     await prisma.ticketType.createMany({
       data: [
-        { eventId: event.id, name: "General Admission", tier: "FREE", price: 0, quantity: 500, description: "Free entry to the event" },
+        { eventId: event.id, name: "General Pass", tier: "FREE", price: 0, quantity: 10000, description: "Free expo entry — register to visit and get your QR pass" },
         { eventId: event.id, name: "Standard Pass", tier: "PAID", price: 1500, quantity: 1000, description: "Full event access" },
         { eventId: event.id, name: "VIP Pass", tier: "VIP", price: 5000, quantity: 100, description: "VIP lounge, priority seating, networking dinner" },
         { eventId: event.id, name: "Group Pass (5)", tier: "GROUP", price: 6000, quantity: 50, maxPerOrder: 5, description: "Group of 5 at discounted rate" },

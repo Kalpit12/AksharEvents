@@ -416,6 +416,9 @@ model Booking {
   attendeeName    String
   attendeeEmail   String
   attendeePhone   String?
+  attendeeDesignation String?
+  attendeeCompany String?
+  attendeeSector  String?
 
   userId          String?
   user            User?         @relation(fields: [userId], references: [id])
