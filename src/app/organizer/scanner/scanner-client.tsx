@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { verifyTicket } from "@/lib/actions";
+import { verifyTicket, type TicketVerifyResult } from "@/lib/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -14,18 +14,7 @@ export default function ScannerClient() {
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId") || "";
   const [manualCode, setManualCode] = useState("");
-  const [result, setResult] = useState<{
-    success?: boolean;
-    alreadyCheckedIn?: boolean;
-    error?: string;
-    booking?: {
-      number: string;
-      name: string;
-      email: string;
-      tickets?: string[];
-      checkedInAt?: Date | null;
-    };
-  } | null>(null);
+  const [result, setResult] = useState<TicketVerifyResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleVerify = async (qrData: string) => {
@@ -39,8 +28,9 @@ export default function ScannerClient() {
     setLoading(false);
     setResult(res);
 
-    if (res.error) toast.error(res.error);
-    else if (res.alreadyCheckedIn) toast.warning("Already checked in");
+    if ("error" in res) toast.error(res.error);
+    else if ("alreadyCheckedIn" in res && res.alreadyCheckedIn) toast.warning("Already checked in");
+    else if ("exhibitor" in res && res.exhibitor) toast.success("Exhibitor badge verified");
     else toast.success("Check-in successful!");
   };
 
@@ -81,9 +71,9 @@ export default function ScannerClient() {
       </Card>
 
       {result && (
-        <Card className={`mt-6 ${result.error ? "border-red-200" : "border-green-200"}`}>
+        <Card className={`mt-6 ${result && "error" in result ? "border-red-200" : "border-green-200"}`}>
           <CardContent className="p-6">
-            {result.error ? (
+            {"error" in result ? (
               <div className="flex items-center gap-3 text-red-600">
                 <XCircle className="h-8 w-8" />
                 <div>
@@ -91,11 +81,26 @@ export default function ScannerClient() {
                   <p className="text-sm">{result.error}</p>
                 </div>
               </div>
-            ) : result.booking && (
+            ) : "booking" in result && result.booking ? (
               <div className="flex items-start gap-3">
-                <CheckCircle className={`h-8 w-8 ${result.alreadyCheckedIn ? "text-amber-500" : "text-green-600"}`} />
+                <CheckCircle
+                  className={`h-8 w-8 ${
+                    "alreadyCheckedIn" in result && result.alreadyCheckedIn
+                      ? "text-amber-500"
+                      : "text-green-600"
+                  }`}
+                />
                 <div className="flex-1">
                   <p className="font-semibold text-lg">{result.booking.name}</p>
+                  {result.booking.designation && (
+                    <p className="text-sm font-medium text-primary">{result.booking.designation}</p>
+                  )}
+                  {result.booking.company && (
+                    <p className="text-sm text-muted-foreground">{result.booking.company}</p>
+                  )}
+                  {result.booking.booth && (
+                    <p className="text-sm text-muted-foreground">Booth {result.booking.booth}</p>
+                  )}
                   <p className="text-sm text-muted-foreground">{result.booking.email}</p>
                   <p className="text-sm mt-1">#{result.booking.number}</p>
                   {result.booking.tickets && (
@@ -105,12 +110,12 @@ export default function ScannerClient() {
                       ))}
                     </div>
                   )}
-                  {result.alreadyCheckedIn && (
+                  {"alreadyCheckedIn" in result && result.alreadyCheckedIn && (
                     <Badge variant="warning" className="mt-3">Already Checked In</Badge>
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       )}

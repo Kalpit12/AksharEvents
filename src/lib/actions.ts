@@ -597,7 +597,34 @@ type ExhibitorBadgeScanPayload = {
   event?: string;
 };
 
-async function verifyExhibitorBadgeScan(payload: ExhibitorBadgeScanPayload, eventId: string) {
+export type TicketVerifyBooking = {
+  number: string;
+  name: string;
+  email: string;
+  designation?: string | null;
+  company?: string | null;
+  booth?: string | null;
+  tickets?: string[];
+  checkedInAt?: Date | null;
+};
+
+export type TicketVerifyResult =
+  | { error: string }
+  | {
+      success: true;
+      exhibitor: true;
+      booking: TicketVerifyBooking;
+    }
+  | {
+      success: true;
+      alreadyCheckedIn: boolean;
+      booking: TicketVerifyBooking;
+    };
+
+async function verifyExhibitorBadgeScan(
+  payload: ExhibitorBadgeScanPayload,
+  eventId: string
+): Promise<TicketVerifyResult> {
   const memberLocalId = payload.member?.trim();
   const eventExhibitorId = payload.eventExhibitor?.trim();
 
@@ -656,7 +683,7 @@ async function verifyExhibitorBadgeScan(payload: ExhibitorBadgeScanPayload, even
   };
 }
 
-export async function verifyTicket(qrData: string, eventId: string) {
+export async function verifyTicket(qrData: string, eventId: string): Promise<TicketVerifyResult> {
   const user = await getCurrentUser();
   if (!user || (user.role !== "ORGANIZER" && user.role !== "ADMIN")) {
     return { error: "Unauthorized" };

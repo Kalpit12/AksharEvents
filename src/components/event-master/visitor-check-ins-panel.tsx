@@ -260,16 +260,16 @@ function VisitorCheckInCard({ row }: { row: VisitorCheckInStats["records"][numbe
       </div>
 
       <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {fields.map(({ label, value, mono }) => (
-          <div key={label} className="min-w-0 rounded-lg bg-muted/40 px-3 py-2.5">
+        {fields.map((field) => (
+          <div key={field.label} className="min-w-0 rounded-lg bg-muted/40 px-3 py-2.5">
             <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {label}
+              {field.label}
             </dt>
             <dd
-              className={`mt-1 truncate text-sm font-medium text-foreground ${mono ? "font-mono text-xs" : ""}`}
-              title={value ?? undefined}
+              className={`mt-1 truncate text-sm font-medium text-foreground ${"mono" in field && field.mono ? "font-mono text-xs" : ""}`}
+              title={field.value ?? undefined}
             >
-              {value ?? "—"}
+              {field.value ?? "—"}
             </dd>
           </div>
         ))}

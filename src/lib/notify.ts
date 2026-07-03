@@ -14,4 +14,7 @@ export const notify = {
   info(message: string, options?: ExternalToast) {
     toast.info(message, { ...defaults, ...options });
   },
+  warning(message: string, options?: ExternalToast) {
+    toast.warning(message, { ...defaults, duration: 3800, ...options });
+  },
 };

@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CookieConsent } from "@/components/layout/cookie-consent";
-import { Toaster } from "sonner";
+import { AksharToaster } from "@/components/ui/akshar-toaster";
 import { useState } from "react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -21,24 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
         {children}
         <CookieConsent />
-        <Toaster
-          position="top-right"
-          closeButton
-          expand={false}
-          visibleToasts={4}
-          toastOptions={{
-            unstyled: true,
-            classNames: {
-              toast: "akshar-toast",
-              title: "akshar-toast__title",
-              description: "akshar-toast__description",
-              closeButton: "akshar-toast__close",
-              success: "akshar-toast--success",
-              error: "akshar-toast--error",
-              info: "akshar-toast--info",
-            },
-          }}
-        />
+        <AksharToaster />
       </ThemeProvider>
     </QueryClientProvider>
   );

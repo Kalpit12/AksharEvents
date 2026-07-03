@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { verifyTicket } from "@/lib/actions";
+import { verifyTicket, type TicketVerifyResult } from "@/lib/actions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -15,22 +15,7 @@ import { Camera, CameraOff, CheckCircle, ScanLine, XCircle } from "lucide-react"
 
 type EventOption = { id: string; title: string };
 
-type ScanResult = {
-  success?: boolean;
-  alreadyCheckedIn?: boolean;
-  exhibitor?: boolean;
-  error?: string;
-  booking?: {
-    number: string;
-    name: string;
-    email: string;
-    designation?: string | null;
-    company?: string | null;
-    booth?: string | null;
-    tickets?: string[];
-    checkedInAt?: Date | null;
-  };
-};
+type ScanResult = TicketVerifyResult;
 
 export function TicketScannerClient({ events }: { events: EventOption[] }) {
   const router = useRouter();
@@ -88,8 +73,9 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
       setLoading(false);
       setResult(res);
 
-      if (res.error) toast.error(res.error);
-      else if (res.alreadyCheckedIn) toast.warning("Already checked in");
+      if ("error" in res) toast.error(res.error);
+      else if ("alreadyCheckedIn" in res && res.alreadyCheckedIn) toast.warning("Already checked in");
+      else if ("exhibitor" in res && res.exhibitor) toast.success("Exhibitor badge verified");
       else toast.success("Check-in successful!");
     },
     [eventId]
@@ -244,9 +230,9 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
       </Card>
 
       {result && (
-        <Card className={`mt-6 ${result.error ? "border-red-200" : "border-green-200"}`}>
+        <Card className={`mt-6 ${result && "error" in result ? "border-red-200" : "border-green-200"}`}>
           <CardContent className="p-6">
-            {result.error ? (
+            {"error" in result ? (
               <div className="flex items-center gap-3 text-red-600">
                 <XCircle className="h-8 w-8 shrink-0" />
                 <div>
@@ -254,12 +240,15 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
                   <p className="text-sm">{result.error}</p>
                 </div>
               </div>
-            ) : (
-              result.booking && (
-                <div className="flex items-start gap-3">
-                  <CheckCircle
-                    className={`h-8 w-8 shrink-0 ${result.alreadyCheckedIn ? "text-amber-500" : "text-green-600"}`}
-                  />
+            ) : "booking" in result && result.booking ? (
+              <div className="flex items-start gap-3">
+                <CheckCircle
+                  className={`h-8 w-8 shrink-0 ${
+                    "alreadyCheckedIn" in result && result.alreadyCheckedIn
+                      ? "text-amber-500"
+                      : "text-green-600"
+                  }`}
+                />
                   <div className="flex-1">
                   <p className="text-lg font-semibold">{result.booking.name}</p>
                   {result.booking.designation && (
@@ -282,15 +271,14 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
                         ))}
                       </div>
                     )}
-                    {result.alreadyCheckedIn && (
+                    {"alreadyCheckedIn" in result && result.alreadyCheckedIn && (
                       <Badge variant="warning" className="mt-3">
                         Already checked in
                       </Badge>
                     )}
                   </div>
                 </div>
-              )
-            )}
+              ) : null}
           </CardContent>
         </Card>
       )}
