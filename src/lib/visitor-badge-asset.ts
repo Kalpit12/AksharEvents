@@ -1,7 +1,9 @@
 import { formatEventVenue } from "@/lib/event-schedule-label";
-import { BRAND, formatDate } from "@/lib/utils";
+import { formatBadgeDateLabel } from "@/lib/visitor-badge-format";
+import { BRAND } from "@/lib/utils";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
+import "server-only";
 
 export type VisitorBadgeAssetInput = {
   attendeeName: string;
@@ -47,16 +49,6 @@ function escapeXml(value: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-/** Same date format as EventVisitorBadge. */
-export function formatBadgeDateLabel(startDate: Date | string, endDate?: Date | string | null) {
-  const start = new Date(startDate);
-  const end = endDate ? new Date(endDate) : null;
-  if (end && end.getTime() !== start.getTime()) {
-    return `${formatDate(start, "d MMM")} – ${formatDate(end, "d MMM yyyy")}`;
-  }
-  return formatDate(start, "d MMM yyyy");
 }
 
 function wrapText(text: string, maxChars: number, maxLines: number): string[] {

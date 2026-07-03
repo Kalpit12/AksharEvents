@@ -1,5 +1,5 @@
 import { BRAND } from "@/lib/utils";
-import { formatBadgeDateLabel } from "@/lib/visitor-badge-asset";
+import { formatBadgeDateLabel } from "@/lib/visitor-badge-format";
 import { Calendar, MapPin, QrCode } from "lucide-react";
 import { getPassBadgeLabel } from "@/lib/pass-badge";
 import { cn } from "@/lib/utils";
