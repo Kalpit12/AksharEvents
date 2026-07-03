@@ -20,6 +20,8 @@ export type EventBadgeProps = {
   passLabel?: string;
   event: EventBadgeEventInfo;
   preview?: boolean;
+  /** Inside ProfileCard preview shell — drops outer shadow/max-width. */
+  embedded?: boolean;
 };
 
 /** Portrait event badge — GITEX-style lanyard pass with AksharEvents branding. */
@@ -31,6 +33,7 @@ export function EventVisitorBadge({
   passLabel = "VISITOR",
   event,
   preview = false,
+  embedded = false,
 }: EventBadgeProps) {
   const location = [event.venueName, event.venueCity].filter(Boolean).join(", ");
   const dateLabel = formatBadgeDateLabel(event.startDate, event.endDate);
@@ -50,8 +53,12 @@ export function EventVisitorBadge({
   return (
     <div
       className={cn(
-        "mx-auto w-full max-w-[340px] overflow-hidden rounded-2xl border-2 bg-white shadow-2xl ring-1 ring-border",
-        preview ? "border-dashed border-champagne/60 shadow-lg" : "border-champagne/50 shadow-espresso/15"
+        "w-full overflow-hidden rounded-2xl border-2 bg-white ring-1 ring-border",
+        !embedded && "mx-auto max-w-[340px] shadow-2xl",
+        embedded && "shadow-none",
+        preview && !embedded && "border-dashed border-champagne/60 shadow-lg",
+        preview && embedded && "border-dashed border-champagne/60",
+        !preview && "border-champagne/50 shadow-espresso/15"
       )}
     >
       <div className="flex justify-center bg-espresso py-2">

@@ -2,20 +2,46 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { VisitorCheckInStats } from "@/lib/visitor-check-ins";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatDate } from "@/lib/utils";
-import { CheckCircle2, Clock, ScanLine, Users } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, MapPin, ScanLine, Users } from "lucide-react";
+
+export type PublishedEventOption = {
+  id: string;
+  title: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+};
 
 type Props = {
   eventId: string;
+  eventTitle: string;
+  eventLocation: string;
+  startDate: string;
+  endDate: string;
+  publishedEvents?: PublishedEventOption[];
   stats: VisitorCheckInStats;
 };
 
-export default function VisitorCheckInsPanel({ eventId, stats }: Props) {
+export default function VisitorCheckInsPanel({
+  eventId,
+  eventTitle,
+  eventLocation,
+  startDate,
+  endDate,
+  publishedEvents = [],
+  stats,
+}: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
+
+  const dateRange = `${formatDate(startDate, "d MMM yyyy")} – ${formatDate(endDate, "d MMM yyyy")}`;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -36,8 +62,59 @@ export default function VisitorCheckInsPanel({ eventId, stats }: Props) {
       ? Math.round((stats.checkedIn / stats.totalRegistrations) * 100)
       : 0;
 
+  const onEventChange = (nextEventId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "checkins");
+    params.set("eventId", nextEventId);
+    router.push(`/admin?${params.toString()}`);
+  };
+
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-champagne/40 bg-gradient-to-r from-card to-muted/40 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              Visitor check-ins for
+            </p>
+            <h2 className="mt-1 text-lg font-bold leading-tight sm:text-xl">{eventTitle}</h2>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                {dateRange}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {eventLocation}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Registrations and entrance scans below are for this event only.
+            </p>
+          </div>
+
+          {publishedEvents.length > 1 && (
+            <div className="w-full shrink-0 sm:w-72">
+              <label htmlFor="checkins-event" className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Switch event
+              </label>
+              <select
+                id="checkins-event"
+                value={eventId}
+                onChange={(e) => onEventChange(e.target.value)}
+                className="flex h-10 w-full rounded-lg border border-border bg-card px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                {publishedEvents.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Registered"
@@ -95,7 +172,7 @@ export default function VisitorCheckInsPanel({ eventId, stats }: Props) {
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                     {stats.totalRegistrations === 0
-                      ? "No visitor registrations yet. Share the event page so attendees can register to visit."
+                      ? `No visitor registrations for ${eventTitle} yet. Share the event page so attendees can register to visit.`
                       : "No matches for your search."}
                   </td>
                 </tr>

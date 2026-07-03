@@ -328,6 +328,24 @@ export async function createBooking(data: {
 
   if (!event) return { error: "Event not found" };
 
+  const normalizedEmail = data.attendeeEmail.trim();
+  const existingVisitorBooking = await prisma.booking.findFirst({
+    where: {
+      eventId: event.id,
+      status: { in: ["CONFIRMED", "PENDING"] },
+      attendeeEmail: { equals: normalizedEmail, mode: "insensitive" },
+    },
+    select: { bookingNumber: true },
+  });
+
+  if (existingVisitorBooking) {
+    return {
+      error: "This email is already registered for this event.",
+      alreadyRegistered: true,
+      bookingNumber: existingVisitorBooking.bookingNumber,
+    };
+  }
+
   let discountAmount = 0;
   let couponId: string | undefined;
 
@@ -385,7 +403,7 @@ export async function createBooking(data: {
       totalAmount,
       discountAmount,
       attendeeName: data.attendeeName,
-      attendeeEmail: data.attendeeEmail,
+      attendeeEmail: normalizedEmail,
       attendeePhone: data.attendeePhone,
       attendeeDesignation: data.attendeeDesignation?.trim() || null,
       attendeeCompany: data.attendeeCompany?.trim() || null,

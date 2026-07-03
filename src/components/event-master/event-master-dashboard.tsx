@@ -16,7 +16,9 @@ import {
   toSelectOptionsWithAll,
 } from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
-import VisitorCheckInsPanel from "@/components/event-master/visitor-check-ins-panel";
+import VisitorCheckInsPanel, {
+  type PublishedEventOption,
+} from "@/components/event-master/visitor-check-ins-panel";
 import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
 import ItineraryPanel from "@/components/event-master/itinerary-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
@@ -107,6 +109,7 @@ type Props = {
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
   visitorCheckIns?: VisitorCheckInStats;
+  publishedEvents?: PublishedEventOption[];
 };
 
 const EVENT_MASTER_TAB_IDS = [
@@ -161,6 +164,7 @@ export default function EventMasterDashboard({
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
   visitorCheckIns,
+  publishedEvents = [],
 }: Props) {
   const [tab, setTab] = useUrlEnumState("tab", EVENT_MASTER_TAB_IDS, "exhibitors");
   const [roleFilter, setRoleFilter] = useUrlStringState("role", "");
@@ -562,6 +566,11 @@ export default function EventMasterDashboard({
       {tab === "checkins" && (
         <VisitorCheckInsPanel
           eventId={eventId}
+          eventTitle={eventTitle}
+          eventLocation={eventLocation}
+          startDate={startDate}
+          endDate={endDate}
+          publishedEvents={publishedEvents}
           stats={
             visitorCheckIns ?? {
               totalRegistrations: 0,

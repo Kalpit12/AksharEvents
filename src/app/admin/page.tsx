@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
-import { getPrimaryPublishedEvent } from "@/lib/primary-event";
 import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
+import { prisma } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 import { cn } from "@/lib/utils";
@@ -14,15 +14,23 @@ export const dynamic = "force-dynamic";
 export default async function AdminEventMasterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; eventId?: string }>;
 }) {
   const user = await requireRole("ADMIN");
   if (!user) redirect("/auth/login");
 
-  const { tab: urlTab } = await searchParams;
+  const { tab: urlTab, eventId: urlEventId } = await searchParams;
   const isFloorPlan = urlTab === "floorplan";
 
-  const event = await getPrimaryPublishedEvent();
+  const publishedEvents = await prisma.event.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: [{ isFeatured: "desc" }, { startDate: "asc" }],
+    include: { venue: { select: { name: true, city: true } } },
+  });
+
+  const event = urlEventId
+    ? (publishedEvents.find((e) => e.id === urlEventId) ?? publishedEvents[0] ?? null)
+    : (publishedEvents[0] ?? null);
 
   if (!event) {
     return (
@@ -47,11 +55,19 @@ export default async function AdminEventMasterPage({
     );
   }
 
-  const location = event.venue?.city ?? "Kenya";
+  const location = event.venue?.city ?? event.venue?.name ?? "Kenya";
   const [data, visitorCheckIns] = await Promise.all([
     loadAdminEventMasterPageDataWithRetry(event.id),
     loadVisitorCheckInStatsWithRetry(event.id),
   ]);
+
+  const publishedEventOptions = publishedEvents.map((e) => ({
+    id: e.id,
+    title: e.title,
+    location: e.venue?.city ?? e.venue?.name ?? "Kenya",
+    startDate: e.startDate.toISOString(),
+    endDate: e.endDate.toISOString(),
+  }));
 
   return (
     <div
@@ -85,6 +101,7 @@ export default async function AdminEventMasterPage({
             process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
           }
           visitorCheckIns={visitorCheckIns}
+          publishedEvents={publishedEventOptions}
         />
       </Suspense>
     </div>

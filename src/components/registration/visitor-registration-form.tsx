@@ -7,7 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createBooking } from "@/lib/actions";
 import { visitorRegistrationSchema } from "@/lib/validations";
 import { getPassBadgeLabel } from "@/lib/pass-badge";
-import { EventVisitorBadge, type EventBadgeEventInfo } from "@/components/pass/digital-pass-card";
+import type { EventBadgeEventInfo } from "@/components/pass/digital-pass-card";
+import { VisitorBadgeProfilePreview } from "@/components/pass/visitor-badge-profile-preview";
 import { VISITOR_SECTORS } from "@/lib/visitor-sectors";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -107,6 +108,11 @@ export function VisitorRegistrationForm({
     setLoading(false);
 
     if (result.error) {
+      if (result.alreadyRegistered && result.bookingNumber) {
+        toast.info("You're already registered for this event. Opening your badge…");
+        router.push(`/pass/${result.bookingNumber}`);
+        return;
+      }
       toast.error(result.error);
       return;
     }
@@ -261,8 +267,7 @@ export function VisitorRegistrationForm({
           </RegistrationCardDescription>
         </RegistrationCardHeader>
         <RegistrationCardContent className="flex flex-1 flex-col items-center justify-center pt-0">
-          <EventVisitorBadge
-            preview
+          <VisitorBadgeProfilePreview
             attendeeName={watched.attendeeName ?? ""}
             attendeeDesignation={watched.attendeeDesignation ?? ""}
             bookingNumber=""
