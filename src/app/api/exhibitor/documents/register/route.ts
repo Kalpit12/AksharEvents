@@ -5,6 +5,8 @@ import { exhibitorDocumentFolder } from "@/lib/cloudinary-server";
 import { assertExhibitorEventAccess } from "@/lib/member-document-access";
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
+  BADGE_PHOTO_MIME_TYPES,
+  MAX_BADGE_PHOTO_BYTES,
   MAX_DOCUMENT_BYTES,
 } from "@/lib/member-document-types";
 import { prisma } from "@/lib/prisma";
@@ -15,6 +17,7 @@ const DOCUMENT_TYPES = new Set<MemberDocumentType>([
   "VISA",
   "NATIONAL_ID",
   "YELLOW_FEVER",
+  "BADGE_PHOTO",
   "OTHER",
 ]);
 
@@ -45,7 +48,14 @@ export async function POST(request: Request) {
     if (!ALLOWED_DOCUMENT_MIME_TYPES.has(mimeType)) {
       return NextResponse.json({ error: "Only PDF, JPG, or PNG files are allowed" }, { status: 400 });
     }
-    if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_DOCUMENT_BYTES) {
+    if (documentType === "BADGE_PHOTO") {
+      if (!BADGE_PHOTO_MIME_TYPES.has(mimeType)) {
+        return NextResponse.json({ error: "Badge photo must be JPG, PNG, or WEBP" }, { status: 400 });
+      }
+      if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_BADGE_PHOTO_BYTES) {
+        return NextResponse.json({ error: "Badge photo must be 2 MB or smaller" }, { status: 400 });
+      }
+    } else if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > MAX_DOCUMENT_BYTES) {
       return NextResponse.json({ error: "File must be 10 MB or smaller" }, { status: 400 });
     }
 

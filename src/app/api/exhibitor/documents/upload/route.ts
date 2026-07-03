@@ -18,6 +18,7 @@ const DOCUMENT_TYPES = new Set<MemberDocumentType>([
   "VISA",
   "NATIONAL_ID",
   "YELLOW_FEVER",
+  "BADGE_PHOTO",
   "OTHER",
 ]);
 

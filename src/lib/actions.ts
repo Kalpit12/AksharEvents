@@ -590,6 +590,72 @@ export async function submitReview(data: { eventId: string; rating: number; comm
   return { success: true };
 }
 
+type ExhibitorBadgeScanPayload = {
+  type?: string;
+  member?: string;
+  eventExhibitor?: string;
+  event?: string;
+};
+
+async function verifyExhibitorBadgeScan(payload: ExhibitorBadgeScanPayload, eventId: string) {
+  const memberLocalId = payload.member?.trim();
+  const eventExhibitorId = payload.eventExhibitor?.trim();
+
+  if (!memberLocalId || !eventExhibitorId) {
+    return { error: "Invalid exhibitor badge" };
+  }
+  if (payload.event && payload.event !== eventId) {
+    return { error: "Badge is for a different event" };
+  }
+
+  const eventExhibitor = await prisma.eventExhibitor.findFirst({
+    where: { id: eventExhibitorId, eventId },
+    include: {
+      exhibitor: { select: { companyName: true } },
+      registration: { select: { formData: true } },
+    },
+  });
+
+  if (!eventExhibitor) {
+    return { error: "Exhibitor badge not found for this event" };
+  }
+
+  const registration = eventExhibitor.registration?.formData as
+    | { members?: { id: string; fn: string; ln: string; role: string; email: string }[]; company?: string }
+    | undefined;
+  const member = registration?.members?.find((m) => m.id === memberLocalId);
+  if (!member) {
+    return { error: "Team member not found on this exhibitor pass" };
+  }
+
+  const photoDoc = await prisma.exhibitorMemberDocument.findUnique({
+    where: {
+      eventExhibitorId_memberLocalId_documentType: {
+        eventExhibitorId,
+        memberLocalId,
+        documentType: "BADGE_PHOTO",
+      },
+    },
+  });
+
+  if (!photoDoc) {
+    return { error: "Badge photo not on file for this exhibitor" };
+  }
+
+  return {
+    success: true,
+    exhibitor: true,
+    booking: {
+      number: `EXP-${memberLocalId.replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+      name: `${member.fn} ${member.ln}`.trim(),
+      email: member.email,
+      designation: member.role,
+      company: registration?.company?.trim() || eventExhibitor.exhibitor.companyName,
+      booth: eventExhibitor.boothNumber,
+    },
+  };
+}
+
 export async function verifyTicket(qrData: string, eventId: string) {
   const user = await getCurrentUser();
   if (!user || (user.role !== "ORGANIZER" && user.role !== "ADMIN")) {
@@ -600,7 +666,18 @@ export async function verifyTicket(qrData: string, eventId: string) {
   const trimmed = qrData.trim();
 
   try {
-    const payload = JSON.parse(trimmed) as { booking?: string; event?: string };
+    const payload = JSON.parse(trimmed) as {
+      type?: string;
+      booking?: string;
+      event?: string;
+      member?: string;
+      eventExhibitor?: string;
+    };
+
+    if (payload.type === "akshar-exhibitor") {
+      return verifyExhibitorBadgeScan(payload, eventId);
+    }
+
     if (payload.event && payload.event !== eventId) {
       return { error: "Ticket is for a different event" };
     }

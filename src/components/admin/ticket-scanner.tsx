@@ -18,15 +18,18 @@ type EventOption = { id: string; title: string };
 type ScanResult = {
   success?: boolean;
   alreadyCheckedIn?: boolean;
+  exhibitor?: boolean;
   error?: string;
-    booking?: {
-      number: string;
-      name: string;
-      email: string;
-      designation?: string | null;
-      tickets?: string[];
-      checkedInAt?: Date | null;
-    };
+  booking?: {
+    number: string;
+    name: string;
+    email: string;
+    designation?: string | null;
+    company?: string | null;
+    booth?: string | null;
+    tickets?: string[];
+    checkedInAt?: Date | null;
+  };
 };
 
 export function TicketScannerClient({ events }: { events: EventOption[] }) {
@@ -261,6 +264,12 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
                   <p className="text-lg font-semibold">{result.booking.name}</p>
                   {result.booking.designation && (
                     <p className="text-sm font-medium text-primary">{result.booking.designation}</p>
+                  )}
+                  {"company" in result.booking && result.booking.company && (
+                    <p className="text-sm text-muted-foreground">{result.booking.company}</p>
+                  )}
+                  {"booth" in result.booking && result.booking.booth && (
+                    <p className="text-sm text-muted-foreground">Booth {result.booking.booth}</p>
                   )}
                   <p className="text-sm text-muted-foreground">{result.booking.email}</p>
                     <p className="mt-1 text-sm">#{result.booking.number}</p>

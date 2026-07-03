@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ClipboardList, LogOut, Menu, X } from "lucide-react";
+import { Building2, ClipboardList, LogOut, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { signOut } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -14,6 +14,9 @@ interface MobileNavProps {
 
 export function MobileNav({ session, navLinks }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const isPrintingStaff = role === "PRINTING_STAFF";
 
   return (
     <div className="xl:hidden">
@@ -52,13 +55,32 @@ export function MobileNav({ session, navLinks }: MobileNavProps) {
               <div className="my-2 border-t border-border" />
 
               {!session ? (
+                <>
+                  <Link
+                    href="/auth/exhibitor"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 py-3 text-sm font-medium hover:bg-muted"
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Exhibitor Sign In / Sign Up
+                  </Link>
+                  <Link
+                    href="/booking-inquiries"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    Booking & Inquiries
+                  </Link>
+                </>
+              ) : !isAdmin && !isPrintingStaff ? (
                 <Link
-                  href="/booking-inquiries"
+                  href="/exhibitor"
                   onClick={() => setOpen(false)}
                   className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 text-sm font-medium text-primary-foreground"
                 >
-                  <ClipboardList className="h-4 w-4" />
-                  Booking & Inquiries
+                  <Building2 className="h-4 w-4" />
+                  Exhibitor Portal
                 </Link>
               ) : null}
 

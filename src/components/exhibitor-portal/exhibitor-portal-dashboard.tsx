@@ -108,6 +108,7 @@ import {
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import { redactTeamMemberForClient } from "@/lib/registration-pii";
 import { MemberDocumentsUpload } from "@/components/exhibitor-portal/member-documents-upload";
+import { ExhibitorMemberBadgesPanel } from "@/components/exhibitor-portal/exhibitor-member-badges-panel";
 import {
   saveExhibitorRegistration,
   addExhibitorMember,
@@ -1647,6 +1648,15 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               />
             )}
           </Panel>
+          {props.eventExhibitorId && (
+            <ExhibitorMemberBadgesPanel
+              eventExhibitorId={props.eventExhibitorId}
+              eventTitle={props.eventTitle}
+              members={members}
+              memberDocuments={memberDocuments}
+              onDocumentUploaded={handleDocumentUploaded}
+            />
+          )}
           <Panel title="Team supply summary" icon={TrendingUp}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[

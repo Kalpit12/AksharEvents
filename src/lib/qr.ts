@@ -19,3 +19,17 @@ export function getTicketQRPayload(bookingNumber: string, eventId: string) {
     v: 1,
   });
 }
+
+export function getExhibitorBadgeQRPayload(
+  memberLocalId: string,
+  eventExhibitorId: string,
+  eventId: string
+) {
+  return JSON.stringify({
+    type: "akshar-exhibitor",
+    member: memberLocalId,
+    eventExhibitor: eventExhibitorId,
+    event: eventId,
+    v: 1,
+  });
+}

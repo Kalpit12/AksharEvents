@@ -142,9 +142,9 @@ export default function VisitorCheckInsPanel({
           placeholder="Search by name, email, or booking #"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="max-w-md"
+          className="w-full sm:max-w-md"
         />
-        <Button asChild>
+        <Button asChild className="w-full shrink-0 sm:w-auto">
           <Link href={`/admin/scanner?eventId=${eventId}`}>
             <ScanLine className="h-4 w-4" />
             Open scanner
@@ -152,19 +152,34 @@ export default function VisitorCheckInsPanel({
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      {/* Mobile: card list avoids cramped table columns and wrapping headers */}
+      <div className="space-y-3 md:hidden">
+        {filtered.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+            {stats.totalRegistrations === 0
+              ? `No visitor registrations for ${eventTitle} yet. Share the event page so attendees can register to visit.`
+              : "No matches for your search."}
+          </div>
+        ) : (
+          filtered.map((row) => <VisitorCheckInCard key={row.id} row={row} />)
+        )}
+      </div>
+
+      {/* Desktop: horizontal scroll table with nowrap cells */}
+      <div className="hidden rounded-2xl border border-border bg-card md:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+          <p className="sr-only">Swipe horizontally to view all visitor check-in columns.</p>
+          <table className="w-full min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Visitor</th>
-                <th className="px-4 py-3 font-medium">Designation</th>
-                <th className="px-4 py-3 font-medium">Company</th>
-                <th className="px-4 py-3 font-medium">Sector</th>
-                <th className="px-4 py-3 font-medium">Booking</th>
-                <th className="px-4 py-3 font-medium">Registered</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Checked in</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Visitor</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Designation</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Company</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Sector</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Booking</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Registered</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Status</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Checked in</th>
               </tr>
             </thead>
             <tbody>
@@ -179,25 +194,27 @@ export default function VisitorCheckInsPanel({
               ) : (
                 filtered.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-0">
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
                       <p className="font-medium">{row.attendeeName}</p>
                       <p className="text-xs text-muted-foreground">{row.attendeeEmail}</p>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.attendeeDesignation ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.attendeeCompany ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{row.attendeeSector ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{row.bookingNumber}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                      {row.attendeeDesignation ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                      {row.attendeeCompany ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                      {row.attendeeSector ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.bookingNumber}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {formatDate(row.registeredAt, "d MMM yyyy HH:mm")}
                     </td>
-                    <td className="px-4 py-3">
-                      {row.checkedIn ? (
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Checked in</Badge>
-                      ) : (
-                        <Badge variant="outline">Pending</Badge>
-                      )}
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <CheckInStatusBadge checkedIn={row.checkedIn} />
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {row.checkedInAt ? formatDate(row.checkedInAt, "d MMM yyyy HH:mm") : "—"}
                     </td>
                   </tr>
@@ -208,6 +225,56 @@ export default function VisitorCheckInsPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+function CheckInStatusBadge({ checkedIn }: { checkedIn: boolean }) {
+  if (checkedIn) {
+    return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Checked in</Badge>;
+  }
+
+  return <Badge variant="outline">Pending</Badge>;
+}
+
+function VisitorCheckInCard({ row }: { row: VisitorCheckInStats["records"][number] }) {
+  const fields = [
+    { label: "Designation", value: row.attendeeDesignation },
+    { label: "Company", value: row.attendeeCompany },
+    { label: "Sector", value: row.attendeeSector },
+    { label: "Booking", value: row.bookingNumber, mono: true },
+    { label: "Registered", value: formatDate(row.registeredAt, "d MMM yyyy HH:mm") },
+    {
+      label: "Checked in",
+      value: row.checkedInAt ? formatDate(row.checkedInAt, "d MMM yyyy HH:mm") : "—",
+    },
+  ] as const;
+
+  return (
+    <article className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold">{row.attendeeName}</p>
+          <p className="truncate text-sm text-muted-foreground">{row.attendeeEmail}</p>
+        </div>
+        <CheckInStatusBadge checkedIn={row.checkedIn} />
+      </div>
+
+      <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {fields.map(({ label, value, mono }) => (
+          <div key={label} className="min-w-0 rounded-lg bg-muted/40 px-3 py-2.5">
+            <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {label}
+            </dt>
+            <dd
+              className={`mt-1 truncate text-sm font-medium text-foreground ${mono ? "font-mono text-xs" : ""}`}
+              title={value ?? undefined}
+            >
+              {value ?? "—"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </article>
   );
 }
 
