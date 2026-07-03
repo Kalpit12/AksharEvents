@@ -334,6 +334,7 @@ model Event {
   itemMaster      EventItemMaster[]
   booths          EventBooth[]
   tourTravelItineraries TourTravelItinerary[]
+  exhibitorBadgeCheckIns ExhibitorBadgeCheckIn[]
   floorPlanImageUrl       String?
   floorPlanSvgUrl         String?
   floorPlanWidth          Int?
@@ -561,6 +562,7 @@ model EventExhibitor {
   memberWorkflows    AirBookingMemberWorkflow[]
   brandingArtworkSubmissions BrandingArtworkSubmission[]
   eventBooth                 EventBooth?
+  badgeCheckIns              ExhibitorBadgeCheckIn[]
 
   @@unique([eventId, exhibitorId])
 }
@@ -1024,6 +1026,20 @@ model Attendance {
   deviceInfo String?
 
   @@index([checkedInAt])
+}
+
+model ExhibitorBadgeCheckIn {
+  id               String         @id @default(cuid())
+  eventId          String
+  event            Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventExhibitorId String
+  eventExhibitor   EventExhibitor @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
+  memberLocalId    String
+  checkedInAt      DateTime       @default(now())
+  checkedInBy      String?
+
+  @@unique([eventExhibitorId, memberLocalId])
+  @@index([eventId, checkedInAt])
 }
 
 model AuditLog {

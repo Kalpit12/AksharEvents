@@ -1,39 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { VisitorCheckInStats } from "@/lib/visitor-check-ins";
+import type { ExhibitorCheckInStats } from "@/lib/exhibitor-check-ins";
 import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
-import { CheckCircle2, Clock, ScanLine, Users } from "lucide-react";
 import { CheckInStatusBadge, StatCard } from "@/components/event-master/check-ins-shared";
-
-export type PublishedEventOption = {
-  id: string;
-  title: string;
-  location: string;
-  startDate: string;
-  endDate: string;
-};
 
 type Props = {
   eventTitle: string;
-  stats: VisitorCheckInStats;
+  stats: ExhibitorCheckInStats;
 };
 
-export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
+export default function ExhibitorCheckInsPanel({ eventTitle, stats }: Props) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return stats.records;
     return stats.records.filter(
-      (r) =>
-        r.attendeeName.toLowerCase().includes(q) ||
-        r.attendeeEmail.toLowerCase().includes(q) ||
-        r.attendeeDesignation?.toLowerCase().includes(q) ||
-        r.attendeeCompany?.toLowerCase().includes(q) ||
-        r.attendeeSector?.toLowerCase().includes(q) ||
-        r.bookingNumber.toLowerCase().includes(q)
+      (row) =>
+        row.memberName.toLowerCase().includes(q) ||
+        row.memberEmail.toLowerCase().includes(q) ||
+        row.memberRole.toLowerCase().includes(q) ||
+        row.companyName.toLowerCase().includes(q) ||
+        row.boothLabel?.toLowerCase().includes(q) ||
+        row.badgeCode.toLowerCase().includes(q)
     );
   }, [query, stats.records]);
 
@@ -42,17 +34,23 @@ export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
       ? Math.round((stats.checkedIn / stats.totalRegistrations) * 100)
       : 0;
 
+  const withPhoto = stats.records.filter((row) => row.hasBadgePhoto).length;
+
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Registered" value={stats.totalRegistrations} icon={Users} tone="default" />
-        <StatCard label="Checked in" value={stats.checkedIn} icon={CheckCircle2} tone="success" />
-        <StatCard label="Not yet arrived" value={stats.pending} icon={Clock} tone="warning" />
-        <StatCard label="Check-in rate" value={`${checkInRate}%`} icon={ScanLine} tone="default" />
+        <StatCard label="Team on badges" value={stats.totalRegistrations} tone="default" />
+        <StatCard label="Checked in" value={stats.checkedIn} tone="success" />
+        <StatCard label="Not yet arrived" value={stats.pending} tone="warning" />
+        <StatCard label="Check-in rate" value={`${checkInRate}%`} tone="default" />
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        {withPhoto} of {stats.totalRegistrations} team members have a badge photo uploaded.
+      </p>
+
       <Input
-        placeholder="Search by name, email, or booking #"
+        placeholder="Search by name, email, company, booth, or badge ID"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="w-full sm:max-w-md"
@@ -62,26 +60,25 @@ export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
         {filtered.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
             {stats.totalRegistrations === 0
-              ? `No visitor registrations for ${eventTitle} yet. Share the event page so attendees can register to visit.`
+              ? `No exhibitor team members for ${eventTitle} yet.`
               : "No matches for your search."}
           </div>
         ) : (
-          filtered.map((row) => <VisitorCheckInCard key={row.id} row={row} />)
+          filtered.map((row) => <ExhibitorCheckInCard key={row.id} row={row} />)
         )}
       </div>
 
       <div className="hidden rounded-2xl border border-border bg-card md:block">
         <div className="overflow-x-auto">
-          <p className="sr-only">Swipe horizontally to view all visitor check-in columns.</p>
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="whitespace-nowrap px-4 py-3 font-medium">Visitor</th>
-                <th className="whitespace-nowrap px-4 py-3 font-medium">Designation</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Exhibitor</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Role</th>
                 <th className="whitespace-nowrap px-4 py-3 font-medium">Company</th>
-                <th className="whitespace-nowrap px-4 py-3 font-medium">Sector</th>
-                <th className="whitespace-nowrap px-4 py-3 font-medium">Booking</th>
-                <th className="whitespace-nowrap px-4 py-3 font-medium">Registered</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Booth</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Badge ID</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Photo</th>
                 <th className="whitespace-nowrap px-4 py-3 font-medium">Status</th>
                 <th className="whitespace-nowrap px-4 py-3 font-medium">Checked in</th>
               </tr>
@@ -91,7 +88,7 @@ export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
                     {stats.totalRegistrations === 0
-                      ? `No visitor registrations for ${eventTitle} yet. Share the event page so attendees can register to visit.`
+                      ? `No exhibitor team members for ${eventTitle} yet.`
                       : "No matches for your search."}
                   </td>
                 </tr>
@@ -99,21 +96,25 @@ export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
                 filtered.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-0">
                     <td className="whitespace-nowrap px-4 py-3">
-                      <p className="font-medium">{row.attendeeName}</p>
-                      <p className="text-xs text-muted-foreground">{row.attendeeEmail}</p>
+                      <p className="font-medium">{row.memberName}</p>
+                      <p className="text-xs text-muted-foreground">{row.memberEmail}</p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {row.attendeeDesignation ?? "—"}
+                      {row.memberRole}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {row.attendeeCompany ?? "—"}
+                      {row.companyName}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {row.attendeeSector ?? "—"}
+                      {row.boothLabel ?? "—"}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.bookingNumber}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {formatDate(row.registeredAt, "d MMM yyyy HH:mm")}
+                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{row.badgeCode}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {row.hasBadgePhoto ? (
+                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Ready</Badge>
+                      ) : (
+                        <Badge variant="outline">Missing</Badge>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <CheckInStatusBadge checkedIn={row.checkedIn} />
@@ -132,13 +133,16 @@ export default function VisitorCheckInsPanel({ eventTitle, stats }: Props) {
   );
 }
 
-function VisitorCheckInCard({ row }: { row: VisitorCheckInStats["records"][number] }) {
+function ExhibitorCheckInCard({ row }: { row: ExhibitorCheckInStats["records"][number] }) {
   const fields = [
-    { label: "Designation", value: row.attendeeDesignation },
-    { label: "Company", value: row.attendeeCompany },
-    { label: "Sector", value: row.attendeeSector },
-    { label: "Booking", value: row.bookingNumber, mono: true },
-    { label: "Registered", value: formatDate(row.registeredAt, "d MMM yyyy HH:mm") },
+    { label: "Role", value: row.memberRole },
+    { label: "Company", value: row.companyName },
+    { label: "Booth", value: row.boothLabel },
+    { label: "Badge ID", value: row.badgeCode, mono: true },
+    {
+      label: "Photo",
+      value: row.hasBadgePhoto ? "Ready" : "Missing",
+    },
     {
       label: "Checked in",
       value: row.checkedInAt ? formatDate(row.checkedInAt, "d MMM yyyy HH:mm") : "—",
@@ -149,8 +153,8 @@ function VisitorCheckInCard({ row }: { row: VisitorCheckInStats["records"][numbe
     <article className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold">{row.attendeeName}</p>
-          <p className="truncate text-sm text-muted-foreground">{row.attendeeEmail}</p>
+          <p className="truncate text-base font-semibold">{row.memberName}</p>
+          <p className="truncate text-sm text-muted-foreground">{row.memberEmail}</p>
         </div>
         <CheckInStatusBadge checkedIn={row.checkedIn} />
       </div>

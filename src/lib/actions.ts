@@ -613,6 +613,7 @@ export type TicketVerifyResult =
   | {
       success: true;
       exhibitor: true;
+      alreadyCheckedIn: boolean;
       booking: TicketVerifyBooking;
     }
   | {
@@ -623,7 +624,8 @@ export type TicketVerifyResult =
 
 async function verifyExhibitorBadgeScan(
   payload: ExhibitorBadgeScanPayload,
-  eventId: string
+  eventId: string,
+  checkedInBy: string
 ): Promise<TicketVerifyResult> {
   const memberLocalId = payload.member?.trim();
   const eventExhibitorId = payload.eventExhibitor?.trim();
@@ -648,7 +650,10 @@ async function verifyExhibitorBadgeScan(
   }
 
   const registration = eventExhibitor.registration?.formData as
-    | { members?: { id: string; fn: string; ln: string; role: string; email: string }[]; company?: string }
+    | {
+        members?: { id: string; fn: string; ln: string; role: string; email: string }[];
+        form?: { company?: string };
+      }
     | undefined;
   const member = registration?.members?.find((m) => m.id === memberLocalId);
   if (!member) {
@@ -669,17 +674,57 @@ async function verifyExhibitorBadgeScan(
     return { error: "Badge photo not on file for this exhibitor" };
   }
 
+  const existing = await prisma.exhibitorBadgeCheckIn.findUnique({
+    where: {
+      eventExhibitorId_memberLocalId: {
+        eventExhibitorId,
+        memberLocalId,
+      },
+    },
+  });
+
+  const booking = {
+    number: `EXP-${memberLocalId.replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+    name: `${member.fn} ${member.ln}`.trim(),
+    email: member.email,
+    designation: member.role,
+    company: registration?.form?.company?.trim() || eventExhibitor.exhibitor.companyName,
+    booth: eventExhibitor.boothNumber,
+  };
+
+  if (existing) {
+    return {
+      success: true,
+      exhibitor: true,
+      alreadyCheckedIn: true,
+      booking: {
+        ...booking,
+        checkedInAt: existing.checkedInAt,
+      },
+    };
+  }
+
+  await prisma.exhibitorBadgeCheckIn.create({
+    data: {
+      eventId,
+      eventExhibitorId,
+      memberLocalId,
+      checkedInBy,
+    },
+  });
+
+  await createAuditLog({
+    userId: checkedInBy,
+    action: "CHECK_IN",
+    entity: "ExhibitorBadgeCheckIn",
+    entityId: `${eventExhibitorId}:${memberLocalId}`,
+  });
+
   return {
     success: true,
     exhibitor: true,
-    booking: {
-      number: `EXP-${memberLocalId.replace(/-/g, "").slice(0, 8).toUpperCase()}`,
-      name: `${member.fn} ${member.ln}`.trim(),
-      email: member.email,
-      designation: member.role,
-      company: registration?.company?.trim() || eventExhibitor.exhibitor.companyName,
-      booth: eventExhibitor.boothNumber,
-    },
+    alreadyCheckedIn: false,
+    booking,
   };
 }
 
@@ -702,7 +747,7 @@ export async function verifyTicket(qrData: string, eventId: string): Promise<Tic
     };
 
     if (payload.type === "akshar-exhibitor") {
-      return verifyExhibitorBadgeScan(payload, eventId);
+      return verifyExhibitorBadgeScan(payload, eventId, user.id);
     }
 
     if (payload.event && payload.event !== eventId) {

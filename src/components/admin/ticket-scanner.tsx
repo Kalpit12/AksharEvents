@@ -75,8 +75,10 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
 
       if ("error" in res) toast.error(res.error);
       else if ("alreadyCheckedIn" in res && res.alreadyCheckedIn) toast.warning("Already checked in");
-      else if ("exhibitor" in res && res.exhibitor) toast.success("Exhibitor badge verified");
-      else toast.success("Check-in successful!");
+      else if ("exhibitor" in res && res.exhibitor) {
+        if ("alreadyCheckedIn" in res && res.alreadyCheckedIn) toast.warning("Exhibitor already checked in");
+        else toast.success("Exhibitor check-in successful!");
+      } else toast.success("Check-in successful!");
     },
     [eventId]
   );

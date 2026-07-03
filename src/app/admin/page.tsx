@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
+import { loadExhibitorCheckInStatsWithRetry } from "@/lib/exhibitor-check-ins";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { prisma } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
@@ -14,12 +15,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminEventMasterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; eventId?: string }>;
+  searchParams: Promise<{ tab?: string; eventId?: string; checkinKind?: string }>;
 }) {
   const user = await requireRole("ADMIN");
   if (!user) redirect("/auth/login");
 
-  const { tab: urlTab, eventId: urlEventId } = await searchParams;
+  const { tab: urlTab, eventId: urlEventId, checkinKind: urlCheckinKind } = await searchParams;
   const isFloorPlan = urlTab === "floorplan";
 
   const publishedEvents = await prisma.event.findMany({
@@ -56,9 +57,11 @@ export default async function AdminEventMasterPage({
   }
 
   const location = event.venue?.city ?? event.venue?.name ?? "Kenya";
-  const [data, visitorCheckIns] = await Promise.all([
+  const checkInKind = urlCheckinKind === "exhibitor" ? "exhibitor" : "visitor";
+  const [data, visitorCheckIns, exhibitorCheckIns] = await Promise.all([
     loadAdminEventMasterPageDataWithRetry(event.id),
     loadVisitorCheckInStatsWithRetry(event.id),
+    loadExhibitorCheckInStatsWithRetry(event.id),
   ]);
 
   const publishedEventOptions = publishedEvents.map((e) => ({
@@ -101,6 +104,8 @@ export default async function AdminEventMasterPage({
             process.env.FLIGHT_BOOKING_CC_EMAIL ?? process.env.POSTMARK_SENDER_EMAIL ?? ""
           }
           visitorCheckIns={visitorCheckIns}
+          exhibitorCheckIns={exhibitorCheckIns}
+          checkInKind={checkInKind}
           publishedEvents={publishedEventOptions}
         />
       </Suspense>

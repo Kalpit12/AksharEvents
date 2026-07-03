@@ -16,9 +16,8 @@ import {
   toSelectOptionsWithAll,
 } from "@/components/exhibitor-portal/custom-select";
 import ExhibitorRegistrationsPanel from "@/components/event-master/exhibitor-registrations-panel";
-import VisitorCheckInsPanel, {
-  type PublishedEventOption,
-} from "@/components/event-master/visitor-check-ins-panel";
+import EventCheckInsPanel from "@/components/event-master/event-check-ins-panel";
+import type { CheckInKind } from "@/components/event-master/event-check-ins-panel";
 import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
 import ItineraryPanel from "@/components/event-master/itinerary-panel";
 import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
@@ -31,6 +30,8 @@ import type {
 } from "@/lib/event-config-types";
 import type { FloorPlanBoothRecord, EventFloorPlanConfig } from "@/lib/floor-plan-types";
 import type { VisitorCheckInStats } from "@/lib/visitor-check-ins";
+import type { ExhibitorCheckInStats } from "@/lib/exhibitor-check-ins";
+import type { PublishedEventOption } from "@/components/event-master/visitor-check-ins-panel";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import {
   EventHotelsManager,
@@ -109,6 +110,8 @@ type Props = {
   flightBookingAgentEmail?: string;
   flightBookingCcEmail?: string;
   visitorCheckIns?: VisitorCheckInStats;
+  exhibitorCheckIns?: ExhibitorCheckInStats;
+  checkInKind?: CheckInKind;
   publishedEvents?: PublishedEventOption[];
 };
 
@@ -139,7 +142,7 @@ const TABS: { id: EventMasterTab; label: string; icon: React.ComponentType<{ cla
   { id: "food", label: "Food", icon: ForkKnife },
   { id: "schedule", label: "Schedule", icon: CalendarDays },
   { id: "itinerary", label: "Itinerary", icon: Route },
-  { id: "checkins", label: "Visitor check-ins", icon: IdCard },
+  { id: "checkins", label: "Check-ins", icon: IdCard },
 ];
 
 function initialsFromName(fn: string, ln: string) {
@@ -164,6 +167,8 @@ export default function EventMasterDashboard({
   flightBookingAgentEmail = "",
   flightBookingCcEmail = "",
   visitorCheckIns,
+  exhibitorCheckIns,
+  checkInKind = "visitor",
   publishedEvents = [],
 }: Props) {
   const [tab, setTab] = useUrlEnumState("tab", EVENT_MASTER_TAB_IDS, "exhibitors");
@@ -564,15 +569,24 @@ export default function EventMasterDashboard({
       )}
 
       {tab === "checkins" && (
-        <VisitorCheckInsPanel
+        <EventCheckInsPanel
           eventId={eventId}
           eventTitle={eventTitle}
           eventLocation={eventLocation}
           startDate={startDate}
           endDate={endDate}
           publishedEvents={publishedEvents}
-          stats={
+          checkInKind={checkInKind}
+          visitorStats={
             visitorCheckIns ?? {
+              totalRegistrations: 0,
+              checkedIn: 0,
+              pending: 0,
+              records: [],
+            }
+          }
+          exhibitorStats={
+            exhibitorCheckIns ?? {
               totalRegistrations: 0,
               checkedIn: 0,
               pending: 0,
