@@ -420,15 +420,31 @@ function drawPdfText(
     characterSpacing?: number;
   }
 ) {
-  page.drawText(text, {
-    x,
-    y: baselineTopToPdfY(page.getHeight(), baselineTop, size),
-    size,
-    font,
-    color,
-    opacity,
-    characterSpacing,
-  });
+  const y = baselineTopToPdfY(page.getHeight(), baselineTop, size);
+  if (!characterSpacing) {
+    page.drawText(text, {
+      x,
+      y,
+      size,
+      font,
+      color,
+      opacity,
+    });
+    return;
+  }
+
+  let cursorX = x;
+  for (const char of Array.from(text)) {
+    page.drawText(char, {
+      x: cursorX,
+      y,
+      size,
+      font,
+      color,
+      opacity,
+    });
+    cursorX += font.widthOfTextAtSize(char, size) + characterSpacing;
+  }
 }
 
 function drawPdfTextCentered(
@@ -452,7 +468,7 @@ function drawPdfTextCentered(
     characterSpacing?: number;
   }
 ) {
-  const extraSpacing = characterSpacing ? characterSpacing * Math.max(text.length - 1, 0) : 0;
+  const extraSpacing = characterSpacing ? characterSpacing * Math.max(Array.from(text).length - 1, 0) : 0;
   const width = font.widthOfTextAtSize(text, size) + extraSpacing;
   drawPdfText(page, text, {
     x: centerX - width / 2,
