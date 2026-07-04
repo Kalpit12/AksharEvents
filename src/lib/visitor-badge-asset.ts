@@ -1,7 +1,7 @@
 import { formatEventVenue } from "@/lib/event-schedule-label";
 import { formatBadgeDateLabel } from "@/lib/visitor-badge-format";
 import { BRAND } from "@/lib/utils";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import sharp from "sharp";
 import "server-only";
 
@@ -74,6 +74,46 @@ function wrapText(text: string, maxChars: number, maxLines: number): string[] {
   return lines.length ? lines.slice(0, maxLines) : [text.slice(0, maxChars)];
 }
 
+type VisitorBadgeTextContent = {
+  passLabel: string;
+  designation: string | null;
+  titleLines: string[];
+  venueLines: string[];
+  nameLines: string[];
+  nameFontSize: number;
+  dateLabel: string;
+  bookingNumber: string;
+  brandName: string;
+  tagline: string;
+  footerText: string;
+};
+
+function getVisitorBadgeTextContent(input: VisitorBadgeAssetInput): VisitorBadgeTextContent {
+  const passLabel = (input.passLabel ?? "VISITOR").toUpperCase();
+  const designation = input.attendeeDesignation?.trim() || null;
+  const venue = formatEventVenue(input.venueName, input.venueCity);
+  const titleLines = wrapText(input.eventTitle, 36, 2);
+  const venueLines = venue ? wrapText(venue, 40, 2) : [];
+  const rawName = input.attendeeName.trim().toUpperCase() || "—";
+  const nameFontSize = rawName.length > 24 ? 18 : rawName.length > 18 ? 20 : 24;
+  const nameLines =
+    rawName.length > 24 ? wrapText(rawName, 22, 2) : rawName.length > 18 ? wrapText(rawName, 18, 2) : [rawName];
+
+  return {
+    passLabel,
+    designation,
+    titleLines,
+    venueLines,
+    nameLines,
+    nameFontSize,
+    dateLabel: formatBadgeDateLabel(input.startDate, input.endDate),
+    bookingNumber: input.bookingNumber,
+    brandName: BRAND.name,
+    tagline: BRAND.tagline.toUpperCase(),
+    footerText: `Powered by ${BRAND.name}`,
+  };
+}
+
 function svgTextBlock(
   lines: string[],
   x: number,
@@ -114,26 +154,16 @@ type BadgeLayout = {
 };
 
 function computeBadgeLayout(input: VisitorBadgeAssetInput): BadgeLayout {
-  const passLabel = (input.passLabel ?? "VISITOR").toUpperCase();
-  const designation = input.attendeeDesignation?.trim();
-  const venue = formatEventVenue(input.venueName, input.venueCity);
-
-  const titleLines = wrapText(input.eventTitle, 36, 2);
-  const venueLines = venue ? wrapText(venue, 40, 2) : [];
+  const content = getVisitorBadgeTextContent(input);
 
   const eventH =
-    44 + titleLines.length * 17 + 16 + (venueLines.length ? 8 + venueLines.length * 14 : 0);
-
-  const rawName = input.attendeeName.trim().toUpperCase() || "—";
-  const nameFontSize = rawName.length > 24 ? 18 : rawName.length > 18 ? 20 : 24;
-  const nameLines =
-    rawName.length > 24 ? wrapText(rawName, 22, 2) : rawName.length > 18 ? wrapText(rawName, 18, 2) : [rawName];
+    44 + content.titleLines.length * 17 + 16 + (content.venueLines.length ? 8 + content.venueLines.length * 14 : 0);
 
   const nameLabelOffset = 22;
   const labelToNameGap = 26;
-  const nameLineGap = nameFontSize + 8;
-  const nameBlockHeight = labelToNameGap + nameLines.length * nameLineGap;
-  const designationBlockHeight = designation ? 50 : 0;
+  const nameLineGap = content.nameFontSize + 8;
+  const nameBlockHeight = labelToNameGap + content.nameLines.length * nameLineGap;
+  const designationBlockHeight = content.designation ? 50 : 0;
   const attendeeH = nameLabelOffset + nameBlockHeight + designationBlockHeight + 20;
 
   const captionBlock = 44;
@@ -145,12 +175,12 @@ function computeBadgeLayout(input: VisitorBadgeAssetInput): BadgeLayout {
   const attendeeY = eventY + eventH;
   const nameLabelY = attendeeY + nameLabelOffset;
   const nameValueY = nameLabelY + labelToNameGap;
-  const designationLabelY = nameValueY + nameLines.length * nameLineGap + 18;
+  const designationLabelY = nameValueY + content.nameLines.length * nameLineGap + 18;
   const qrY = attendeeY + attendeeH;
   const footerY = height - FOOTER_H;
   const qrBoxY = qrY + 18;
 
-  const passPillW = Math.max(passLabel.length * 7 + 22, 64);
+  const passPillW = Math.max(content.passLabel.length * 7 + 22, 64);
   const passPillX = BADGE_WIDTH - PAD - passPillW;
 
   return {
@@ -165,10 +195,10 @@ function computeBadgeLayout(input: VisitorBadgeAssetInput): BadgeLayout {
     qrSectionH,
     qrBoxY,
     footerY,
-    titleLines: titleLines.map(escapeXml),
-    venueLines: venueLines.map(escapeXml),
-    nameLines: nameLines.map(escapeXml),
-    nameFontSize,
+    titleLines: content.titleLines.map(escapeXml),
+    venueLines: content.venueLines.map(escapeXml),
+    nameLines: content.nameLines.map(escapeXml),
+    nameFontSize: content.nameFontSize,
     nameLabelY,
     nameValueY,
     designationLabelY,
@@ -195,17 +225,19 @@ function mapPinIcon(x: number, y: number) {
  */
 export function buildVisitorBadgeSvg(
   input: VisitorBadgeAssetInput,
-  options: { omitInlineQr?: boolean } = {}
+  options: { omitInlineQr?: boolean; omitText?: boolean } = {}
 ) {
   const layout = computeBadgeLayout(input);
-  const passLabel = escapeXml((input.passLabel ?? "VISITOR").toUpperCase());
-  const designation = input.attendeeDesignation?.trim();
-  const dateLabel = escapeXml(formatBadgeDateLabel(input.startDate, input.endDate));
-  const bookingNumber = escapeXml(input.bookingNumber);
+  const content = getVisitorBadgeTextContent(input);
+  const passLabel = escapeXml(content.passLabel);
+  const designation = content.designation;
+  const dateLabel = escapeXml(content.dateLabel);
+  const bookingNumber = escapeXml(content.bookingNumber);
   const qrHref = escapeXml(input.qrDataUrl);
-  const tagline = escapeXml(BRAND.tagline);
-  const brandName = escapeXml(BRAND.name);
-  const footerText = escapeXml(`Powered by ${BRAND.name}`);
+  const tagline = escapeXml(content.tagline);
+  const brandName = escapeXml(content.brandName);
+  const footerText = escapeXml(content.footerText);
+  const showText = !options.omitText;
 
   const W = layout.width;
   const H = layout.height;
@@ -248,38 +280,40 @@ export function buildVisitorBadgeSvg(
     <!-- Header -->
     <rect y="${layout.headerY}" width="${W}" height="${HEADER_H}" fill="url(#headerGrad)"/>
     <rect x="${PAD}" y="${layout.headerY + 16}" width="40" height="40" rx="8" fill="${C.champagne}"/>
-    <text x="${PAD + 20}" y="${layout.headerY + 44}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="700" fill="${C.espresso}">A</text>
-    <text x="${PAD + 50}" y="${layout.headerY + 32}" font-family="${FONT}" font-size="14" font-weight="700" fill="${C.alabaster}">${brandName}</text>
-    <text x="${PAD + 50}" y="${layout.headerY + 48}" font-family="${FONT}" font-size="9" font-weight="400" fill="${C.champagneLight}" fill-opacity="0.75" letter-spacing="0.04em">${tagline.toUpperCase()}</text>
+    ${showText ? `<text x="${PAD + 20}" y="${layout.headerY + 44}" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="700" fill="${C.espresso}">A</text>` : ""}
+    ${showText ? `<text x="${PAD + 50}" y="${layout.headerY + 32}" font-family="${FONT}" font-size="14" font-weight="700" fill="${C.alabaster}">${brandName}</text>` : ""}
+    ${showText ? `<text x="${PAD + 50}" y="${layout.headerY + 48}" font-family="${FONT}" font-size="9" font-weight="400" fill="${C.champagneLight}" fill-opacity="0.75" letter-spacing="0.04em">${tagline}</text>` : ""}
     <rect x="${layout.passPillX}" y="${layout.headerY + 20}" width="${layout.passPillW}" height="22" rx="6" fill="${C.champagne}"/>
-    <text x="${layout.passPillX + layout.passPillW / 2}" y="${layout.headerY + 35}" text-anchor="middle" font-family="${FONT}" font-size="10" font-weight="700" letter-spacing="0.04em" fill="${C.espresso}">${passLabel}</text>
+    ${showText ? `<text x="${layout.passPillX + layout.passPillW / 2}" y="${layout.headerY + 35}" text-anchor="middle" font-family="${FONT}" font-size="10" font-weight="700" letter-spacing="0.04em" fill="${C.espresso}">${passLabel}</text>` : ""}
 
     <!-- Event strip -->
     <rect y="${layout.eventY}" width="${W}" height="${layout.eventH}" fill="${C.muted}" fill-opacity="0.55"/>
     <line x1="0" y1="${layout.eventY + layout.eventH}" x2="${W}" y2="${layout.eventY + layout.eventH}" stroke="${C.border}" stroke-width="1"/>
-    <text x="${PAD}" y="${layout.eventY + 22}" font-family="${FONT}" font-size="10" font-weight="600" fill="${C.mutedFg}" letter-spacing="0.06em">Official event badge</text>
-    ${svgTextBlock(layout.titleLines, PAD, layout.eventY + 40, 17, `font-family="${FONT}" font-size="14" font-weight="600" fill="${C.foreground}"`)}
+    ${showText ? `<text x="${PAD}" y="${layout.eventY + 22}" font-family="${FONT}" font-size="10" font-weight="600" fill="${C.mutedFg}" letter-spacing="0.06em">Official event badge</text>` : ""}
+    ${showText ? svgTextBlock(layout.titleLines, PAD, layout.eventY + 40, 17, `font-family="${FONT}" font-size="14" font-weight="600" fill="${C.foreground}"`) : ""}
     ${calendarIcon(PAD, dateY)}
-    <text x="${PAD + 16}" y="${dateY + 10}" font-family="${FONT}" font-size="11" fill="${C.mutedFg}">${dateLabel}</text>
+    ${showText ? `<text x="${PAD + 16}" y="${dateY + 10}" font-family="${FONT}" font-size="11" fill="${C.mutedFg}">${dateLabel}</text>` : ""}
     ${
-      layout.venueLines.length
+      showText && layout.venueLines.length
         ? `${mapPinIcon(PAD, venueStartY)}
     ${svgTextBlock(layout.venueLines, PAD + 16, venueStartY + 10, 14, `font-family="${FONT}" font-size="11" fill="${C.mutedFg}"`)}`
+        : !showText && layout.venueLines.length
+          ? `${mapPinIcon(PAD, venueStartY)}`
         : ""
     }
 
     <!-- Attendee -->
     <rect y="${layout.attendeeY}" width="${W}" height="${layout.attendeeH}" fill="${C.white}"/>
-    <text x="${W / 2}" y="${layout.nameLabelY}" text-anchor="middle" font-family="${FONT}" font-size="10" font-weight="600" fill="${C.mutedFg}" letter-spacing="0.14em">Name</text>
-    ${svgTextBlock(
+    ${showText ? `<text x="${W / 2}" y="${layout.nameLabelY}" text-anchor="middle" font-family="${FONT}" font-size="10" font-weight="600" fill="${C.mutedFg}" letter-spacing="0.14em">Name</text>` : ""}
+    ${showText ? svgTextBlock(
       layout.nameLines,
       W / 2,
       layout.nameValueY,
       layout.nameFontSize + 8,
       `text-anchor="middle" font-family="${FONT}" font-size="${layout.nameFontSize}" font-weight="700" fill="${C.espresso}"`
-    )}
+    ) : ""}
     ${
-      designation
+      showText && designation
         ? `<text x="${W / 2}" y="${layout.designationLabelY}" text-anchor="middle" font-family="${FONT}" font-size="10" font-weight="600" fill="${C.mutedFg}" letter-spacing="0.14em">Designation</text>
     <text x="${W / 2}" y="${layout.designationLabelY + 22}" text-anchor="middle" font-family="${FONT}" font-size="16" font-weight="600" fill="${C.champagne}">${escapeXml(designation)}</text>`
         : ""
@@ -290,12 +324,12 @@ export function buildVisitorBadgeSvg(
     <line x1="0" y1="${layout.qrY}" x2="${W}" y2="${layout.qrY}" stroke="${C.border}" stroke-width="1" stroke-dasharray="5 5"/>
     <rect x="${qrBoxX}" y="${layout.qrBoxY}" width="${QR_BOX}" height="${QR_BOX}" rx="12" fill="${C.white}" stroke="${C.espresso}" stroke-width="1.5" stroke-opacity="0.1"/>
     ${qrImageTag}
-    <text x="${W / 2}" y="${scanY}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="500" fill="${C.mutedFg}">Scan at entrance for check-in</text>
-    <text x="${W / 2}" y="${bookingY}" text-anchor="middle" font-family="Courier New, monospace" font-size="10" fill="${C.mutedFg}" fill-opacity="0.85">${bookingNumber}</text>
+    ${showText ? `<text x="${W / 2}" y="${scanY}" text-anchor="middle" font-family="${FONT}" font-size="11" font-weight="500" fill="${C.mutedFg}">Scan at entrance for check-in</text>` : ""}
+    ${showText ? `<text x="${W / 2}" y="${bookingY}" text-anchor="middle" font-family="Courier New, monospace" font-size="10" fill="${C.mutedFg}" fill-opacity="0.85">${bookingNumber}</text>` : ""}
 
     <!-- Footer -->
     <rect y="${layout.footerY}" width="${W}" height="${FOOTER_H}" fill="${C.espresso}"/>
-    <text x="${W / 2}" y="${layout.footerY + 20}" text-anchor="middle" font-family="${FONT}" font-size="8" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.85" letter-spacing="0.02em">${footerText}</text>
+    ${showText ? `<text x="${W / 2}" y="${layout.footerY + 20}" text-anchor="middle" font-family="${FONT}" font-size="8" font-weight="500" fill="${C.champagneLight}" fill-opacity="0.85" letter-spacing="0.02em">${footerText}</text>` : ""}
   </g>
 </svg>`;
 }
@@ -319,10 +353,11 @@ async function qrDataUrlToPngBuffer(dataUrl: string, sizePx: number): Promise<Bu
 /** Rasterise badge and composite QR via sharp (reliable for PDF/email attachments). */
 export async function renderVisitorBadgePng(
   input: VisitorBadgeAssetInput,
-  scale = 2
+  scale = 2,
+  options: { omitText?: boolean } = {}
 ): Promise<Buffer> {
   const layout = computeBadgeLayout(input);
-  const svg = buildVisitorBadgeSvg(input, { omitInlineQr: true });
+  const svg = buildVisitorBadgeSvg(input, { omitInlineQr: true, omitText: options.omitText });
   const basePng = await svgToPng(svg, layout.width, layout.height, scale);
 
   const qrBoxX = (layout.width - QR_BOX) / 2;
@@ -354,20 +389,290 @@ export async function svgToPng(svg: string, width: number, height: number, scale
     .toBuffer();
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized, 16);
+  return rgb(((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255);
+}
+
+function baselineTopToPdfY(pageHeight: number, baselineTop: number, fontSize: number) {
+  return pageHeight - baselineTop - fontSize * 0.22;
+}
+
+function drawPdfText(
+  page: PDFPage,
+  text: string,
+  {
+    x,
+    baselineTop,
+    size,
+    font,
+    color,
+    opacity,
+    characterSpacing,
+  }: {
+    x: number;
+    baselineTop: number;
+    size: number;
+    font: PDFFont;
+    color: RGB;
+    opacity?: number;
+    characterSpacing?: number;
+  }
+) {
+  page.drawText(text, {
+    x,
+    y: baselineTopToPdfY(page.getHeight(), baselineTop, size),
+    size,
+    font,
+    color,
+    opacity,
+    characterSpacing,
+  });
+}
+
+function drawPdfTextCentered(
+  page: PDFPage,
+  text: string,
+  {
+    centerX,
+    baselineTop,
+    size,
+    font,
+    color,
+    opacity,
+    characterSpacing,
+  }: {
+    centerX: number;
+    baselineTop: number;
+    size: number;
+    font: PDFFont;
+    color: RGB;
+    opacity?: number;
+    characterSpacing?: number;
+  }
+) {
+  const extraSpacing = characterSpacing ? characterSpacing * Math.max(text.length - 1, 0) : 0;
+  const width = font.widthOfTextAtSize(text, size) + extraSpacing;
+  drawPdfText(page, text, {
+    x: centerX - width / 2,
+    baselineTop,
+    size,
+    font,
+    color,
+    opacity,
+    characterSpacing,
+  });
+}
+
+function drawPdfTextLines(
+  page: PDFPage,
+  lines: string[],
+  {
+    x,
+    baselineTop,
+    lineHeight,
+    size,
+    font,
+    color,
+  }: {
+    x: number;
+    baselineTop: number;
+    lineHeight: number;
+    size: number;
+    font: PDFFont;
+    color: RGB;
+  }
+) {
+  lines.forEach((line, index) => {
+    drawPdfText(page, line, {
+      x,
+      baselineTop: baselineTop + index * lineHeight,
+      size,
+      font,
+      color,
+    });
+  });
+}
+
+function drawPdfTextLinesCentered(
+  page: PDFPage,
+  lines: string[],
+  {
+    centerX,
+    baselineTop,
+    lineHeight,
+    size,
+    font,
+    color,
+  }: {
+    centerX: number;
+    baselineTop: number;
+    lineHeight: number;
+    size: number;
+    font: PDFFont;
+    color: RGB;
+  }
+) {
+  lines.forEach((line, index) => {
+    drawPdfTextCentered(page, line, {
+      centerX,
+      baselineTop: baselineTop + index * lineHeight,
+      size,
+      font,
+      color,
+    });
+  });
+}
+
 /** PDF = embedded 2× PNG scaled to badge dimensions (matches live preview). */
 export async function buildVisitorBadgePdf(input: VisitorBadgeAssetInput) {
   const layout = computeBadgeLayout(input);
-  const png = await renderVisitorBadgePng(input, 2);
+  const content = getVisitorBadgeTextContent(input);
+  const png = await renderVisitorBadgePng(input, 2, { omitText: true });
 
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([layout.width, layout.height]);
   const image = await pdfDoc.embedPng(png);
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const fontMono = await pdfDoc.embedFont(StandardFonts.Courier);
 
   page.drawImage(image, {
     x: 0,
     y: 0,
     width: layout.width,
     height: layout.height,
+  });
+
+  const centerX = layout.width / 2;
+  const dateY = layout.eventY + 44 + content.titleLines.length * 17;
+  const venueStartY = dateY + 18;
+  const scanY = layout.qrBoxY + QR_BOX + 20;
+  const bookingY = scanY + 16;
+
+  drawPdfTextCentered(page, "A", {
+    centerX: PAD + 20,
+    baselineTop: layout.headerY + 44,
+    size: 18,
+    font: fontBold,
+    color: hexToRgb(C.espresso),
+  });
+  drawPdfText(page, content.brandName, {
+    x: PAD + 50,
+    baselineTop: layout.headerY + 32,
+    size: 14,
+    font: fontBold,
+    color: hexToRgb(C.alabaster),
+  });
+  drawPdfText(page, content.tagline, {
+    x: PAD + 50,
+    baselineTop: layout.headerY + 48,
+    size: 9,
+    font: fontRegular,
+    color: hexToRgb(C.champagneLight),
+    opacity: 0.75,
+    characterSpacing: 0.36,
+  });
+  drawPdfTextCentered(page, content.passLabel, {
+    centerX: layout.passPillX + layout.passPillW / 2,
+    baselineTop: layout.headerY + 35,
+    size: 10,
+    font: fontBold,
+    color: hexToRgb(C.espresso),
+    characterSpacing: 0.4,
+  });
+
+  drawPdfText(page, "Official event badge", {
+    x: PAD,
+    baselineTop: layout.eventY + 22,
+    size: 10,
+    font: fontBold,
+    color: hexToRgb(C.mutedFg),
+    characterSpacing: 0.6,
+  });
+  drawPdfTextLines(page, content.titleLines, {
+    x: PAD,
+    baselineTop: layout.eventY + 40,
+    lineHeight: 17,
+    size: 14,
+    font: fontBold,
+    color: hexToRgb(C.foreground),
+  });
+  drawPdfText(page, content.dateLabel, {
+    x: PAD + 16,
+    baselineTop: dateY + 10,
+    size: 11,
+    font: fontRegular,
+    color: hexToRgb(C.mutedFg),
+  });
+  drawPdfTextLines(page, content.venueLines, {
+    x: PAD + 16,
+    baselineTop: venueStartY + 10,
+    lineHeight: 14,
+    size: 11,
+    font: fontRegular,
+    color: hexToRgb(C.mutedFg),
+  });
+
+  drawPdfTextCentered(page, "Name", {
+    centerX,
+    baselineTop: layout.nameLabelY,
+    size: 10,
+    font: fontBold,
+    color: hexToRgb(C.mutedFg),
+    characterSpacing: 1.4,
+  });
+  drawPdfTextLinesCentered(page, content.nameLines, {
+    centerX,
+    baselineTop: layout.nameValueY,
+    lineHeight: layout.nameFontSize + 8,
+    size: layout.nameFontSize,
+    font: fontBold,
+    color: hexToRgb(C.espresso),
+  });
+
+  if (content.designation) {
+    drawPdfTextCentered(page, "Designation", {
+      centerX,
+      baselineTop: layout.designationLabelY,
+      size: 10,
+      font: fontBold,
+      color: hexToRgb(C.mutedFg),
+      characterSpacing: 1.4,
+    });
+    drawPdfTextCentered(page, content.designation, {
+      centerX,
+      baselineTop: layout.designationLabelY + 22,
+      size: 16,
+      font: fontBold,
+      color: hexToRgb(C.champagne),
+    });
+  }
+
+  drawPdfTextCentered(page, "Scan at entrance for check-in", {
+    centerX,
+    baselineTop: scanY,
+    size: 11,
+    font: fontRegular,
+    color: hexToRgb(C.mutedFg),
+  });
+  drawPdfTextCentered(page, content.bookingNumber, {
+    centerX,
+    baselineTop: bookingY,
+    size: 10,
+    font: fontMono,
+    color: hexToRgb(C.mutedFg),
+    opacity: 0.85,
+  });
+  drawPdfTextCentered(page, content.footerText, {
+    centerX,
+    baselineTop: layout.footerY + 20,
+    size: 9,
+    font: fontRegular,
+    color: hexToRgb(C.champagneLight),
+    opacity: 0.85,
+    characterSpacing: 0.18,
   });
 
   return pdfDoc.save();
