@@ -301,7 +301,7 @@ export function buildVisitorBadgeSvg(
 }
 
 export function dataUrlToBase64(dataUrl: string) {
-  const match = dataUrl.match(/^data:[^;]+;base64,(.+)$/s);
+  const match = dataUrl.match(/^data:[^;]+;base64,([\s\S]+)$/);
   return match?.[1]?.replace(/\s/g, "") ?? "";
 }
 
