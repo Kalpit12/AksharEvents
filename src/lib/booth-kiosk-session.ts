@@ -103,7 +103,7 @@ export async function clearBoothKioskSession(eventSlug: string) {
 export async function requireBoothKioskUnlocked(eventSlug: string, eventId: string) {
   const session = await getBoothKioskSession(eventSlug, eventId);
   if (!session.unlocked) {
-    return { error: "Enter the on-site password to continue." as const };
+    return { ok: false as const, error: "Enter the on-site password to continue." };
   }
   return { ok: true as const };
 }

@@ -125,7 +125,7 @@ export async function registerAtKiosk(
 ): Promise<KioskRegisterResult> {
   try {
     const sessionCheck = await requireBoothKioskUnlocked(eventSlug, eventId);
-    if ("error" in sessionCheck) return { error: sessionCheck.error };
+    if (!sessionCheck.ok) return { error: sessionCheck.error };
 
     const ticketTypes = await prisma.ticketType.findMany({
       where: { eventId, isActive: true },
@@ -275,7 +275,7 @@ export async function checkInAtKiosk(
 
   try {
     const sessionCheck = await requireBoothKioskUnlocked(eventSlug, eventId);
-    if ("error" in sessionCheck) return { error: sessionCheck.error };
+    if (!sessionCheck.ok) return { error: sessionCheck.error };
 
     const { bookingNumber, eventId: payloadEventId } = parseVisitorQr(trimmed);
     if (!bookingNumber) return { error: "Invalid visitor pass" };
