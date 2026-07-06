@@ -96,7 +96,6 @@ import {
   Plus,
   Route,
   Salad,
-  ScanLine,
   Send,
   ShieldCheck,
   Ticket,
@@ -134,7 +133,6 @@ import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
-import { ExhibitorBoothVisitorsPanel } from "@/components/exhibitor-portal/exhibitor-booth-visitors-panel";
 import { notify } from "@/lib/notify";
 
 export type ExhibitorPortalProps = {
@@ -168,10 +166,6 @@ export type ExhibitorPortalProps = {
   brandingArtworkSubmissions?: SerializedBrandingArtworkSubmission[];
   tourTravelItineraries?: SerializedTourTravelItinerary[];
   notificationUnreadCount?: number;
-  boothVisitorCount?: number;
-  boothVisitors?: import("@/lib/booth-visits").ExhibitorBoothVisitRecord[];
-  boothKioskEnabled?: boolean;
-  boothKioskToken?: string | null;
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -183,7 +177,6 @@ const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ class
   { id: "tours", label: "Tours & travel", icon: MapPin },
   { id: "schedules", label: "Schedules", icon: Route },
   { id: "food", label: "Food outings", icon: ForkKnife },
-  { id: "visitors", label: "Booth visitors", icon: ScanLine },
 ];
 
 const EXHIBITOR_TAB_IDS = [
@@ -195,7 +188,6 @@ const EXHIBITOR_TAB_IDS = [
   "tours",
   "schedules",
   "food",
-  "visitors",
 ] as const satisfies readonly ExhibitorTab[];
 
 const REGISTRATION_STEP_COUNT = 6;
@@ -1187,9 +1179,8 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       />
 
       {tab === "overview" && (
-        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
           <MetricCard label="Team members" value={n} icon={Users} accent="teal" />
-          <MetricCard label="Booth visitors" value={props.boothVisitorCount ?? 0} icon={ScanLine} accent="sky" />
           <MetricCard label="Meal passes" value={n * props.expoDays * 3} icon={Ticket} accent="emerald" />
           <MetricCard label="Tours booked" value={tourCount} icon={MapPin} accent="violet" />
         </section>
@@ -1780,15 +1771,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             )}
           </Panel>
         </div>
-      )}
-
-      {tab === "visitors" && (
-        <ExhibitorBoothVisitorsPanel
-          visitorCount={props.boothVisitorCount ?? 0}
-          records={props.boothVisitors ?? []}
-          boothKioskEnabled={props.boothKioskEnabled ?? false}
-          boothKioskToken={props.boothKioskToken ?? null}
-        />
       )}
 
       {modalOpen && (

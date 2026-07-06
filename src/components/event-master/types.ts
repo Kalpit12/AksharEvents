@@ -21,7 +21,7 @@ export type EventMasterTab =
   | "itinerary"
   | "floorplan"
   | "checkins"
-  | "boothvisitors";
+  | "onsite";
 
 export type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 

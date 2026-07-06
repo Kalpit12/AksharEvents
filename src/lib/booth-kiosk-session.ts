@@ -17,66 +17,93 @@ function signPayload(payload: string) {
   return createHmac("sha256", getSigningSecret()).update(payload).digest("base64url");
 }
 
-function cookieName(token: string) {
-  return `${COOKIE_PREFIX}${token}`;
+function cookieName(eventSlug: string) {
+  return `${COOKIE_PREFIX}${eventSlug}`;
 }
 
-export function createBoothKioskSessionValue(eventExhibitorId: string) {
-  const expiresAt = Date.now() + SESSION_TTL_MS;
-  const payload = `${eventExhibitorId}:${expiresAt}`;
+function cookiePath(eventSlug: string) {
+  return `/booth/${eventSlug}`;
+}
+
+type SessionPayload = {
+  eventId: string;
+  expiresAt: number;
+};
+
+function encodeSessionValue({ eventId, expiresAt }: SessionPayload) {
+  const payload = `${eventId}:${expiresAt}`;
   const signature = signPayload(payload);
   return `${payload}:${signature}`;
 }
 
-function parseSessionValue(value: string, eventExhibitorId: string) {
+function parseSessionValue(value: string, expectedEventId: string): SessionPayload | null {
   const parts = value.split(":");
-  if (parts.length < 3) return false;
+  if (parts.length < 3) return null;
 
   const signature = parts.pop();
   const expiresAtRaw = parts.pop();
-  const sessionExhibitorId = parts.join(":");
+  const eventId = parts.join(":");
 
-  if (!signature || !expiresAtRaw || sessionExhibitorId !== eventExhibitorId) {
-    return false;
+  if (!signature || !expiresAtRaw || eventId !== expectedEventId) {
+    return null;
   }
 
   const expiresAt = Number(expiresAtRaw);
   if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
-    return false;
+    return null;
   }
 
-  const payload = `${sessionExhibitorId}:${expiresAtRaw}`;
+  const payload = `${eventId}:${expiresAtRaw}`;
   const expected = signPayload(payload);
 
   try {
     const a = Buffer.from(signature);
     const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
+    if (a.length !== b.length) return null;
+    if (!timingSafeEqual(a, b)) return null;
   } catch {
-    return false;
+    return null;
   }
+
+  return { eventId, expiresAt };
 }
 
-export async function setBoothKioskSession(token: string, eventExhibitorId: string) {
+async function readSession(eventSlug: string, eventId: string) {
   const cookieStore = await cookies();
-  cookieStore.set(cookieName(token), createBoothKioskSessionValue(eventExhibitorId), {
+  const value = cookieStore.get(cookieName(eventSlug))?.value;
+  if (!value) return null;
+  return parseSessionValue(value, eventId);
+}
+
+export async function getBoothKioskSession(eventSlug: string, eventId: string) {
+  const session = await readSession(eventSlug, eventId);
+  if (!session) {
+    return { unlocked: false as const };
+  }
+  return { unlocked: true as const };
+}
+
+export async function setBoothKioskUnlocked(eventSlug: string, eventId: string) {
+  const cookieStore = await cookies();
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  cookieStore.set(cookieName(eventSlug), encodeSessionValue({ eventId, expiresAt }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    path: `/booth/${token}`,
+    path: cookiePath(eventSlug),
     maxAge: SESSION_TTL_MS / 1000,
   });
 }
 
-export async function clearBoothKioskSession(token: string) {
+export async function clearBoothKioskSession(eventSlug: string) {
   const cookieStore = await cookies();
-  cookieStore.delete(cookieName(token));
+  cookieStore.delete(cookieName(eventSlug));
 }
 
-export async function hasValidBoothKioskSession(token: string, eventExhibitorId: string) {
-  const cookieStore = await cookies();
-  const value = cookieStore.get(cookieName(token))?.value;
-  if (!value) return false;
-  return parseSessionValue(value, eventExhibitorId);
+export async function requireBoothKioskUnlocked(eventSlug: string, eventId: string) {
+  const session = await getBoothKioskSession(eventSlug, eventId);
+  if (!session.unlocked) {
+    return { error: "Enter the on-site password to continue." as const };
+  }
+  return { ok: true as const };
 }

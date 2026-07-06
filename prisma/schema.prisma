@@ -335,7 +335,8 @@ model Event {
   booths          EventBooth[]
   tourTravelItineraries TourTravelItinerary[]
   exhibitorBadgeCheckIns ExhibitorBadgeCheckIn[]
-  boothVisits             BoothVisit[]
+  boothKioskEnabled       Boolean   @default(false)
+  boothKioskPasswordHash  String?
   floorPlanImageUrl       String?
   floorPlanSvgUrl         String?
   floorPlanWidth          Int?
@@ -433,7 +434,6 @@ model Booking {
   items           BookingItem[]
   payment         Payment?
   attendance      Attendance?
-  boothVisits     BoothVisit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -565,31 +565,8 @@ model EventExhibitor {
   brandingArtworkSubmissions BrandingArtworkSubmission[]
   eventBooth                 EventBooth?
   badgeCheckIns              ExhibitorBadgeCheckIn[]
-  boothVisits                BoothVisit[]
-  boothKioskEnabled          Boolean   @default(false)
-  boothKioskToken            String?   @unique
-  boothKioskPasswordHash     String?
 
   @@unique([eventId, exhibitorId])
-}
-
-model BoothVisit {
-  id                  String         @id @default(cuid())
-  eventId             String
-  event               Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventExhibitorId    String
-  eventExhibitor      EventExhibitor @relation(fields: [eventExhibitorId], references: [id], onDelete: Cascade)
-  bookingId           String
-  booking             Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  attendeeName        String
-  attendeeEmail       String
-  attendeeCompany     String?
-  attendeeDesignation String?
-  scannedAt           DateTime       @default(now())
-
-  @@unique([eventExhibitorId, bookingId])
-  @@index([eventId, scannedAt])
-  @@index([eventExhibitorId, scannedAt])
 }
 
 model ExhibitorRegistration {

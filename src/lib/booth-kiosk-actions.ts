@@ -1,31 +1,50 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import {
   clearBoothKioskSession,
-  hasValidBoothKioskSession,
-  setBoothKioskSession,
+  getBoothKioskSession,
+  requireBoothKioskUnlocked,
+  setBoothKioskUnlocked,
 } from "@/lib/booth-kiosk-session";
 import { isPrismaSchemaDriftError, prisma } from "@/lib/prisma";
 import { createBooking } from "@/lib/actions";
 import { visitorRegistrationSchema } from "@/lib/validations";
 import { pickVisitorTicketType } from "@/lib/visitor-pass";
+import { getPassBadgeLabel } from "@/lib/pass-badge";
+import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
 
-export type BoothScanResult =
+export type KioskCheckInResult =
   | { error: string }
   | {
       success: true;
-      alreadyScanned: boolean;
+      alreadyCheckedIn: boolean;
       visitor: {
         name: string;
         email: string;
         company: string | null;
         designation: string | null;
         bookingNumber: string;
-        scannedAt: string;
+        checkedInAt: string | null;
+      };
+    };
+
+export type KioskRegisterResult =
+  | { error: string }
+  | { requiresPayment: true; checkoutUrl: string }
+  | {
+      success: true;
+      alreadyRegistered: boolean;
+      bookingNumber: string;
+      qrDataUrl: string;
+      passLabel: string;
+      visitor: {
+        name: string;
+        email: string;
+        company: string | null;
+        designation: string | null;
       };
     };
 
@@ -35,137 +54,66 @@ type TicketPayload = {
   event?: string;
 };
 
-async function getKioskExhibitorByToken(token: string) {
-  return prisma.eventExhibitor.findFirst({
-    where: { boothKioskToken: token, boothKioskEnabled: true },
-    include: {
-      exhibitor: { select: { companyName: true } },
-      event: {
-        select: {
-          id: true,
-          title: true,
-          slug: true,
-          status: true,
-          startDate: true,
-          endDate: true,
-          startTime: true,
-          endTime: true,
-          venue: { select: { name: true, city: true } },
-        },
-      },
-    },
+const eventKioskInclude = {
+  venue: { select: { name: true, city: true } },
+  ticketTypes: {
+    where: { isActive: true },
+    select: { id: true, name: true, price: true, quantity: true, sold: true, tier: true },
+  },
+} as const;
+
+async function getEventByKioskKey(slug: string) {
+  return prisma.event.findFirst({
+    where: { slug, status: "PUBLISHED", boothKioskEnabled: true },
+    include: eventKioskInclude,
   });
 }
 
-export async function checkBoothKioskSession(token: string) {
+export async function checkBoothKioskSession(eventSlug: string, eventId: string) {
   try {
-    const entry = await prisma.eventExhibitor.findFirst({
-      where: { boothKioskToken: token, boothKioskEnabled: true },
-      select: { id: true },
-    });
-    if (!entry) return { unlocked: false };
-    const unlocked = await hasValidBoothKioskSession(token, entry.id);
-    return { unlocked };
+    return await getBoothKioskSession(eventSlug, eventId);
   } catch (error) {
     if (isPrismaSchemaDriftError(error)) {
-      return { unlocked: false, error: "Booth visitor tracking is not available yet." };
+      return { unlocked: false as const, error: "On-site registration is not available yet." };
     }
     throw error;
   }
 }
 
-export async function unlockBoothKiosk(token: string, password: string) {
+export async function unlockBoothKiosk(eventSlug: string, eventId: string, password: string) {
   if (!password.trim()) return { error: "Password is required" };
 
   try {
-    const entry = await getKioskExhibitorByToken(token);
-    if (!entry) return { error: "This booth kiosk link is not active." };
-    if (!entry.boothKioskPasswordHash) {
-      return { error: "Booth kiosk password has not been set yet. Contact the event organizer." };
+    const event = await prisma.event.findFirst({
+      where: { id: eventId, slug: eventSlug, status: "PUBLISHED", boothKioskEnabled: true },
+      select: { id: true, boothKioskPasswordHash: true },
+    });
+    if (!event) return { error: "This on-site link is not active." };
+    if (!event.boothKioskPasswordHash) {
+      return { error: "Password has not been set yet. Contact the event organizer." };
     }
 
-    const valid = await bcrypt.compare(password, entry.boothKioskPasswordHash);
+    const valid = await bcrypt.compare(password, event.boothKioskPasswordHash);
     if (!valid) return { error: "Incorrect password" };
 
-    await setBoothKioskSession(token, entry.id);
+    await setBoothKioskUnlocked(eventSlug, event.id);
     return { success: true as const };
   } catch (error) {
     if (isPrismaSchemaDriftError(error)) {
-      return { error: "Booth visitor tracking is not available yet. Run prisma db push." };
+      return { error: "On-site registration is not available yet. Run prisma db push." };
     }
     throw error;
   }
 }
 
-export async function lockBoothKiosk(token: string) {
-  await clearBoothKioskSession(token);
+export async function lockBoothKiosk(eventSlug: string) {
+  await clearBoothKioskSession(eventSlug);
   return { success: true as const };
 }
 
-export type BoothRegisterResult =
-  | { error: string }
-  | { requiresPayment: true; checkoutUrl: string }
-  | {
-      success: true;
-      alreadyRegistered: boolean;
-      bookingNumber: string;
-      visitor: {
-        name: string;
-        email: string;
-        company: string | null;
-        designation: string | null;
-        bookingNumber: string;
-        scannedAt: string;
-      };
-    };
-
-async function recordBoothVisitForBooking(
-  entry: { id: string; eventId: string },
-  booking: {
-    id: string;
-    bookingNumber: string;
-    attendeeName: string;
-    attendeeEmail: string;
-    attendeeCompany: string | null;
-    attendeeDesignation: string | null;
-  }
-) {
-  const existing = await prisma.boothVisit.findUnique({
-    where: {
-      eventExhibitorId_bookingId: {
-        eventExhibitorId: entry.id,
-        bookingId: booking.id,
-      },
-    },
-  });
-
-  if (existing) {
-    return {
-      alreadyScanned: true,
-      visit: existing,
-    };
-  }
-
-  const visit = await prisma.boothVisit.create({
-    data: {
-      eventId: entry.eventId,
-      eventExhibitorId: entry.id,
-      bookingId: booking.id,
-      attendeeName: booking.attendeeName,
-      attendeeEmail: booking.attendeeEmail,
-      attendeeCompany: booking.attendeeCompany,
-      attendeeDesignation: booking.attendeeDesignation,
-    },
-  });
-
-  revalidatePath("/admin");
-  revalidatePath("/exhibitor");
-
-  return { alreadyScanned: false, visit };
-}
-
-export async function registerAtBooth(
-  token: string,
+export async function registerAtKiosk(
+  eventSlug: string,
+  eventId: string,
   data: {
     attendeeName: string;
     attendeeEmail: string;
@@ -174,13 +122,13 @@ export async function registerAtBooth(
     attendeeDesignation: string;
     attendeeSector: string;
   }
-): Promise<BoothRegisterResult> {
+): Promise<KioskRegisterResult> {
   try {
-    const entry = await getKioskExhibitorByToken(token);
-    if (!entry) return { error: "This booth link is not active." };
+    const sessionCheck = await requireBoothKioskUnlocked(eventSlug, eventId);
+    if ("error" in sessionCheck) return { error: sessionCheck.error };
 
     const ticketTypes = await prisma.ticketType.findMany({
-      where: { eventId: entry.eventId, isActive: true },
+      where: { eventId, isActive: true },
     });
 
     const visitorTicket = pickVisitorTicketType(
@@ -196,7 +144,7 @@ export async function registerAtBooth(
     }
 
     const parsed = visitorRegistrationSchema.safeParse({
-      eventId: entry.eventId,
+      eventId,
       ticketTypeId: visitorTicket.id,
       ...data,
     });
@@ -206,7 +154,7 @@ export async function registerAtBooth(
     }
 
     const bookingResult = await createBooking({
-      eventId: entry.eventId,
+      eventId,
       items: [{ ticketTypeId: visitorTicket.id, quantity: 1 }],
       attendeeName: parsed.data.attendeeName,
       attendeeEmail: parsed.data.attendeeEmail,
@@ -216,31 +164,41 @@ export async function registerAtBooth(
       attendeeSector: parsed.data.attendeeSector,
     });
 
+    const passLabel = getPassBadgeLabel(
+      visitorTicket.name,
+      ticketTypes.find((t) => t.id === visitorTicket.id)?.tier
+    );
+
     if (bookingResult.error) {
       if (bookingResult.alreadyRegistered && bookingResult.bookingNumber) {
         const booking = await prisma.booking.findFirst({
           where: {
             bookingNumber: bookingResult.bookingNumber,
-            eventId: entry.eventId,
+            eventId,
             status: "CONFIRMED",
           },
         });
         if (!booking) {
-          return { error: "You are already registered. Complete payment or check your email for your pass." };
+          return {
+            error: "This email is already registered. Complete payment or check email for the pass.",
+          };
         }
 
-        const { visit } = await recordBoothVisitForBooking(entry, booking);
+        const qrDataUrl = await generateQRCodeDataUrl(
+          getTicketQRPayload(booking.bookingNumber, eventId)
+        );
+
         return {
           success: true,
           alreadyRegistered: true,
           bookingNumber: booking.bookingNumber,
+          qrDataUrl,
+          passLabel,
           visitor: {
-            name: visit.attendeeName,
-            email: visit.attendeeEmail,
-            company: visit.attendeeCompany,
-            designation: visit.attendeeDesignation,
-            bookingNumber: booking.bookingNumber,
-            scannedAt: visit.scannedAt.toISOString(),
+            name: booking.attendeeName,
+            email: booking.attendeeEmail,
+            company: booking.attendeeCompany,
+            designation: booking.attendeeDesignation,
           },
         };
       }
@@ -258,7 +216,7 @@ export async function registerAtBooth(
     const booking = await prisma.booking.findFirst({
       where: {
         bookingNumber: bookingResult.bookingNumber,
-        eventId: entry.eventId,
+        eventId,
         status: "CONFIRMED",
       },
     });
@@ -267,24 +225,28 @@ export async function registerAtBooth(
       return { error: "Registration could not be completed." };
     }
 
-    const { visit } = await recordBoothVisitForBooking(entry, booking);
+    const qrDataUrl = await generateQRCodeDataUrl(
+      getTicketQRPayload(booking.bookingNumber, eventId)
+    );
+
+    revalidatePath("/admin");
 
     return {
       success: true,
       alreadyRegistered: false,
       bookingNumber: booking.bookingNumber,
+      qrDataUrl,
+      passLabel,
       visitor: {
-        name: visit.attendeeName,
-        email: visit.attendeeEmail,
-        company: visit.attendeeCompany,
-        designation: visit.attendeeDesignation,
-        bookingNumber: booking.bookingNumber,
-        scannedAt: visit.scannedAt.toISOString(),
+        name: booking.attendeeName,
+        email: booking.attendeeEmail,
+        company: booking.attendeeCompany,
+        designation: booking.attendeeDesignation,
       },
     };
   } catch (error) {
     if (isPrismaSchemaDriftError(error)) {
-      return { error: "Booth visitor tracking is not available yet. Run prisma db push." };
+      return { error: "On-site registration is not available yet. Run prisma db push." };
     }
     throw error;
   }
@@ -303,116 +265,134 @@ function parseVisitorQr(qrData: string): { bookingNumber?: string; eventId?: str
   return { bookingNumber: trimmed };
 }
 
-export async function scanBoothVisitor(token: string, qrData: string): Promise<BoothScanResult> {
+export async function checkInAtKiosk(
+  eventSlug: string,
+  eventId: string,
+  qrData: string
+): Promise<KioskCheckInResult> {
   const trimmed = qrData.trim();
   if (!trimmed) return { error: "No QR code data provided" };
 
   try {
-    const entry = await getKioskExhibitorByToken(token);
-    if (!entry) return { error: "This booth kiosk link is not active." };
-
-    const unlocked = await hasValidBoothKioskSession(token, entry.id);
-    if (!unlocked) return { error: "Session expired. Enter the booth password again." };
+    const sessionCheck = await requireBoothKioskUnlocked(eventSlug, eventId);
+    if ("error" in sessionCheck) return { error: sessionCheck.error };
 
     const { bookingNumber, eventId: payloadEventId } = parseVisitorQr(trimmed);
     if (!bookingNumber) return { error: "Invalid visitor pass" };
-    if (payloadEventId && payloadEventId !== entry.eventId) {
+    if (payloadEventId && payloadEventId !== eventId) {
       return { error: "This pass is for a different event" };
     }
 
     const booking = await prisma.booking.findFirst({
       where: {
         bookingNumber,
-        eventId: entry.eventId,
+        eventId,
         status: "CONFIRMED",
       },
+      include: { attendance: true },
     });
 
     if (!booking) {
       return { error: "Visitor pass not found or not confirmed for this event" };
     }
 
-    const { alreadyScanned, visit } = await recordBoothVisitForBooking(entry, booking);
+    if (booking.checkedIn || booking.attendance) {
+      const checkedInAt = booking.checkedInAt ?? booking.attendance?.checkedInAt;
+      return {
+        success: true,
+        alreadyCheckedIn: true,
+        visitor: {
+          name: booking.attendeeName,
+          email: booking.attendeeEmail,
+          company: booking.attendeeCompany,
+          designation: booking.attendeeDesignation,
+          bookingNumber: booking.bookingNumber,
+          checkedInAt: checkedInAt?.toISOString() ?? null,
+        },
+      };
+    }
+
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.booking.update({
+        where: { id: booking.id },
+        data: { checkedIn: true, checkedInAt: now },
+      }),
+      prisma.attendance.create({
+        data: { bookingId: booking.id, deviceInfo: "onsite-kiosk" },
+      }),
+    ]);
+
+    revalidatePath("/admin");
 
     return {
       success: true,
-      alreadyScanned,
+      alreadyCheckedIn: false,
       visitor: {
-        name: visit.attendeeName,
-        email: visit.attendeeEmail,
-        company: visit.attendeeCompany,
-        designation: visit.attendeeDesignation,
+        name: booking.attendeeName,
+        email: booking.attendeeEmail,
+        company: booking.attendeeCompany,
+        designation: booking.attendeeDesignation,
         bookingNumber: booking.bookingNumber,
-        scannedAt: visit.scannedAt.toISOString(),
+        checkedInAt: now.toISOString(),
       },
     };
   } catch (error) {
     if (isPrismaSchemaDriftError(error)) {
-      return { error: "Booth visitor tracking is not available yet. Run prisma db push." };
+      return { error: "On-site check-in is not available yet. Run prisma db push." };
     }
     throw error;
   }
 }
 
-export async function configureBoothKiosk(
-  eventExhibitorId: string,
+export async function configureEventBoothKiosk(
+  eventId: string,
   data: { enabled: boolean; password?: string }
 ) {
   const user = await requireRole("ADMIN");
   if (!user) return { error: "Unauthorized" };
 
   try {
-    const entry = await prisma.eventExhibitor.findUnique({
-      where: { id: eventExhibitorId },
-      select: { id: true, boothKioskToken: true },
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, slug: true, boothKioskPasswordHash: true },
     });
-    if (!entry) return { error: "Exhibitor not found" };
+    if (!event) return { error: "Event not found" };
 
     const password = data.password?.trim();
-    if (data.enabled && !password && !entry.boothKioskToken) {
-      // enabling fresh — password required on first setup unless already has hash
-    }
-
     const update: {
       boothKioskEnabled: boolean;
-      boothKioskToken?: string;
       boothKioskPasswordHash?: string;
     } = {
       boothKioskEnabled: data.enabled,
     };
 
-    if (!entry.boothKioskToken) {
-      update.boothKioskToken = nanoid(24);
-    }
-
     if (password) {
       update.boothKioskPasswordHash = await bcrypt.hash(password, 12);
-    } else if (data.enabled) {
-      const current = await prisma.eventExhibitor.findUnique({
-        where: { id: eventExhibitorId },
-        select: { boothKioskPasswordHash: true },
-      });
-      if (!current?.boothKioskPasswordHash) {
-        return { error: "Set a password before enabling the booth kiosk" };
-      }
+    } else if (data.enabled && !event.boothKioskPasswordHash) {
+      return { error: "Set a password before enabling the on-site link" };
     }
 
-    const updated = await prisma.eventExhibitor.update({
-      where: { id: eventExhibitorId },
+    const updated = await prisma.event.update({
+      where: { id: eventId },
       data: update,
-      select: { boothKioskToken: true, boothKioskEnabled: true },
+      select: { slug: true, boothKioskEnabled: true },
     });
 
     revalidatePath("/admin");
     return {
       success: true as const,
-      token: updated.boothKioskToken,
+      slug: updated.slug,
       enabled: updated.boothKioskEnabled,
     };
   } catch (error) {
     if (isPrismaSchemaDriftError(error)) {
-      return { error: "Booth visitor tracking is not available yet. Run prisma db push." };
+      return { error: "On-site registration is not available yet. Run prisma db push." };
     }
     throw error;
   }
+}
+
+export async function loadEventForBoothKioskPage(slug: string) {
+  return getEventByKioskKey(slug);
 }

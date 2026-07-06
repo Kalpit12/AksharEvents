@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   checkBoothKioskSession,
+  checkInAtKiosk,
   lockBoothKiosk,
-  scanBoothVisitor,
   unlockBoothKiosk,
-  type BoothScanResult,
+  type KioskCheckInResult,
 } from "@/lib/booth-kiosk-actions";
 import { BoothKioskRegisterForm } from "@/components/booth/booth-kiosk-register-form";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/Badge";
 import { formatDate, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Building2,
   Calendar,
   Camera,
   CameraOff,
@@ -32,12 +31,16 @@ export type BoothKioskEventInfo = {
   title: string;
   startDate: string;
   endDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
   venueName: string | null;
   venueCity: string | null;
 };
 
 export type BoothKioskRegistrationInfo = {
+  ticketTypeId: string;
   ticketName: string;
+  ticketTier: string;
   ticketPrice: number;
   available: boolean;
 };
@@ -45,29 +48,22 @@ export type BoothKioskRegistrationInfo = {
 type BoothTab = "register" | "scan";
 
 type Props = {
-  token: string;
-  companyName: string;
-  boothLabel: string | null;
+  eventSlug: string;
+  eventId: string;
   event: BoothKioskEventInfo;
   registration: BoothKioskRegistrationInfo;
 };
 
 const RESET_DELAY_MS = 5000;
 
-export function BoothKioskClient({
-  token,
-  companyName,
-  boothLabel,
-  event,
-  registration,
-}: Props) {
+export function BoothKioskClient({ eventSlug, eventId, event, registration }: Props) {
   const [tab, setTab] = useState<BoothTab>("register");
   const [unlocked, setUnlocked] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [password, setPassword] = useState("");
   const [unlocking, setUnlocking] = useState(false);
   const [manualCode, setManualCode] = useState("");
-  const [result, setResult] = useState<BoothScanResult | null>(null);
+  const [result, setResult] = useState<KioskCheckInResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -78,11 +74,11 @@ export function BoothKioskClient({
   const location = event.venueCity ?? event.venueName ?? "Kenya";
 
   useEffect(() => {
-    void checkBoothKioskSession(token).then((res) => {
+    void checkBoothKioskSession(eventSlug, eventId).then((res) => {
       setUnlocked(res.unlocked);
       setCheckingSession(false);
     });
-  }, [token]);
+  }, [eventSlug, eventId]);
 
   const stopCamera = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -106,7 +102,7 @@ export function BoothKioskClient({
       if (!trimmed) return;
 
       setLoading(true);
-      const res = await scanBoothVisitor(token, trimmed);
+      const res = await checkInAtKiosk(eventSlug, eventId, trimmed);
       setLoading(false);
       setResult(res);
 
@@ -115,10 +111,10 @@ export function BoothKioskClient({
         return;
       }
 
-      if (res.alreadyScanned) {
-        toast.warning("Already scanned at this booth");
+      if (res.alreadyCheckedIn) {
+        toast.warning("Already checked in");
       } else {
-        toast.success("Visitor recorded!");
+        toast.success("Visitor checked in!");
       }
 
       window.setTimeout(() => {
@@ -126,7 +122,7 @@ export function BoothKioskClient({
         setManualCode("");
       }, RESET_DELAY_MS);
     },
-    [token]
+    [eventSlug, eventId]
   );
 
   const startCamera = useCallback(async () => {
@@ -183,7 +179,7 @@ export function BoothKioskClient({
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     setUnlocking(true);
-    const res = await unlockBoothKiosk(token, password);
+    const res = await unlockBoothKiosk(eventSlug, eventId, password);
     setUnlocking(false);
     if ("error" in res) {
       toast.error(res.error);
@@ -191,12 +187,12 @@ export function BoothKioskClient({
     }
     setUnlocked(true);
     setPassword("");
-    toast.success("Scanner unlocked");
+    toast.success("Unlocked");
   };
 
   const handleLock = async () => {
     await stopCamera();
-    await lockBoothKiosk(token);
+    await lockBoothKiosk(eventSlug);
     setUnlocked(false);
     setResult(null);
   };
@@ -216,28 +212,77 @@ export function BoothKioskClient({
     );
   }
 
+  if (!unlocked) {
+    return (
+      <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <header className="mb-4 rounded-2xl border border-champagne/40 bg-gradient-to-r from-card to-muted/40 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Event</p>
+          <h1 className="mt-1 text-lg font-bold leading-tight">{event.title}</h1>
+          <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+            <p className="inline-flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              {dateRange}
+            </p>
+            <p className="inline-flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {location}
+            </p>
+          </div>
+        </header>
+
+        <Card className="flex-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Lock className="h-5 w-5 text-primary" />
+              Staff password
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Enter the on-site password from your event organizer to register visitors or check in
+              passes.
+            </p>
+            <form onSubmit={handleUnlock} className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Staff password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                className="text-base"
+              />
+              <Button type="submit" className="w-full" disabled={unlocking || !password}>
+                {unlocking ? "Unlocking…" : "Continue"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:max-w-5xl">
       <header className="mb-4 rounded-2xl border border-champagne/40 bg-gradient-to-r from-card to-muted/40 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Event</p>
-        <h1 className="mt-1 text-lg font-bold leading-tight">{event.title}</h1>
-        <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-          <p className="inline-flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 shrink-0" />
-            {dateRange}
-          </p>
-          <p className="inline-flex items-center gap-1.5">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {location}
-          </p>
-        </div>
-        <div className="mt-4 rounded-xl bg-primary/10 px-3 py-2.5">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
-            <Building2 className="h-3.5 w-3.5" />
-            Visiting
-          </p>
-          <p className="mt-1 text-base font-semibold">{companyName}</p>
-          {boothLabel && <p className="text-sm text-muted-foreground">{boothLabel}</p>}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">On-site</p>
+            <h1 className="mt-1 text-lg font-bold leading-tight">{event.title}</h1>
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <p className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                {dateRange}
+              </p>
+              <p className="inline-flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {location}
+              </p>
+            </div>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void handleLock()}>
+            <Lock className="h-4 w-4" />
+            Lock
+          </Button>
         </div>
       </header>
 
@@ -266,16 +311,25 @@ export function BoothKioskClient({
           )}
         >
           <ScanLine className="h-4 w-4" />
-          Scan pass
+          Check in
         </button>
       </div>
 
       {tab === "register" ? (
         registration.available ? (
           <BoothKioskRegisterForm
-            token={token}
+            eventSlug={eventSlug}
+            eventId={eventId}
             eventTitle={event.title}
+            eventBadge={{
+              title: event.title,
+              startDate: event.startDate,
+              endDate: event.endDate,
+              venueName: event.venueName,
+              venueCity: event.venueCity,
+            }}
             ticketName={registration.ticketName}
+            ticketTier={registration.ticketTier}
             ticketPrice={registration.ticketPrice}
           />
         ) : (
@@ -285,46 +339,8 @@ export function BoothKioskClient({
             </CardContent>
           </Card>
         )
-      ) : !unlocked ? (
-        <Card className="flex-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Lock className="h-5 w-5 text-primary" />
-              Booth password
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="mb-4 text-sm text-muted-foreground">
-              Enter the booth password to scan visitor passes.
-            </p>
-            <form onSubmit={handleUnlock} className="space-y-4">
-              <Input
-                type="password"
-                placeholder="Booth password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="text-base"
-              />
-              <Button type="submit" className="w-full" disabled={unlocking || !password}>
-                {unlocking ? "Unlocking…" : "Unlock scanner"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
       ) : (
         <div className="flex flex-1 flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-lg font-bold">
-              <ScanLine className="h-5 w-5 text-primary" />
-              Scan visitor pass
-            </h2>
-            <Button type="button" variant="outline" size="sm" onClick={() => void handleLock()}>
-              <Lock className="h-4 w-4" />
-              Lock
-            </Button>
-          </div>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Camera</CardTitle>
@@ -370,7 +386,7 @@ export function BoothKioskClient({
                 onClick={() => void handleScan(manualCode)}
                 disabled={loading || !manualCode.trim()}
               >
-                {loading ? "Recording…" : "Record visitor"}
+                {loading ? "Checking in…" : "Check in visitor"}
               </Button>
             </CardContent>
           </Card>
@@ -384,7 +400,7 @@ export function BoothKioskClient({
                   <div className="flex items-center gap-3 text-red-600">
                     <XCircle className="h-8 w-8 shrink-0" />
                     <div>
-                      <p className="font-semibold">Could not record visit</p>
+                      <p className="font-semibold">Could not check in</p>
                       <p className="text-sm">{result.error}</p>
                     </div>
                   </div>
@@ -392,7 +408,7 @@ export function BoothKioskClient({
                   <div className="flex items-start gap-3">
                     <CheckCircle
                       className={`h-8 w-8 shrink-0 ${
-                        result.alreadyScanned ? "text-amber-500" : "text-green-600"
+                        result.alreadyCheckedIn ? "text-amber-500" : "text-green-600"
                       }`}
                     />
                     <div className="min-w-0 flex-1">
@@ -405,13 +421,13 @@ export function BoothKioskClient({
                       )}
                       <p className="text-sm text-muted-foreground">{result.visitor.email}</p>
                       <p className="mt-1 font-mono text-xs">#{result.visitor.bookingNumber}</p>
-                      {result.alreadyScanned ? (
+                      {result.alreadyCheckedIn ? (
                         <Badge variant="warning" className="mt-3">
-                          Already scanned at this booth
+                          Already checked in
                         </Badge>
                       ) : (
                         <Badge className="mt-3 bg-green-100 text-green-800 hover:bg-green-100">
-                          Visitor recorded
+                          Checked in
                         </Badge>
                       )}
                     </div>

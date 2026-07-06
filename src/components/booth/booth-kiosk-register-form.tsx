@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerAtBooth, type BoothRegisterResult } from "@/lib/booth-kiosk-actions";
+import { registerAtKiosk, type KioskRegisterResult } from "@/lib/booth-kiosk-actions";
 import { visitorRegistrationSchema } from "@/lib/validations";
+import { getPassBadgeLabel } from "@/lib/pass-badge";
+import type { EventBadgeEventInfo } from "@/components/pass/digital-pass-card";
+import { VisitorBadgeProfilePreview } from "@/components/pass/visitor-badge-profile-preview";
+import { RegistrationConfirmedPanel } from "@/components/registration/registration-confirmed-panel";
 import { VISITOR_SECTORS } from "@/lib/visitor-sectors";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +16,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { toast } from "sonner";
-import { CheckCircle, IdCard, XCircle } from "lucide-react";
+import { CheckCircle, IdCard, Sparkles, XCircle } from "lucide-react";
 
 type FormValues = {
   attendeeName: string;
@@ -24,21 +28,33 @@ type FormValues = {
 };
 
 type Props = {
-  token: string;
+  eventSlug: string;
+  eventId: string;
   eventTitle: string;
+  eventBadge: EventBadgeEventInfo;
   ticketName: string;
+  ticketTier: string;
   ticketPrice: number;
 };
 
 const formSchema = visitorRegistrationSchema.omit({ eventId: true, ticketTypeId: true });
 
-export function BoothKioskRegisterForm({ token, eventTitle, ticketName, ticketPrice }: Props) {
+export function BoothKioskRegisterForm({
+  eventSlug,
+  eventId,
+  eventTitle,
+  eventBadge,
+  ticketName,
+  ticketTier,
+  ticketPrice,
+}: Props) {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<BoothRegisterResult | null>(null);
+  const [result, setResult] = useState<KioskRegisterResult | null>(null);
 
   const {
     register,
     handleSubmit,
+    control,
     reset,
     formState: { errors },
   } = useForm<FormValues>({
@@ -53,6 +69,9 @@ export function BoothKioskRegisterForm({ token, eventTitle, ticketName, ticketPr
     },
   });
 
+  const watched = useWatch({ control });
+  const passLabel = getPassBadgeLabel(ticketName, ticketTier);
+
   const selectClassName = cn(
     "mt-1 flex h-10 w-full appearance-none rounded-lg border border-border bg-card px-3 py-2 pr-9 text-base text-card-foreground shadow-sm",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
@@ -63,7 +82,7 @@ export function BoothKioskRegisterForm({ token, eventTitle, ticketName, ticketPr
   const onSubmit = async (data: FormValues) => {
     setLoading(true);
     setResult(null);
-    const res = await registerAtBooth(token, data);
+    const res = await registerAtKiosk(eventSlug, eventId, data);
     setLoading(false);
     setResult(res);
 
@@ -79,181 +98,190 @@ export function BoothKioskRegisterForm({ token, eventTitle, ticketName, ticketPr
     }
 
     if (res.alreadyRegistered) {
-      toast.info("You're already registered — visit recorded at this booth");
+      toast.info("Already registered — badge shown below");
     } else {
-      toast.success("Registration complete!");
+      toast.success("Registered! Badge sent by email.");
       reset();
     }
   };
 
   if (result && "success" in result && result.success) {
     return (
-      <Card className="border-green-200">
-        <CardContent className="p-5">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="h-8 w-8 shrink-0 text-green-600" />
-            <div className="min-w-0 flex-1">
-              <p className="text-lg font-semibold">
-                {result.alreadyRegistered ? "Welcome back!" : "You're registered!"}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {result.alreadyRegistered
-                  ? "Your visit at this booth has been recorded."
-                  : "Your event pass is ready and your visit at this booth has been recorded."}
-              </p>
-              <p className="mt-3 font-semibold">{result.visitor.name}</p>
-              {result.visitor.designation && (
-                <p className="text-sm text-primary">{result.visitor.designation}</p>
-              )}
-              {result.visitor.company && (
-                <p className="text-sm text-muted-foreground">{result.visitor.company}</p>
-              )}
-              <p className="mt-1 font-mono text-xs">#{result.visitor.bookingNumber}</p>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Button asChild size="sm" className="w-full sm:w-auto">
-                  <a href={`/pass/${result.bookingNumber}`}>View event pass</a>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={() => setResult(null)}
-                >
-                  Register another visitor
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <RegistrationConfirmedPanel
+          attendeeName={result.visitor.name}
+          attendeeEmail={result.visitor.email}
+          attendeeDesignation={result.visitor.designation}
+          bookingNumber={result.bookingNumber}
+          qrDataUrl={result.qrDataUrl}
+          passLabel={result.passLabel}
+          event={{
+            title: eventBadge.title,
+            slug: eventSlug,
+            startDate: eventBadge.startDate,
+            endDate: eventBadge.endDate,
+            venueName: eventBadge.venueName,
+            venueCity: eventBadge.venueCity,
+          }}
+        />
+        <Button type="button" variant="outline" className="w-full" onClick={() => setResult(null)}>
+          Register another visitor
+        </Button>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <IdCard className="h-5 w-5 text-primary" />
-          Register to visit
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Register for <strong>{eventTitle}</strong> at this booth.
-        </p>
-        <div className="inline-flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
-          <span className="font-medium">{ticketName}</span>
-          <span className="font-semibold text-primary">
-            {ticketPrice === 0 ? "Free" : formatCurrency(ticketPrice)}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <Label htmlFor="booth-attendeeName">Full name *</Label>
-            <Input
-              id="booth-attendeeName"
-              {...register("attendeeName")}
-              className="mt-1 text-base"
-              placeholder="John Doe"
-            />
-            {errors.attendeeName && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeeName.message}</p>
-            )}
+    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <IdCard className="h-5 w-5 text-primary" />
+            Register visitor
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Register a walk-in visitor for <strong>{eventTitle}</strong>.
+          </p>
+          <div className="inline-flex items-center gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
+            <span className="font-medium">{ticketName}</span>
+            <span className="font-semibold text-primary">
+              {ticketPrice === 0 ? "Free" : formatCurrency(ticketPrice)}
+            </span>
           </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <Label htmlFor="booth-attendeeName">Full name *</Label>
+              <Input
+                id="booth-attendeeName"
+                {...register("attendeeName")}
+                className="mt-1 text-base"
+                placeholder="John Doe"
+              />
+              {errors.attendeeName && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeeName.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="booth-attendeeEmail">Email *</Label>
-            <Input
-              id="booth-attendeeEmail"
-              type="email"
-              {...register("attendeeEmail")}
-              className="mt-1 text-base"
-              placeholder="you@company.com"
-            />
-            {errors.attendeeEmail && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeeEmail.message}</p>
-            )}
-          </div>
+            <div>
+              <Label htmlFor="booth-attendeeEmail">Email *</Label>
+              <Input
+                id="booth-attendeeEmail"
+                type="email"
+                {...register("attendeeEmail")}
+                className="mt-1 text-base"
+                placeholder="you@company.com"
+              />
+              {errors.attendeeEmail && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeeEmail.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="booth-attendeePhone">Phone *</Label>
-            <Input
-              id="booth-attendeePhone"
-              type="tel"
-              {...register("attendeePhone")}
-              className="mt-1 text-base"
-              placeholder="+254 7XX XXX XXX"
-            />
-            {errors.attendeePhone && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeePhone.message}</p>
-            )}
-          </div>
+            <div>
+              <Label htmlFor="booth-attendeePhone">Phone *</Label>
+              <Input
+                id="booth-attendeePhone"
+                type="tel"
+                {...register("attendeePhone")}
+                className="mt-1 text-base"
+                placeholder="+254 7XX XXX XXX"
+              />
+              {errors.attendeePhone && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeePhone.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="booth-attendeeCompany">Company *</Label>
-            <Input
-              id="booth-attendeeCompany"
-              {...register("attendeeCompany")}
-              className="mt-1 text-base"
-              placeholder="Acme Ltd"
-            />
-            {errors.attendeeCompany && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeeCompany.message}</p>
-            )}
-          </div>
+            <div>
+              <Label htmlFor="booth-attendeeCompany">Company *</Label>
+              <Input
+                id="booth-attendeeCompany"
+                {...register("attendeeCompany")}
+                className="mt-1 text-base"
+                placeholder="Acme Ltd"
+              />
+              {errors.attendeeCompany && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeeCompany.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="booth-attendeeDesignation">Designation *</Label>
-            <Input
-              id="booth-attendeeDesignation"
-              {...register("attendeeDesignation")}
-              className="mt-1 text-base"
-              placeholder="Marketing Manager"
-            />
-            {errors.attendeeDesignation && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeeDesignation.message}</p>
-            )}
-          </div>
+            <div>
+              <Label htmlFor="booth-attendeeDesignation">Designation *</Label>
+              <Input
+                id="booth-attendeeDesignation"
+                {...register("attendeeDesignation")}
+                className="mt-1 text-base"
+                placeholder="Marketing Manager"
+              />
+              {errors.attendeeDesignation && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeeDesignation.message}</p>
+              )}
+            </div>
 
-          <div>
-            <Label htmlFor="booth-attendeeSector">Sector *</Label>
-            <select
-              id="booth-attendeeSector"
-              {...register("attendeeSector")}
-              className={selectClassName}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Select your industry sector
-              </option>
-              {VISITOR_SECTORS.map((sector) => (
-                <option key={sector} value={sector}>
-                  {sector}
+            <div>
+              <Label htmlFor="booth-attendeeSector">Sector *</Label>
+              <select
+                id="booth-attendeeSector"
+                {...register("attendeeSector")}
+                className={selectClassName}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select industry sector
                 </option>
-              ))}
-            </select>
-            {errors.attendeeSector && (
-              <p className="mt-1 text-xs text-red-500">{errors.attendeeSector.message}</p>
-            )}
-          </div>
+                {VISITOR_SECTORS.map((sector) => (
+                  <option key={sector} value={sector}>
+                    {sector}
+                  </option>
+                ))}
+              </select>
+              {errors.attendeeSector && (
+                <p className="mt-1 text-xs text-red-500">{errors.attendeeSector.message}</p>
+              )}
+            </div>
 
-          <Button type="submit" className="w-full" size="lg" disabled={loading}>
-            {loading
-              ? "Registering…"
-              : ticketPrice === 0
-                ? "Register & get pass"
-                : `Register — ${formatCurrency(ticketPrice)}`}
-          </Button>
-        </form>
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading
+                ? "Registering…"
+                : ticketPrice === 0
+                  ? "Register & send badge"
+                  : `Register — ${formatCurrency(ticketPrice)}`}
+            </Button>
+          </form>
 
-        {result && "error" in result && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            <XCircle className="h-4 w-4 shrink-0" />
-            {result.error}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {result && "error" in result && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <XCircle className="h-4 w-4 shrink-0" />
+              {result.error}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="lg:sticky lg:top-5">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Sparkles className="h-5 w-5 text-champagne" />
+            Live badge preview
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Updates as you type. The same badge is emailed to the visitor after registration.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center pt-0">
+          <VisitorBadgeProfilePreview
+            attendeeName={watched.attendeeName ?? ""}
+            attendeeDesignation={watched.attendeeDesignation ?? ""}
+            bookingNumber=""
+            passLabel={passLabel}
+            event={eventBadge}
+          />
+          <p className="mt-4 flex items-center gap-1.5 text-center text-xs text-muted-foreground">
+            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+            QR code is generated when registration completes
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -13,7 +13,6 @@ import { serializeBrandingArtworkSubmission, type SerializedBrandingArtworkSubmi
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import { loadPublishedTourTravelItineraries } from "@/lib/itinerary-actions";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
-import { loadBoothVisitsForExhibitor, type ExhibitorBoothVisitRecord } from "@/lib/booth-visits";
 import { standLabelForBoothCode } from "@/lib/booth-allocation";
 import { redactRegistrationForClient } from "@/lib/registration-pii";
 import { getOpenExhibitorEvents, type OpenExhibitorEvent } from "@/lib/exhibitor-events";
@@ -25,7 +24,12 @@ import type { Exhibitor, ExhibitorMemberRole } from "@prisma/client";
 const eventExhibitorInclude = {
   registration: true,
   event: {
-    include: {
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+      startDate: true,
+      endDate: true,
       venue: { select: { name: true, city: true } },
     },
   },
@@ -99,10 +103,6 @@ export type ExhibitorDashboardPageData = {
   brandingArtworkSubmissions: SerializedBrandingArtworkSubmission[];
   tourTravelItineraries: SerializedTourTravelItinerary[];
   notificationUnreadCount: number;
-  boothVisitorCount: number;
-  boothVisitors: ExhibitorBoothVisitRecord[];
-  boothKioskEnabled: boolean;
-  boothKioskToken: string | null;
 };
 
 export async function loadExhibitorDashboardPageData(
@@ -243,12 +243,9 @@ export async function loadExhibitorDashboardPageData(
     assignedBoothRow?.code?.toUpperCase() ?? eventEntry?.boothNumber?.toUpperCase() ?? null;
   const boothStandLabel = boothNumber ? standLabelForBoothCode(boothNumber) : null;
 
-  const [tourTravelItineraries, notificationUnreadCount, boothVisitData] = await Promise.all([
+  const [tourTravelItineraries, notificationUnreadCount] = await Promise.all([
     eventId ? loadPublishedTourTravelItineraries(eventId) : Promise.resolve([]),
     prisma.notification.count({ where: { userId, isRead: false } }),
-    eventExhibitorId
-      ? loadBoothVisitsForExhibitor(eventExhibitorId)
-      : Promise.resolve({ visitorCount: 0, records: [] as ExhibitorBoothVisitRecord[] }),
   ]);
 
   return {
@@ -278,10 +275,6 @@ export async function loadExhibitorDashboardPageData(
     brandingArtworkSubmissions: serializedBrandingArtwork,
     tourTravelItineraries,
     notificationUnreadCount,
-    boothVisitorCount: boothVisitData.visitorCount,
-    boothVisitors: boothVisitData.records,
-    boothKioskEnabled: eventEntry?.boothKioskEnabled ?? false,
-    boothKioskToken: eventEntry?.boothKioskToken ?? null,
   };
 }
 

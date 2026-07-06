@@ -4,7 +4,6 @@ import { requireRole } from "@/lib/auth";
 import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
 import { loadExhibitorCheckInStatsWithRetry } from "@/lib/exhibitor-check-ins";
-import { loadBoothVisitStatsWithRetry } from "@/lib/booth-visits";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { prisma } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
@@ -34,6 +33,17 @@ export default async function AdminEventMasterPage({
     ? (publishedEvents.find((e) => e.id === urlEventId) ?? publishedEvents[0] ?? null)
     : (publishedEvents[0] ?? null);
 
+  const eventKioskMeta = event
+    ? await prisma.event.findUnique({
+        where: { id: event.id },
+        select: {
+          slug: true,
+          boothKioskEnabled: true,
+          boothKioskPasswordHash: true,
+        },
+      })
+    : null;
+
   if (!event) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -59,11 +69,10 @@ export default async function AdminEventMasterPage({
 
   const location = event.venue?.city ?? event.venue?.name ?? "Kenya";
   const checkInKind = urlCheckinKind === "exhibitor" ? "exhibitor" : "visitor";
-  const [data, visitorCheckIns, exhibitorCheckIns, boothVisits] = await Promise.all([
+  const [data, visitorCheckIns, exhibitorCheckIns] = await Promise.all([
     loadAdminEventMasterPageDataWithRetry(event.id),
     loadVisitorCheckInStatsWithRetry(event.id),
     loadExhibitorCheckInStatsWithRetry(event.id),
-    loadBoothVisitStatsWithRetry(event.id),
   ]);
 
   const publishedEventOptions = publishedEvents.map((e) => ({
@@ -109,7 +118,11 @@ export default async function AdminEventMasterPage({
           exhibitorCheckIns={exhibitorCheckIns}
           checkInKind={checkInKind}
           publishedEvents={publishedEventOptions}
-          boothVisits={boothVisits}
+          onsiteKiosk={{
+            enabled: eventKioskMeta?.boothKioskEnabled ?? false,
+            hasPassword: Boolean(eventKioskMeta?.boothKioskPasswordHash),
+            slug: eventKioskMeta?.slug ?? event.slug,
+          }}
         />
       </Suspense>
     </div>
