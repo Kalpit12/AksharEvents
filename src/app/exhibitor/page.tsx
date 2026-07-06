@@ -51,6 +51,10 @@ export default async function ExhibitorDashboardPage() {
       brandingArtworkSubmissions={data.brandingArtworkSubmissions}
       tourTravelItineraries={data.tourTravelItineraries}
       notificationUnreadCount={data.notificationUnreadCount}
+      boothVisitorCount={data.boothVisitorCount}
+      boothVisitors={data.boothVisitors}
+      boothKioskEnabled={data.boothKioskEnabled}
+      boothKioskToken={data.boothKioskToken}
     />
   );
 }

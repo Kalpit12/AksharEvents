@@ -20,7 +20,8 @@ export type EventMasterTab =
   | "schedule"
   | "itinerary"
   | "floorplan"
-  | "checkins";
+  | "checkins"
+  | "boothvisitors";
 
 export type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 

@@ -19,7 +19,7 @@ export function LayoutShellClient({
 }) {
   const pathname = usePathname();
 
-  if (pathname === "/launch") {
+  if (pathname === "/launch" || pathname.startsWith("/booth")) {
     return <>{children}</>;
   }
 

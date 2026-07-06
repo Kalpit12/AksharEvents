@@ -62,7 +62,9 @@ export function isPrismaSchemaDriftError(error: unknown): boolean {
     message.includes("unknown field") ||
     message.includes("exhibitorbadgecheckin") ||
     message.includes("badge_photo") ||
-    message.includes("badgecheckins")
+    message.includes("badgecheckins") ||
+    message.includes("boothvisit") ||
+    message.includes("boothkiosk")
   );
 }
 

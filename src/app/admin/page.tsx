@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
 import { loadExhibitorCheckInStatsWithRetry } from "@/lib/exhibitor-check-ins";
+import { loadBoothVisitStatsWithRetry } from "@/lib/booth-visits";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
 import { prisma } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
@@ -58,10 +59,11 @@ export default async function AdminEventMasterPage({
 
   const location = event.venue?.city ?? event.venue?.name ?? "Kenya";
   const checkInKind = urlCheckinKind === "exhibitor" ? "exhibitor" : "visitor";
-  const [data, visitorCheckIns, exhibitorCheckIns] = await Promise.all([
+  const [data, visitorCheckIns, exhibitorCheckIns, boothVisits] = await Promise.all([
     loadAdminEventMasterPageDataWithRetry(event.id),
     loadVisitorCheckInStatsWithRetry(event.id),
     loadExhibitorCheckInStatsWithRetry(event.id),
+    loadBoothVisitStatsWithRetry(event.id),
   ]);
 
   const publishedEventOptions = publishedEvents.map((e) => ({
@@ -107,6 +109,7 @@ export default async function AdminEventMasterPage({
           exhibitorCheckIns={exhibitorCheckIns}
           checkInKind={checkInKind}
           publishedEvents={publishedEventOptions}
+          boothVisits={boothVisits}
         />
       </Suspense>
     </div>
