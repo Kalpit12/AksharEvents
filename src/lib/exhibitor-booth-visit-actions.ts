@@ -41,15 +41,15 @@ function parseVisitorQr(qrData: string): { bookingNumber?: string; eventId?: str
 
 async function assertExhibitorBoothAccess(eventExhibitorId: string, userId: string) {
   const access = await requireExhibitorAccess(userId);
-  if (!access) return { error: "Unauthorized" as const };
+  if (!access) return { ok: false as const, error: "Unauthorized" };
 
   const entry = await prisma.eventExhibitor.findFirst({
     where: { id: eventExhibitorId, exhibitorId: access.exhibitor.id },
     select: { id: true, eventId: true },
   });
-  if (!entry) return { error: "Exhibitor booth not found" as const };
+  if (!entry) return { ok: false as const, error: "Exhibitor booth not found" };
 
-  return { entry };
+  return { ok: true as const, entry };
 }
 
 export async function scanExhibitorBoothVisitor(
@@ -64,7 +64,7 @@ export async function scanExhibitorBoothVisitor(
 
   try {
     const accessCheck = await assertExhibitorBoothAccess(eventExhibitorId, user.id);
-    if ("error" in accessCheck) return { error: accessCheck.error };
+    if (!accessCheck.ok) return { error: accessCheck.error };
 
     const { eventId } = accessCheck.entry;
     const { bookingNumber, eventId: payloadEventId } = parseVisitorQr(trimmed);
