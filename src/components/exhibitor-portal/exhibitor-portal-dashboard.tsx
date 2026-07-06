@@ -98,6 +98,7 @@ import {
   Salad,
   Send,
   ShieldCheck,
+  ScanLine,
   Ticket,
   Trash2,
   TrendingUp,
@@ -135,6 +136,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import { notify } from "@/lib/notify";
+import {
+  readExhibitorScanMode,
+  writeExhibitorScanMode,
+} from "@/lib/exhibitor-scan-mode";
 
 export type ExhibitorPortalProps = {
   eventExhibitorId: string | null;
@@ -299,6 +304,32 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     },
     [setTabRaw, regStep]
   );
+
+  const [scanMode, setScanModeState] = useState(false);
+
+  const setScanMode = useCallback(
+    (enabled: boolean) => {
+      setScanModeState(enabled);
+      writeExhibitorScanMode(enabled);
+      if (enabled) {
+        setTabRaw("checkins", { step: null });
+      }
+    },
+    [setTabRaw]
+  );
+
+  useEffect(() => {
+    if (readExhibitorScanMode()) {
+      setScanModeState(true);
+      setTabRaw("checkins", { step: null });
+    }
+  }, [setTabRaw]);
+
+  useEffect(() => {
+    if (scanMode && tab !== "checkins") {
+      setTabRaw("checkins", { step: null });
+    }
+  }, [scanMode, tab, setTabRaw]);
 
   useEffect(() => {
     const step = Number(searchParams.get("step"));
@@ -1169,6 +1200,34 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
   return (
     <div className="space-y-5">
+      {scanMode ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <ScanLine className="h-4 w-4 text-primary" />
+                Scan mode
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {props.companyName}
+                {boothLabel ? ` · ${boothLabel}` : ""}
+              </p>
+            </div>
+            <ExhibitorScanModeToggle enabled={scanMode} onChange={setScanMode} />
+          </div>
+          <ExhibitorBoothCheckInsPanel
+            eventExhibitorId={props.eventExhibitorId}
+            visitorCount={props.boothVisitorCount ?? 0}
+            records={props.boothVisitors ?? []}
+            companyName={props.companyName}
+            boothLabel={
+              props.boothStandLabel ??
+              (props.boothNumber ? `Booth ${props.boothNumber}` : null)
+            }
+          />
+        </>
+      ) : (
+        <>
       <PortalHero
         eventTitle={props.eventTitle}
         eventCity={props.eventCity}
@@ -1181,6 +1240,11 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         status={heroStatus}
         actionLabel={heroAction.label}
         onAction={heroAction.onAction}
+        headerActions={
+          props.eventExhibitorId ? (
+            <ExhibitorScanModeToggle enabled={scanMode} onChange={setScanMode} />
+          ) : undefined
+        }
       />
 
       {tab === "overview" && (
@@ -1794,7 +1858,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             props.boothStandLabel ??
             (props.boothNumber ? `Booth ${props.boothNumber}` : null)
           }
+          scanModeToggle={
+            props.eventExhibitorId ? (
+              <ExhibitorScanModeToggle enabled={scanMode} onChange={setScanMode} />
+            ) : undefined
+          }
         />
+      )}
+
+        </main>
+      </div>
+        </>
       )}
 
       {modalOpen && (
@@ -2010,8 +2084,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           </div>
         </ModalShell>
       )}
-        </main>
-      </div>
     </div>
   );
 }
@@ -2537,5 +2609,43 @@ function SelectionRow({ title, detail }: { title: string; detail: string }) {
       <div className="text-sm font-medium">{title}</div>
       <div className="text-xs text-muted-foreground">{detail}</div>
     </div>
+  );
+}
+
+function ExhibitorScanModeToggle({
+  enabled,
+  onChange,
+  className,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={enabled ? "Turn scan mode off" : "Turn scan mode on"}
+      onClick={() => onChange(!enabled)}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        enabled
+          ? "border-primary bg-primary text-white shadow-sm shadow-primary/20"
+          : "border-border bg-card text-muted-foreground hover:border-champagne/30 hover:text-foreground",
+        className
+      )}
+    >
+      <ScanLine className="h-4 w-4" />
+      <span>Scan mode</span>
+      <span
+        className={cn(
+          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          enabled ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+        )}
+      >
+        {enabled ? "On" : "Off"}
+      </span>
+    </button>
   );
 }

@@ -33,6 +33,7 @@ type Props = {
   records: ExhibitorBoothVisitRecord[];
   boothLabel: string | null;
   companyName: string;
+  scanModeToggle?: React.ReactNode;
 };
 
 type ScanStatus =
@@ -99,6 +100,7 @@ export function ExhibitorBoothCheckInsPanel({
   records: initialRecords,
   boothLabel,
   companyName,
+  scanModeToggle,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -256,10 +258,12 @@ export function ExhibitorBoothCheckInsPanel({
 
   return (
     <div className="space-y-4">
-      <Panel title="Booth visitor check-ins" icon={IdCard}>
+      <Panel title="Booth visitor check-ins" icon={IdCard} action={scanModeToggle}>
         <p className="text-sm text-muted-foreground">
           Scan visitor badges at your booth{boothLabel ? ` (${boothLabel})` : ""}. Each visitor is
-          recorded once — repeat scans show as already checked in.
+          recorded once — repeat scans show as already checked in. Turn on{" "}
+          <span className="font-medium text-foreground">Scan mode</span> for a full-screen scanner
+          view without other portal menus.
         </p>
       </Panel>
 

@@ -1,6 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import {
+  EXHIBITOR_SCAN_MODE_EVENT,
+  readExhibitorScanMode,
+} from "@/lib/exhibitor-scan-mode";
 
 export function LayoutShellClient({
   children,
@@ -18,6 +23,14 @@ export function LayoutShellClient({
   footer: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [exhibitorScanMode, setExhibitorScanMode] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setExhibitorScanMode(readExhibitorScanMode());
+    sync();
+    window.addEventListener(EXHIBITOR_SCAN_MODE_EVENT, sync);
+    return () => window.removeEventListener(EXHIBITOR_SCAN_MODE_EVENT, sync);
+  }, []);
 
   if (pathname === "/launch" || pathname.startsWith("/booth")) {
     return <>{children}</>;
@@ -26,7 +39,7 @@ export function LayoutShellClient({
   if (pathname.startsWith("/exhibitor")) {
     return (
       <>
-        {exhibitorHeader}
+        {!exhibitorScanMode && exhibitorHeader}
         <main className="flex-1 overflow-x-hidden bg-muted/20">{children}</main>
       </>
     );
