@@ -14,6 +14,10 @@ import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import { loadPublishedTourTravelItineraries } from "@/lib/itinerary-actions";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import { standLabelForBoothCode } from "@/lib/booth-allocation";
+import {
+  loadBoothVisitsForExhibitor,
+  type ExhibitorBoothVisitRecord,
+} from "@/lib/exhibitor-booth-visits";
 import { redactRegistrationForClient } from "@/lib/registration-pii";
 import { getOpenExhibitorEvents, type OpenExhibitorEvent } from "@/lib/exhibitor-events";
 import { getPrimaryPublishedEvent } from "@/lib/primary-event";
@@ -103,6 +107,8 @@ export type ExhibitorDashboardPageData = {
   brandingArtworkSubmissions: SerializedBrandingArtworkSubmission[];
   tourTravelItineraries: SerializedTourTravelItinerary[];
   notificationUnreadCount: number;
+  boothVisitorCount: number;
+  boothVisitors: ExhibitorBoothVisitRecord[];
 };
 
 export async function loadExhibitorDashboardPageData(
@@ -243,9 +249,12 @@ export async function loadExhibitorDashboardPageData(
     assignedBoothRow?.code?.toUpperCase() ?? eventEntry?.boothNumber?.toUpperCase() ?? null;
   const boothStandLabel = boothNumber ? standLabelForBoothCode(boothNumber) : null;
 
-  const [tourTravelItineraries, notificationUnreadCount] = await Promise.all([
+  const [tourTravelItineraries, notificationUnreadCount, boothVisitData] = await Promise.all([
     eventId ? loadPublishedTourTravelItineraries(eventId) : Promise.resolve([]),
     prisma.notification.count({ where: { userId, isRead: false } }),
+    eventExhibitorId
+      ? loadBoothVisitsForExhibitor(eventExhibitorId)
+      : Promise.resolve({ visitorCount: 0, records: [] as ExhibitorBoothVisitRecord[] }),
   ]);
 
   return {
@@ -275,6 +284,8 @@ export async function loadExhibitorDashboardPageData(
     brandingArtworkSubmissions: serializedBrandingArtwork,
     tourTravelItineraries,
     notificationUnreadCount,
+    boothVisitorCount: boothVisitData.visitorCount,
+    boothVisitors: boothVisitData.records,
   };
 }
 

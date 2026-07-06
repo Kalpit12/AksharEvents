@@ -6,7 +6,8 @@ export type ExhibitorTab =
   | "members"
   | "tours"
   | "food"
-  | "schedules";
+  | "schedules"
+  | "checkins";
 
 export type TeamMember = {
   id: string;

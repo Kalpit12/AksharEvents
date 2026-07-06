@@ -109,6 +109,7 @@ import type { SavedRegistrationData } from "@/components/exhibitor-portal/regist
 import { redactTeamMemberForClient } from "@/lib/registration-pii";
 import { MemberDocumentsUpload } from "@/components/exhibitor-portal/member-documents-upload";
 import { ExhibitorMemberBadgesPanel } from "@/components/exhibitor-portal/exhibitor-member-badges-panel";
+import { ExhibitorBoothCheckInsPanel } from "@/components/exhibitor-portal/exhibitor-booth-check-ins-panel";
 import {
   saveExhibitorRegistration,
   addExhibitorMember,
@@ -166,6 +167,8 @@ export type ExhibitorPortalProps = {
   brandingArtworkSubmissions?: SerializedBrandingArtworkSubmission[];
   tourTravelItineraries?: SerializedTourTravelItinerary[];
   notificationUnreadCount?: number;
+  boothVisitorCount?: number;
+  boothVisitors?: import("@/lib/exhibitor-booth-visits").ExhibitorBoothVisitRecord[];
 };
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -177,6 +180,7 @@ const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ class
   { id: "tours", label: "Tours & travel", icon: MapPin },
   { id: "schedules", label: "Schedules", icon: Route },
   { id: "food", label: "Food outings", icon: ForkKnife },
+  { id: "checkins", label: "Check-ins", icon: IdCard },
 ];
 
 const EXHIBITOR_TAB_IDS = [
@@ -188,6 +192,7 @@ const EXHIBITOR_TAB_IDS = [
   "tours",
   "schedules",
   "food",
+  "checkins",
 ] as const satisfies readonly ExhibitorTab[];
 
 const REGISTRATION_STEP_COUNT = 6;
@@ -1179,8 +1184,14 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       />
 
       {tab === "overview" && (
-        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3">
+        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard label="Team members" value={n} icon={Users} accent="teal" />
+          <MetricCard
+            label="Booth visitors"
+            value={props.boothVisitorCount ?? 0}
+            icon={IdCard}
+            accent="sky"
+          />
           <MetricCard label="Meal passes" value={n * props.expoDays * 3} icon={Ticket} accent="emerald" />
           <MetricCard label="Tours booked" value={tourCount} icon={MapPin} accent="violet" />
         </section>
@@ -1771,6 +1782,19 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             )}
           </Panel>
         </div>
+      )}
+
+      {tab === "checkins" && (
+        <ExhibitorBoothCheckInsPanel
+          eventExhibitorId={props.eventExhibitorId}
+          visitorCount={props.boothVisitorCount ?? 0}
+          records={props.boothVisitors ?? []}
+          companyName={props.companyName}
+          boothLabel={
+            props.boothStandLabel ??
+            (props.boothNumber ? `Booth ${props.boothNumber}` : null)
+          }
+        />
       )}
 
       {modalOpen && (
