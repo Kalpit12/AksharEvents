@@ -5,9 +5,6 @@
   "scripts": {
     "dev": "next dev -p 5001",
     "build": "prisma generate && next build",
-    "build:cf": "opennextjs-cloudflare build",
-    "preview:cf": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "start": "next start -p 5001",
     "lint": "eslint",
     "db:generate": "prisma generate",
@@ -24,7 +21,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "@opennextjs/cloudflare": "^1.19.11",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-accordion": "^1.2.14",
     "@radix-ui/react-avatar": "^1.2.0",
@@ -90,7 +86,6 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
-    "typescript": "^5",
-    "wrangler": "^4.103.0"
+    "typescript": "^5"
   }
 }
