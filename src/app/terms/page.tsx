@@ -27,7 +27,7 @@ export default function TermsPage() {
           <div className="prose dark:prose-invert max-w-none space-y-6 text-muted-foreground">
             <p className="text-lg leading-relaxed">
               These Terms and Conditions (&quot;Terms&quot;) govern your access to and use of the {BRAND.name} platform,
-              including event discovery, ticket booking, exhibitor registration, and related services. By creating an
+              including event discovery, event booking, exhibitor registration, and related services. By creating an
               account or using our services, you agree to these Terms.
             </p>
 
@@ -46,9 +46,9 @@ export default function TermsPage() {
               <li>You must comply with all applicable laws and event organiser requirements.</li>
             </ul>
 
-            <h2 className="text-xl font-bold text-foreground">Ticket Bookings</h2>
+            <h2 className="text-xl font-bold text-foreground">Event Bookings</h2>
             <p>
-              Ticket purchases are subject to the policies of the respective event organiser, including refund,
+              Event bookings are subject to the policies of the respective event organiser, including refund,
               transfer, and admission rules. {BRAND.name} facilitates bookings and payments but is not the organiser of
               third-party events unless stated otherwise. We are not responsible for event cancellations, changes, or
               disputes between attendees and organisers beyond our role as platform provider.

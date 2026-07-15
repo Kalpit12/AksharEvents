@@ -55,7 +55,7 @@ export default function PrivacyPage() {
 
             <h2 className="text-xl font-bold text-foreground">How We Use Your Information</h2>
             <ul className="list-disc space-y-2 pl-6">
-              <li>Process ticket bookings, payments, and confirmations</li>
+              <li>Process event bookings, payments, and confirmations</li>
               <li>Manage exhibitor registrations, booth assignments, and event logistics</li>
               <li>Send event updates, schedule changes, and service-related notifications</li>
               <li>Verify identity, prevent fraud, and maintain platform security</li>
