@@ -293,7 +293,7 @@ export function BrandingsPanel({
         <EmptyState
           icon={Palette}
           title="No branding items selected"
-          description={`Choose items from the ${ITEM_MASTER_CATEGORY_BRANDINGS} category under Additional requirements, then return here to upload your artwork files.`}
+          description={`Choose items from the ${ITEM_MASTER_CATEGORY_BRANDINGS} category under Booth Additional Requirements, then return here to upload your artwork files.`}
           compact
         />
       </Panel>
@@ -574,7 +574,7 @@ export function BrandingsPanel({
               artwork for this item will be deleted.
             </p>
             <p className="text-muted-foreground">
-              You can add it again from Additional requirements if needed.
+              You can add it again from Booth Additional Requirements if needed.
             </p>
           </div>
         </ModalShell>

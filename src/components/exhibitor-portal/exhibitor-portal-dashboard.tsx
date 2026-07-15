@@ -179,7 +179,7 @@ export type ExhibitorPortalProps = {
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "registration", label: "Registration form", icon: FileText },
-  { id: "additional", label: "Additional requirements", icon: PackagePlus },
+  { id: "additional", label: "Booth Additional Requirements", icon: PackagePlus },
   { id: "brandings", label: "Brandings", icon: Palette },
   { id: "members", label: "Team members", icon: Users },
   { id: "tours", label: "Tours & travel", icon: MapPin },
@@ -1573,9 +1573,9 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   ["Booth package", form.booth || "—"],
                   ["Setup date", form.setup || "—"],
                   [
-                    "Additional requirements",
+                    "Booth Additional Requirements",
                     selectedAdditionalItemIds.size > 0
-                      ? `${selectedAdditionalItemIds.size} item(s) — see Additional requirements tab`
+                      ? `${selectedAdditionalItemIds.size} item(s) — see Booth Additional Requirements tab`
                       : "None selected",
                   ],
                   ["Accommodation pickup", form.accommodationPickup],

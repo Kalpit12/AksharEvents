@@ -493,10 +493,12 @@ export default function LaunchPage() {
 
       {/* Footer */}
       <footer className="relative border-t border-white/5 py-10 px-4">
-        <div className="mx-auto max-w-7xl grid grid-cols-1 gap-3 text-sm text-muted-foreground sm:grid-cols-3 sm:items-center sm:gap-4">
-          <p className="text-center sm:text-left">Designed by Maxpro Infotech Ltd</p>
+        <div className="mx-auto max-w-7xl flex flex-col gap-3 text-sm text-muted-foreground sm:gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-center sm:text-left">Designed by Maxpro Infotech Ltd</p>
+            <p className="text-center sm:text-right">Powered by AksharEvents Ltd</p>
+          </div>
           <p className="text-center">© 2026 AksharEvents Limited. All rights reserved.</p>
-          <p className="text-center sm:text-right">Powered by AksharEvents Ltd</p>
         </div>
       </footer>
     </div>

@@ -35,11 +35,10 @@ export function AdditionalRequirementsPanel({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_min(100%,24rem)]">
-      <Panel title="Additional requirements" icon={PackagePlus}>
+      <Panel title="Booth Additional Requirements" icon={PackagePlus}>
         {groups.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No additional items have been published yet. The event organiser can add categories and
-            items in Event Master → Item master (Equipment, Consumables, Services, and more).
+            No additional items have been published for this event yet.
           </p>
         ) : (
           <div className="space-y-6">
@@ -97,7 +96,7 @@ export function AdditionalRequirementsPanel({
         companyName={companyName}
         eventTitle={eventTitle}
         contactName={contactName}
-        title="Additional requirements estimate"
+        title="Booth Additional Requirements estimate"
         downloadLabel="Download estimate"
         emptyHint="Select items to see your estimate."
         onAfterDownload={onInvoiceDownload}

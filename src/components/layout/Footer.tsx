@@ -151,12 +151,19 @@ function ContactIcon({ children }: { children: ReactNode }) {
 
 function ContactBlock({ mobile = false }: { mobile?: boolean }) {
   const nowrapText = "whitespace-nowrap text-sm";
+  const emailHref =
+    "https://mail.google.com/mail/?view=cm&fs=1&to=info@axarevents.com";
+  const mapsHref =
+    "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent("Suite 14, 5th Floor, Parksuite Towers, Parklands Road, Nairobi, Kenya");
 
   if (mobile) {
     return (
       <div className="space-y-2 pb-2">
         <a
-          href="mailto:info@axarevents.com"
+          href={emailHref}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 text-foreground transition-colors active:bg-muted"
         >
           <ContactIcon>
@@ -173,7 +180,12 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
           </ContactIcon>
           <span className={nowrapText}>+254 786 658 200</span>
         </a>
-        <div className="flex gap-3 rounded-xl border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
+        <a
+          href={mapsHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex gap-3 rounded-xl border border-border bg-card px-3 py-3 text-sm text-muted-foreground transition-colors active:bg-muted"
+        >
           <ContactIcon>
             <MapPin className="h-4 w-4" />
           </ContactIcon>
@@ -182,7 +194,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
             <br />
             <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
           </p>
-        </div>
+        </a>
       </div>
     );
   }
@@ -190,7 +202,9 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
   return (
     <div className="mt-3 space-y-3 text-sm text-muted-foreground">
       <a
-        href="mailto:info@axarevents.com"
+        href={emailHref}
+        target="_blank"
+        rel="noopener noreferrer"
         className="flex items-center gap-2.5 transition-colors hover:text-primary"
       >
         <ContactIcon>
@@ -207,7 +221,12 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
         </ContactIcon>
         <span className={nowrapText}>+254 786 658 200</span>
       </a>
-      <div className="flex items-start gap-2.5">
+      <a
+        href={mapsHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-start gap-2.5 transition-colors hover:text-primary"
+      >
         <ContactIcon>
           <MapPin className="h-4 w-4" />
         </ContactIcon>
@@ -216,7 +235,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
           <br />
           <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
         </p>
-      </div>
+      </a>
     </div>
   );
 }
@@ -265,10 +284,12 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-border pt-6 max-md:pb-6 sm:mt-10">
-          <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3 sm:items-center sm:gap-4 sm:text-sm">
-            <p className="text-center sm:text-left">Designed by Maxpro Infotech Ltd</p>
+          <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:gap-2 sm:text-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-center sm:text-left">Designed by Maxpro Infotech Ltd</p>
+              <p className="text-center sm:text-right">Powered by AksharEvents Ltd</p>
+            </div>
             <p className="text-center">© 2026 AksharEvents Limited. All rights reserved.</p>
-            <p className="text-center sm:text-right">Powered by AksharEvents Ltd</p>
           </div>
         </div>
       </div>
