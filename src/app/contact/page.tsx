@@ -26,7 +26,7 @@ const contactDetails = [
   {
     icon: MapPin,
     label: "Office",
-    value: "Suite 14th – 5th floor, Parksuite Towers, Parklands Road, Nairobi, Kenya",
+    value: "Suite 14 – 5th Floor, Parksuite Towers, Parklands Road, Nairobi, Kenya",
     href: undefined,
   },
   {

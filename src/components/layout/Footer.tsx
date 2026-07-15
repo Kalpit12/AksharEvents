@@ -178,7 +178,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
             <MapPin className="h-4 w-4" />
           </ContactIcon>
           <p className="min-w-0 leading-relaxed">
-            <span className={nowrapText}>Suite 14th – 5th floor, Parksuite Towers</span>
+            <span className={nowrapText}>Suite 14 – 5th Floor, Parksuite Towers</span>
             <br />
             <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
           </p>
@@ -212,7 +212,7 @@ function ContactBlock({ mobile = false }: { mobile?: boolean }) {
           <MapPin className="h-4 w-4" />
         </ContactIcon>
         <p className="min-w-0 leading-relaxed">
-          <span className={nowrapText}>Suite 14th – 5th floor, Parksuite Towers</span>
+          <span className={nowrapText}>Suite 14 – 5th Floor, Parksuite Towers</span>
           <br />
           <span className={nowrapText}>Parklands Road, Nairobi, Kenya</span>
         </p>
@@ -267,7 +267,7 @@ export default function Footer() {
         <div className="mt-8 border-t border-border pt-6 max-md:pb-6 sm:mt-10">
           <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
             <p>Designed by Maxpro Infotech Ltd</p>
-            <p>Powered by AksharEvents {new Date().getFullYear()}</p>
+            <p>Powered by © AksharEvents Ltd</p>
           </div>
         </div>
       </div>

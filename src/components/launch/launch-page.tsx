@@ -495,7 +495,7 @@ export default function LaunchPage() {
       <footer className="relative border-t border-white/5 py-10 px-4">
         <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <p>Designed by Maxpro Infotech Ltd</p>
-          <p>Powered by AksharEvents {new Date().getFullYear()}</p>
+          <p>Powered by © AksharEvents Ltd</p>
         </div>
       </footer>
     </div>
