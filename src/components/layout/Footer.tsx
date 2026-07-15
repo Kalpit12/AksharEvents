@@ -265,9 +265,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-border pt-6 max-md:pb-6 sm:mt-10">
-          <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
-            <p>Designed by Maxpro Infotech Ltd</p>
-            <p>Powered by © AksharEvents Ltd</p>
+          <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3 sm:items-center sm:gap-4 sm:text-sm">
+            <p className="text-center sm:text-left">Designed by Maxpro Infotech Ltd</p>
+            <p className="text-center">© 2026 AksharEvents Limited. All rights reserved.</p>
+            <p className="text-center sm:text-right">Powered by AksharEvents Ltd</p>
           </div>
         </div>
       </div>
