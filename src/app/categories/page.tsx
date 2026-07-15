@@ -18,8 +18,13 @@ export default function CategoriesPage() {
       <p className="mb-10 text-muted-foreground">Find events that match your interests</p>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {mainCategories.map((cat) => (
-          <CategoryCard key={cat.slug} name={cat.name} slug={cat.slug} />
+        {mainCategories.map((cat, index) => (
+          <CategoryCard
+            key={cat.slug}
+            name={cat.name}
+            slug={cat.slug}
+            priority={index < 3}
+          />
         ))}
       </div>
 

@@ -69,7 +69,7 @@ export function VenuesMap({ venues }: VenuesMapProps) {
         center={center}
         zoom={12}
         scrollWheelZoom={false}
-        className="z-0 h-[280px] w-full sm:h-[400px] lg:h-[480px]"
+        className="z-0 h-[320px] w-full sm:h-[440px] lg:h-[520px]"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

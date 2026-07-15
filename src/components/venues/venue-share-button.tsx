@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/Button";
 import { buildVenueWhatsAppUrl, type VenueShareData } from "@/lib/venue-share";
+import { cn } from "@/lib/utils";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -14,10 +15,36 @@ function WhatsAppIcon({ className }: { className?: string }) {
 interface VenueShareButtonProps {
   venue: VenueShareData;
   className?: string;
+  /** Icon-only control for overlays */
+  iconOnly?: boolean;
 }
 
-export function VenueShareButton({ venue, className }: VenueShareButtonProps) {
+export function VenueShareButton({
+  venue,
+  className,
+  iconOnly = false,
+}: VenueShareButtonProps) {
   const whatsAppUrl = buildVenueWhatsAppUrl(venue);
+
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        className={cn(
+          "inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/45 text-white shadow-lg backdrop-blur-md transition hover:bg-black/60 hover:border-white/40",
+          className
+        )}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(whatsAppUrl, "_blank", "noopener,noreferrer");
+        }}
+        aria-label={`Share ${venue.name} on WhatsApp`}
+      >
+        <WhatsAppIcon className="h-4 w-4 text-[#25D366]" />
+      </button>
+    );
+  }
 
   return (
     <Button

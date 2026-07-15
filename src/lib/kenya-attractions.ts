@@ -103,7 +103,7 @@ export const KENYA_ATTRACTIONS: KenyaAttraction[] = [
     highlights: ["Guided gorge walks", "Cycling safaris", "Geothermal features", "Rock climbing"],
     images: images(
       ["Hell's gate 1.jpg", "Narrow rocky gorge with a stream running through Hell's Gate National Park"],
-      ["Hell's gate 2.webp", "Dramatic cliffs and rock formations at Hell's Gate"],
+      ["Hell's gate 2.jpg", "Valley road and cliffs with Fischer's Tower in Hell's Gate National Park"],
       ["Hell's gate 3.jpg", "Volcanic landscape and gorge trails in Hell's Gate National Park"],
     ),
   },

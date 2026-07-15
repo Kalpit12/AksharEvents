@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import LogoLoop, { type LogoItem } from "@/components/ui/LogoLoop";
 import { TRUSTED_PARTNERS } from "@/lib/trusted-partners";
+import { Reveal } from "@/components/home/home-reveal";
 
 export function TrustedOrganizations() {
   const logos = useMemo<LogoItem[]>(
@@ -23,9 +24,11 @@ export function TrustedOrganizations() {
   return (
     <section className="border-y border-border bg-muted py-12">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Trusted by Leading Organizations
-        </p>
+        <Reveal className="mb-8">
+          <p className="text-center text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Trusted by Leading Organizations
+          </p>
+        </Reveal>
         <div className="relative h-[72px] overflow-hidden">
           <LogoLoop
             logos={logos}

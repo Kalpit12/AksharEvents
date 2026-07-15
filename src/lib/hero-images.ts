@@ -26,29 +26,22 @@ export function getHeroImageForEvent(categorySlug: string, index: number): strin
 
 export const DEFAULT_HERO_SLIDES = [
   {
-    title: "Kenya Career Expo 2026",
-    subtitle: "East Africa's largest career fair with 200+ employers",
+    title: "Discover. Book. Experience.",
+    subtitle: "Career fairs, conferences, and expos across Kenya and Africa",
     image: HERO_EVENT_IMAGES[0],
     href: "/events",
     cta: "Browse Events",
   },
   {
-    title: "Nairobi Tech Summit 2026",
-    subtitle: "Keynotes, hackathons, and Africa's boldest innovators",
-    image: HERO_EVENT_IMAGES[1],
-    href: "/events",
-    cta: "Explore Tech Events",
-  },
-  {
     title: "Expos & Conferences",
-    subtitle: "Discover trade shows, summits, and networking across Kenya",
+    subtitle: "Trade shows, summits, and networking near you",
     image: HERO_EVENT_IMAGES[2],
     href: "/events",
     cta: "View All Events",
   },
   {
     title: "Live Experiences",
-    subtitle: "From workshops to festivals — book your next unforgettable event",
+    subtitle: "From workshops to festivals — find your next event",
     image: HERO_EVENT_IMAGES[5],
     href: "/events",
     cta: "Find Events",

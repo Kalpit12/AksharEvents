@@ -48,7 +48,6 @@ const footerLinks = {
     { href: "/categories", label: "Categories" },
     { href: "/venues", label: "Venues" },
     { href: "/auth/exhibitor", label: "Exhibitor Portal" },
-    { href: "/auth/login", label: "Event Master" },
   ],
   Company: [
     { href: "/about", label: "About Us" },
@@ -266,9 +265,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-border pt-6 max-md:pb-6 sm:mt-10">
-          <p className="text-center text-xs text-muted-foreground sm:text-sm">
-            © {new Date().getFullYear()} Maxpro Infotech Ltd. All rights reserved.
-          </p>
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:text-sm">
+            <p>Designed by Maxpro Infotech Ltd</p>
+            <p>Powered by AksharEvents {new Date().getFullYear()}</p>
+          </div>
         </div>
       </div>
     </footer>

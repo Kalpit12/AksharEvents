@@ -6,9 +6,11 @@ import { CATEGORY_IMAGES } from "@/lib/category-images";
 interface CategoryCardProps {
   name: string;
   slug: string;
+  /** Prioritize LCP images above the fold */
+  priority?: boolean;
 }
 
-export function CategoryCard({ name, slug }: CategoryCardProps) {
+export function CategoryCard({ name, slug, priority = false }: CategoryCardProps) {
   const image = CATEGORY_IMAGES[slug];
   const href = `/events?category=${slug}`;
   const description = `Browse ${name.toLowerCase()} events across Kenya and Africa`;
@@ -35,6 +37,9 @@ export function CategoryCard({ name, slug }: CategoryCardProps) {
         src={image}
         alt=""
         fill
+        priority={priority}
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
         className="object-cover grayscale transition-all duration-500 group-hover:scale-105 group-hover:grayscale-0"
         sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
       />

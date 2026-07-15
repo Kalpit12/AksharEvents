@@ -9,7 +9,13 @@ import {
 import { HomeHero } from "@/components/home/home-hero";
 import { UpcomingEventsCarousel } from "@/components/home/upcoming-events-carousel";
 import { NewsletterSignup } from "@/components/home/newsletter-signup";
-import { TrustedOrganizations } from "@/components/home/trusted-organizations";
+import { HomePlatformSpotlight } from "@/components/home/home-platform-spotlight";
+import {
+  AnimatedHeading,
+  Reveal,
+  RevealItem,
+  RevealStagger,
+} from "@/components/home/home-reveal";
 import { CategoryIcon } from "@/components/categories/category-icon";
 import { getHeroImageForEvent, DEFAULT_HERO_SLIDES } from "@/lib/hero-images";
 import type { HeroSlide } from "@/components/home/home-hero";
@@ -76,10 +82,12 @@ function buildHeroSlides(
     seenTitles.add(fallback.title.toLowerCase());
   }
 
-  return padded.length > 0 ? padded : DEFAULT_HERO_SLIDES.map((slide, index) => ({
-    ...slide,
-    id: `default-${index}`,
-  }));
+  return padded.length > 0
+    ? padded
+    : DEFAULT_HERO_SLIDES.map((slide, index) => ({
+        ...slide,
+        id: `default-${index}`,
+      }));
 }
 
 export default async function HomePage() {
@@ -103,97 +111,127 @@ export default async function HomePage() {
     <>
       <HomeHero slides={heroSlides} />
 
-      {/* Categories */}
-      <section className="py-16 bg-muted">
+      <section className="bg-muted py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-bold sm:text-3xl">Browse by Category</h2>
+          <Reveal className="mb-8 flex flex-wrap items-center justify-between gap-3">
+            <AnimatedHeading className="text-2xl font-bold sm:text-3xl">
+              Browse by Category
+            </AnimatedHeading>
             <Button variant="ghost" asChild>
-              <Link href="/categories">View All <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
-          </div>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-4 lg:grid-cols-9">
-            {CATEGORIES.map((cat) => (
-              <Link
-                key={cat.slug}
-                href={`/events?category=${cat.slug}`}
-                className="group flex flex-col items-center gap-2 rounded-2xl bg-card p-3 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md sm:gap-3 sm:p-4"
-              >
-                <CategoryIcon slug={cat.slug} size="md" />
-                <span className="block max-w-full truncate text-center text-[10px] font-medium sm:text-sm">{cat.name}</span>
+              <Link href="/categories">
+                View All <ArrowRight className="h-4 w-4" />
               </Link>
+            </Button>
+          </Reveal>
+          <RevealStagger className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-4 lg:grid-cols-9">
+            {CATEGORIES.map((cat) => (
+              <RevealItem key={cat.slug}>
+                <Link
+                  href={`/events?category=${cat.slug}`}
+                  className="group flex flex-col items-center gap-2 rounded-2xl bg-card p-3 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md sm:gap-3 sm:p-4"
+                >
+                  <CategoryIcon slug={cat.slug} size="md" />
+                  <span className="block max-w-full truncate text-center text-[10px] font-medium sm:text-sm">
+                    {cat.name}
+                  </span>
+                </Link>
+              </RevealItem>
             ))}
-          </div>
+          </RevealStagger>
         </div>
       </section>
 
-      {/* Upcoming Events */}
       {upcoming.events.length > 0 && (
         <section className="py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold sm:text-3xl">Upcoming Events</h2>
+            <Reveal className="mb-8 flex flex-wrap items-center justify-between gap-3">
+              <AnimatedHeading className="text-2xl font-bold sm:text-3xl">
+                Upcoming Events
+              </AnimatedHeading>
               <Button variant="ghost" asChild>
-                <Link href="/events">View All <ArrowRight className="h-4 w-4" /></Link>
-              </Button>
-            </div>
-            <UpcomingEventsCarousel events={serializeEventsForCarousel(upcoming.events)} />
-          </div>
-        </section>
-      )}
-
-      {/* Popular Venues */}
-      {venues.length > 0 && (
-        <section className="py-16 bg-muted">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold sm:text-3xl">Popular Venues</h2>
-              <Button variant="ghost" asChild>
-                <Link href="/venues">View All <ArrowRight className="h-4 w-4" /></Link>
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {venues.map((venue) => (
-                <Link key={venue.id} href={`/venues/${venue.slug}`} className="group rounded-2xl overflow-hidden bg-card shadow-sm hover:shadow-lg transition-all">
-                  <div className="relative aspect-[16/10]">
-                    <SafeImage src={venue.images[0]} alt={venue.name} fill />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold group-hover:text-primary transition-colors">{venue.name}</h3>
-                    <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
-                      <Building2 className="h-3.5 w-3.5" />{venue.city} · {venue.capacity.toLocaleString()} capacity
-                    </p>
-                  </div>
+                <Link href="/events">
+                  View All <ArrowRight className="h-4 w-4" />
                 </Link>
-              ))}
-            </div>
+              </Button>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <UpcomingEventsCarousel events={serializeEventsForCarousel(upcoming.events)} />
+            </Reveal>
           </div>
         </section>
       )}
 
-      <TrustedOrganizations />
-
-      {/* Testimonials */}
-      {testimonials.length > 0 && (
-        <section className="py-16 bg-muted">
+      {venues.length > 0 && (
+        <section className="bg-muted py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-10">What People Say</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {testimonials.map((t) => (
-                <div key={t.id} className="rounded-2xl bg-card p-6 shadow-sm">
-                  <div className="flex gap-1 mb-3">
-                    {Array.from({ length: t.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-champagne text-champagne" />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground">&ldquo;{t.content}&rdquo;</p>
-                  <div className="mt-4">
-                    <p className="font-semibold">{t.name}</p>
-                    <p className="text-sm text-muted-foreground">{t.role}{t.company ? `, ${t.company}` : ""}</p>
-                  </div>
-                </div>
+            <Reveal className="mb-8 flex flex-wrap items-center justify-between gap-3">
+              <AnimatedHeading className="text-2xl font-bold sm:text-3xl">
+                Popular Venues
+              </AnimatedHeading>
+              <Button variant="ghost" asChild>
+                <Link href="/venues">
+                  View All <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </Reveal>
+            <RevealStagger className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {venues.map((venue) => (
+                <RevealItem key={venue.id}>
+                  <Link
+                    href={`/venues/${venue.slug}`}
+                    className="group block h-full overflow-hidden rounded-2xl bg-card shadow-sm transition-all hover:shadow-lg"
+                  >
+                    <div className="relative aspect-[16/10]">
+                      <SafeImage src={venue.images[0]} alt={venue.name} fill />
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold transition-colors group-hover:text-primary">
+                        {venue.name}
+                      </h3>
+                      <p className="mt-1 flex items-center gap-1 whitespace-nowrap text-sm text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {venue.city} · {venue.capacity.toLocaleString()} capacity
+                      </p>
+                    </div>
+                  </Link>
+                </RevealItem>
               ))}
-            </div>
+            </RevealStagger>
+          </div>
+        </section>
+      )}
+
+      <HomePlatformSpotlight />
+
+      {testimonials.length > 0 && (
+        <section className="bg-muted py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <Reveal className="mb-10 flex justify-center">
+              <AnimatedHeading className="text-2xl font-bold sm:text-3xl">
+                What People Say
+              </AnimatedHeading>
+            </Reveal>
+            <RevealStagger className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {testimonials.map((t) => (
+                <RevealItem key={t.id}>
+                  <div className="h-full rounded-2xl bg-card p-6 shadow-sm">
+                    <div className="mb-3 flex gap-1">
+                      {Array.from({ length: t.rating }).map((_, i) => (
+                        <Star key={i} className="h-4 w-4 fill-champagne text-champagne" />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground">&ldquo;{t.content}&rdquo;</p>
+                    <div className="mt-4">
+                      <p className="font-semibold">{t.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {t.role}
+                        {t.company ? `, ${t.company}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </RevealItem>
+              ))}
+            </RevealStagger>
           </div>
         </section>
       )}

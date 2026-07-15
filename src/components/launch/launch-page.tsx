@@ -417,14 +417,14 @@ export default function LaunchPage() {
                     <div className="flex items-center gap-3 mb-4">
                       <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-champagne to-champagne-dark flex items-center justify-center font-bold">A</div>
                       <div>
-                        <p className="font-semibold text-sm">Kenya Career Expo 2026</p>
-                        <p className="text-xs text-muted-foreground">KICC · Nairobi</p>
+                        <p className="font-semibold text-sm">Your next event</p>
+                        <p className="text-xs text-muted-foreground">Discover · Book · Attend</p>
                       </div>
                     </div>
                     <div className="h-32 rounded-xl bg-gradient-to-br from-champagne/40 to-champagne-dark/40 mb-4" />
                     <div className="flex justify-between items-center">
-                      <span className="text-champagne-light font-bold">From KES 0</span>
-                      <span className="text-xs text-muted-foreground bg-white/10 px-3 py-1 rounded-full">200+ Employers</span>
+                      <span className="text-champagne-light font-bold">Browse events</span>
+                      <span className="text-xs text-muted-foreground bg-white/10 px-3 py-1 rounded-full">AxarEvents</span>
                     </div>
                   </div>
                   <motion.div
@@ -494,12 +494,8 @@ export default function LaunchPage() {
       {/* Footer */}
       <footer className="relative border-t border-white/5 py-10 px-4">
         <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} {BRAND.name}. All rights reserved.</p>
-          <div className="flex gap-6">
-            <Link href="/about" className="hover:text-champagne-light transition-colors">About</Link>
-            <Link href="/contact" className="hover:text-champagne-light transition-colors">Contact</Link>
-            <Link href="/privacy" className="hover:text-champagne-light transition-colors">Privacy</Link>
-          </div>
+          <p>Designed by Maxpro Infotech Ltd</p>
+          <p>Powered by AksharEvents {new Date().getFullYear()}</p>
         </div>
       </footer>
     </div>

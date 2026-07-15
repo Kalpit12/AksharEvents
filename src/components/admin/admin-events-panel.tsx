@@ -73,7 +73,7 @@ export default function AdminEventsPanel({
         <form onSubmit={handleCreate} className="mt-5 space-y-4">
           <div>
             <Label htmlFor="title">Event title *</Label>
-            <Input id="title" name="title" required className="mt-1.5" placeholder="Kenya Career Expo 2026" />
+            <Input id="title" name="title" required className="mt-1.5" placeholder="e.g. Annual Career Fair 2026" />
           </div>
           <div>
             <Label htmlFor="format">Format *</Label>

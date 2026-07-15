@@ -134,24 +134,64 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={slide.id}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.45 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
             className="max-w-2xl"
           >
-            <p className="mb-3 text-sm font-medium uppercase tracking-[0.2em] text-champagne-light">
+            <motion.p
+              initial={{ opacity: 0, y: 12, letterSpacing: "0.35em" }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                letterSpacing: "0.2em",
+                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+              }}
+              transition={{
+                opacity: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+                y: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+                letterSpacing: { duration: 0.65, ease: [0.22, 1, 0.36, 1] },
+                backgroundPosition: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+              }}
+              className="mb-3 bg-gradient-to-r from-champagne-light via-white to-champagne-light bg-clip-text text-sm font-medium uppercase text-transparent"
+              style={{ backgroundSize: "200% 100%" }}
+            >
               Discover. Book. Experience.
-            </p>
+            </motion.p>
             <h1 className="text-3xl font-bold leading-tight text-white drop-shadow-sm sm:text-4xl lg:text-5xl xl:text-6xl">
-              {slide.title}
+              {slide.title.split(" ").map((word, index) => (
+                <motion.span
+                  key={`${slide.id}-w-${index}`}
+                  initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{
+                    duration: 0.45,
+                    delay: 0.12 + index * 0.055,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="mr-[0.28em] inline-block"
+                >
+                  {word}
+                </motion.span>
+              ))}
             </h1>
-            <p className="mt-3 max-w-xl text-base text-alabaster/85 sm:mt-4 sm:text-lg">
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-3 max-w-xl text-base text-alabaster/85 sm:mt-4 sm:text-lg"
+            >
               {slide.subtitle}
-            </p>
+            </motion.p>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8 sm:gap-4">
-              <Button size="lg" className="gap-2 shadow-lg" asChild>
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.48, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-6 flex flex-wrap items-center gap-3 sm:mt-8 sm:gap-4"
+            >
+              <Button size="lg" className="gap-2 shadow-lg transition-transform hover:scale-[1.02]" asChild>
                 <Link href={slide.href}>
                   <Play className="h-5 w-5 fill-current" />
                   {slide.cta}
@@ -169,7 +209,7 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
                   Explore All Events
                 </Link>
               </Button>
-            </div>
+            </motion.div>
           </motion.div>
         </AnimatePresence>
       </div>
