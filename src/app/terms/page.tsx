@@ -66,7 +66,7 @@ export default function TermsPage() {
 
             <h2 className="text-xl font-bold text-foreground">Payments</h2>
             <p>
-              Paid tickets and exhibitor services are processed through secure third-party payment providers. You agree
+              Paid event bookings and exhibitor services are processed through secure third-party payment providers. You agree
               to pay all applicable fees and taxes. Failed or disputed payments may result in cancelled bookings or
               suspended access.
             </p>

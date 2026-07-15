@@ -28,7 +28,7 @@ export default function PrivacyPage() {
             <p className="text-lg leading-relaxed">
               {BRAND.name} (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy. This
               Privacy Policy explains how we collect, use, store, and safeguard personal information when you use our
-              website, book event tickets, or register as an exhibitor on our platform.
+              website, make event bookings, or register as an exhibitor on our platform.
             </p>
 
             <h2 className="text-xl font-bold text-foreground">Information We Collect</h2>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
                 artwork submitted through the Exhibitor Portal.
               </li>
               <li>
-                <strong className="text-foreground">Booking information:</strong> ticket selections, payment details
+                <strong className="text-foreground">Booking information:</strong> event selections, payment details
                 processed securely via Stripe, and attendance records.
               </li>
               <li>
