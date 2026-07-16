@@ -14,15 +14,14 @@ import {
   defaultVisaDocs,
   formatTravelSummary,
   TravelLogisticsFields,
+  visaDocNamesFromFiles,
   type TravelLogisticsForm,
   type VisaDocuments,
 } from "@/components/exhibitor-portal/registration-travel-step";
 import {
   MEMBER_ROLES,
   ROLE_BADGE,
-  SHUTTLE_OPTIONS,
   TRANSPORT_OPTIONS,
-  VEHICLE_OPTIONS,
   type ExhibitorTab,
   type TeamMember,
 } from "@/components/exhibitor-portal/types";
@@ -34,6 +33,7 @@ import type {
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
 import { EventPreferencesStep } from "@/components/exhibitor-portal/event-preferences-step";
+import ExhibitorFloorPlanPanel from "@/components/exhibitor-portal/exhibitor-floor-plan-panel";
 import { AdditionalRequirementsPanel } from "@/components/exhibitor-portal/additional-requirements-panel";
 import { BrandingsPanel } from "@/components/exhibitor-portal/brandings-panel";
 import ExhibitorItineraryPanel from "@/components/exhibitor-portal/exhibitor-itinerary-panel";
@@ -65,6 +65,11 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { formatExhibitorBoothLabel } from "@/lib/booth-allocation";
+import type {
+  EventFloorPlanConfig,
+  ExhibitorBoothPhase,
+  FloorPlanBoothRecord,
+} from "@/lib/floor-plan-types";
 import { cn, formatDate } from "@/lib/utils";
 import {
   AlertCircle,
@@ -88,6 +93,7 @@ import {
   Info,
   LayoutDashboard,
   Leaf,
+  Map,
   MapPin,
   Pencil,
   Plane,
@@ -157,6 +163,10 @@ export type ExhibitorPortalProps = {
   endDate: string;
   boothNumber: string | null;
   boothStandLabel?: string | null;
+  boothPhase?: ExhibitorBoothPhase;
+  boothReservedCode?: string | null;
+  floorPlan?: EventFloorPlanConfig | null;
+  floorPlanBooths?: FloorPlanBoothRecord[];
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -178,18 +188,20 @@ export type ExhibitorPortalProps = {
 
 const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "booth", label: "Floor plan & booth", icon: Map },
   { id: "registration", label: "Registration form", icon: FileText },
   { id: "additional", label: "Booth Additional Requirements", icon: PackagePlus },
   { id: "brandings", label: "Brandings", icon: Palette },
   { id: "members", label: "Team members", icon: Users },
   { id: "tours", label: "Tours & travel", icon: MapPin },
-  { id: "schedules", label: "Schedules", icon: Route },
+  { id: "schedules", label: "Event and Tour Schedules", icon: Route },
   { id: "food", label: "Food outings", icon: ForkKnife },
   { id: "checkins", label: "Check-ins", icon: IdCard },
 ];
 
 const EXHIBITOR_TAB_IDS = [
   "overview",
+  "booth",
   "registration",
   "additional",
   "brandings",
@@ -430,11 +442,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     (overrides: Partial<SavedRegistrationData> = {}): SavedRegistrationData => ({
       form: overrides.form ?? form,
       travel: overrides.travel ?? travel,
-      visaDocNames: overrides.visaDocNames ?? {
-        passport: visaDocs.passport?.name ?? null,
-        id: visaDocs.id?.name ?? null,
-        yellowFever: visaDocs.yellowFever?.name ?? null,
-      },
+      visaDocNames: overrides.visaDocNames ?? visaDocNamesFromFiles(visaDocs),
       members: overrides.members ?? members,
       selectedTours: overrides.selectedTours ?? [...selectedTours],
       selectedMeals: overrides.selectedMeals ?? [...selectedMeals],
@@ -1089,13 +1097,37 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     return map;
   }, [members]);
 
+  const boothPhase = props.boothPhase ?? "none";
   const boothLabel = formatExhibitorBoothLabel(props.boothNumber, props.hall);
-  const boothSubline =
-    props.boothNumber && props.boothStandLabel
-      ? `Allocated by Event Master · ${props.boothStandLabel}`
-      : props.boothNumber
-        ? "Allocated by Event Master"
-        : form.booth || "Booth package not selected yet";
+  const boothSubline = (() => {
+    if (boothPhase === "allocated" && props.boothNumber) {
+      return props.boothStandLabel
+        ? `Booth allocated · ${props.boothStandLabel}`
+        : "Booth allocated by admin";
+    }
+    if (boothPhase === "payment_verified" && props.boothReservedCode) {
+      return `Booth ${props.boothReservedCode} · payment verified — allocation pending`;
+    }
+    if (boothPhase === "reserved" && props.boothReservedCode) {
+      return `Booth ${props.boothReservedCode} reserved — complete payment for allocation`;
+    }
+    if (props.boothNumber) {
+      return props.boothStandLabel
+        ? `Allocated by admin · ${props.boothStandLabel}`
+        : "Allocated by admin";
+    }
+    return form.booth || "Select a booth on the floor plan";
+  })();
+  const boothGlanceTitle = (() => {
+    if (boothPhase === "allocated" && props.boothNumber) return boothLabel;
+    if (boothPhase === "payment_verified" && props.boothReservedCode) {
+      return `Booth ${props.boothReservedCode} · payment verified`;
+    }
+    if (boothPhase === "reserved" && props.boothReservedCode) {
+      return `Booth ${props.boothReservedCode} reserved`;
+    }
+    return props.boothNumber ? boothLabel : "Booth selection pending";
+  })();
 
   const heroStatus: PortalHeroStatus = !props.eventExhibitorId
     ? "not_linked"
@@ -1221,8 +1253,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             records={props.boothVisitors ?? []}
             companyName={props.companyName}
             boothLabel={
-              props.boothStandLabel ??
-              (props.boothNumber ? `Booth ${props.boothNumber}` : null)
+              boothPhase === "allocated" && props.boothNumber
+                ? boothLabel
+                : props.boothReservedCode
+                  ? `Booth ${props.boothReservedCode}`
+                  : props.boothStandLabel ??
+                    (props.boothNumber ? `Booth ${props.boothNumber}` : null)
             }
           />
         </>
@@ -1233,7 +1269,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         eventCity={props.eventCity}
         dateRange={dateRange}
         companyName={props.companyName}
-        boothLabel={boothLabel}
+        boothLabel={boothGlanceTitle}
         eventVenue={props.eventVenue}
         startDate={props.startDate}
         endDate={props.endDate}
@@ -1303,6 +1339,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           <Panel title="Quick actions" icon={LayoutDashboard}>
             <QuickActionsRow>
               <QuickAction highlight label="Complete registration" sub="Fill in company, travel & food details" onClick={() => { setTab("registration"); goStep(1); }} />
+              <QuickAction
+                label={boothPhase === "allocated" ? "View booth details" : "Select booth on floor plan"}
+                sub={
+                  boothPhase === "allocated"
+                    ? boothLabel
+                    : boothPhase === "reserved" || boothPhase === "payment_verified"
+                      ? boothSubline
+                      : "Reserve your stand on the event map"
+                }
+                onClick={() => setTab("booth")}
+              />
               <QuickAction label="Add team members" sub="Manage passes, transport & meals" onClick={() => { setTab("members"); openAddMemberModal(); }} />
               <QuickAction label="Book tours" sub="Safari, city tours & excursions" onClick={() => setTab("tours")} />
               <QuickAction label="Plan food outings" sub="Vegetarian meals & dining" onClick={() => setTab("food")} />
@@ -1357,11 +1404,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
             <Panel title="Event at a glance" icon={Calendar}>
               <GlanceRow icon={MapPin} title={props.eventVenue} sub={props.eventCity} />
               <GlanceRow icon={Calendar} title={dateRange} sub={`${props.expoDays} days · Setup from day before`} />
-              <GlanceRow
-                icon={Building2}
-                title={props.boothNumber ? boothLabel : "Booth assignment pending"}
-                sub={boothSubline}
-              />
+              <GlanceRow icon={Building2} title={boothGlanceTitle} sub={boothSubline} />
               {props.eventVenue && (
                 <GlanceRow icon={Clock} title={`${props.expoDays}-day event`} sub={`${props.eventVenue}, ${props.eventCity}`} />
               )}
@@ -1509,10 +1552,10 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   options={["No", "Yes — from hotel or accommodation"]}
                 />
               </Field>
-              <Field label="Daily venue shuttle">
-                <CheckGroup options={[...SHUTTLE_OPTIONS]} selected={shuttles} onToggle={(k) => toggleSet(shuttles, k, setShuttles)} />
-              </Field>
               <Field label="Optional tours — select all your team will join">
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Tours will be scheduled based on the number of team members.
+                </p>
                 {tourOptions.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No tours have been published for this event yet.</p>
                 ) : (
@@ -1523,15 +1566,12 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   </div>
                 )}
               </Field>
-              <FormRow>
-                <Field label="Departure date & drop-off to accommodation">
-                  <Select value={form.depart} onChange={(v) => setForm({ ...form, depart: v })} options={departureOptions} />
-                </Field>
-                <Field label="Vehicle preference">
-                  <Select value={form.vehicle} onChange={(v) => setForm({ ...form, vehicle: v })} options={[...VEHICLE_OPTIONS]} placeholder="Select…" />
-                  <p className="mt-1.5 text-xs text-muted-foreground">Ride will be provided based on availability.</p>
-                </Field>
-              </FormRow>
+              <Field label="Departure date & drop-off to accommodation">
+                <Select value={form.depart} onChange={(v) => setForm({ ...form, depart: v })} options={departureOptions} />
+              </Field>
+              <p className="text-sm text-muted-foreground">
+                Vehicle will be provided based on availability.
+              </p>
               <NavButtons onBack={() => goStep(3)} onNext={() => goStep(5)} nextLabel="Next: Food outings" />
             </RegStep>
           )}
@@ -1627,6 +1667,33 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 </Button>
               </div>
             </RegStep>
+          )}
+        </Panel>
+      )}
+
+      {tab === "booth" && (
+        <Panel title="Floor plan & booth selection" icon={Map}>
+          {!props.eventExhibitorId ? (
+            <EmptyState
+              icon={Map}
+              title="Register for the event first"
+              description="Complete event registration before selecting a booth on the floor plan."
+            />
+          ) : !props.floorPlan || (props.floorPlanBooths?.length ?? 0) === 0 ? (
+            <EmptyState
+              icon={Map}
+              title="Floor plan not available yet"
+              description="The event floor plan is being prepared. Check back soon or contact admin."
+            />
+          ) : (
+            <ExhibitorFloorPlanPanel
+              eventExhibitorId={props.eventExhibitorId}
+              initialBooths={props.floorPlanBooths ?? []}
+              initialFloorPlan={props.floorPlan}
+              initialPhase={boothPhase}
+              initialOwnBoothCode={props.boothNumber ?? props.boothReservedCode ?? null}
+              hall={props.hall}
+            />
           )}
         </Panel>
       )}
@@ -1750,11 +1817,11 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
       {tab === "tours" && (
         <div className="space-y-4">
           <Panel title="Your transport & tour selections" icon={MapPin}>
-            {shuttles.size === 0 && selectedTours.size === 0 && travelActivities.length === 0 && form.accommodationPickup === "No" && form.depart.startsWith("No") ? (
+            {selectedTours.size === 0 && travelActivities.length === 0 && form.accommodationPickup === "No" && form.depart.startsWith("No") ? (
               <EmptyState
                 icon={MapPin}
                 title="No transport or tours selected"
-                description="Complete the registration form to choose shuttles, tours, and travel options."
+                description="Complete the registration form to choose tours and travel options."
                 compact
                 action={<Button onClick={() => { setTab("registration"); goStep(4); }}>Open registration form</Button>}
               />
@@ -1763,9 +1830,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 {form.accommodationPickup.toLowerCase().startsWith("yes") && (
                   <SelectionRow title="Accommodation pickup" detail={form.accommodationPickup} />
                 )}
-                {[...shuttles].map((s) => (
-                  <SelectionRow key={s} title={s} detail={form.vehicle || "Vehicle TBC"} />
-                ))}
                 {tourOptions
                   .filter((t) => selectedTours.has(t.id))
                   .map((t) => (

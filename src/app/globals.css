@@ -381,3 +381,83 @@ body {
   background: #b45309;
   color: #fff;
 }
+
+/* Partner white-label sites — scoped to /p/[slug] only; main AxarEvents site unchanged */
+.partner-site {
+  --color-primary: var(--partner-primary);
+  --color-secondary: var(--partner-secondary);
+  --color-accent: var(--partner-accent);
+  --color-ring: var(--partner-primary);
+  --color-champagne: var(--partner-primary);
+  --color-champagne-dark: var(--partner-secondary);
+  --color-champagne-light: color-mix(in oklab, var(--partner-primary) 72%, white);
+  --color-espresso: var(--partner-hero-dark);
+  --color-alabaster: #ffffff;
+  --color-cashmere: var(--partner-muted-warm);
+  --color-muted: var(--partner-muted-warm);
+  --color-card: #ffffff;
+  --color-card-foreground: var(--partner-foreground);
+  --color-foreground: var(--partner-foreground);
+  --color-background: var(--partner-background);
+  --color-border: color-mix(in oklab, var(--partner-secondary) 22%, white);
+  --color-primary-foreground: #ffffff;
+  --color-secondary-foreground: #ffffff;
+  --color-accent-foreground: #ffffff;
+  background-color: var(--partner-background);
+  color: var(--partner-foreground);
+}
+
+.partner-site .bg-muted {
+  background-color: var(--partner-muted-warm);
+}
+
+.partner-site .partner-section-cool {
+  background-color: var(--partner-muted-cool);
+}
+
+.partner-site .hover\:bg-primary:hover {
+  background-color: var(--partner-primary);
+}
+
+.partner-site .hover\:bg-champagne-dark:hover {
+  background-color: var(--partner-secondary);
+}
+
+.partner-site .partner-category-card {
+  border: 1px solid color-mix(in oklab, var(--partner-secondary) 18%, white);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.partner-site .partner-category-card:hover {
+  border-color: var(--partner-primary);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--partner-primary) 22%, transparent);
+}
+
+.partner-site .partner-venue-card:hover h3 {
+  color: var(--partner-primary);
+}
+
+.partner-site .partner-spotlight-glow {
+  background:
+    radial-gradient(ellipse at top right, color-mix(in oklab, var(--partner-primary) 38%, transparent), transparent 58%),
+    radial-gradient(ellipse at bottom left, color-mix(in oklab, white 14%, transparent), transparent 52%);
+}
+
+.partner-site .partner-spotlight-ring {
+  border-color: color-mix(in oklab, var(--partner-primary) 35%, transparent);
+}
+
+.partner-site .partner-spotlight-card {
+  border-color: color-mix(in oklab, white 18%, transparent);
+  background-color: color-mix(in oklab, white 8%, transparent);
+}
+
+.partner-site .partner-spotlight-card:hover {
+  border-color: color-mix(in oklab, var(--partner-primary) 55%, transparent);
+  background-color: color-mix(in oklab, white 12%, transparent);
+}
+
+.partner-site .partner-spotlight-icon {
+  background-color: color-mix(in oklab, var(--partner-primary) 22%, transparent);
+  color: color-mix(in oklab, var(--partner-primary) 85%, white);
+}

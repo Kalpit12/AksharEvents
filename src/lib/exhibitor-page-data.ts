@@ -13,7 +13,17 @@ import { serializeBrandingArtworkSubmission, type SerializedBrandingArtworkSubmi
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import { loadPublishedTourTravelItineraries } from "@/lib/itinerary-actions";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
-import { standLabelForBoothCode } from "@/lib/booth-allocation";
+import { standLabelForBoothCode, resolveExhibitorBoothPhase } from "@/lib/booth-allocation";
+import {
+  ensureEventFloorPlanBoothsInternal,
+  loadEventFloorPlanBooths,
+  sanitizeBoothsForExhibitor,
+} from "@/lib/floor-plan-data";
+import type {
+  EventFloorPlanConfig,
+  ExhibitorBoothPhase,
+  FloorPlanBoothRecord,
+} from "@/lib/floor-plan-types";
 import {
   loadBoothVisitsForExhibitor,
   type ExhibitorBoothVisitRecord,
@@ -93,6 +103,10 @@ export type ExhibitorDashboardPageData = {
   endDate: string;
   boothNumber: string | null;
   boothStandLabel: string | null;
+  boothPhase: ExhibitorBoothPhase;
+  boothReservedCode: string | null;
+  floorPlan: EventFloorPlanConfig | null;
+  floorPlanBooths: FloorPlanBoothRecord[];
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -143,24 +157,16 @@ export async function loadExhibitorDashboardPageData(
   const canLoadDocuments = membershipRole !== "STAFF";
 
   const boothLookupEventId = eventEntry?.eventId ?? eventId;
-  const assignedBoothWhere =
-    eventExhibitorId || boothLookupEventId
+  const assignedBoothWhere = eventExhibitorId
+    ? { eventExhibitorId }
+    : boothLookupEventId
       ? {
-          OR: [
-            ...(eventExhibitorId ? [{ eventExhibitorId }] : []),
-            ...(boothLookupEventId
-              ? [
-                  {
-                    eventId: boothLookupEventId,
-                    companyName: { equals: exhibitor.companyName, mode: "insensitive" as const },
-                  },
-                ]
-              : []),
-          ],
+          eventId: boothLookupEventId,
+          companyName: { equals: exhibitor.companyName, mode: "insensitive" as const },
         }
       : null;
 
-  const [eventConfig, memberDocuments, airBookingRows, memberWorkflowRows, brandingArtworkRows, assignedBoothRow] =
+  const [eventConfig, memberDocuments, airBookingRows, memberWorkflowRows, brandingArtworkRows, assignedBoothRow, floorPlanSnapshot] =
     await Promise.all([
     eventId
       ? prisma.$transaction([
@@ -218,8 +224,20 @@ export async function loadExhibitorDashboardPageData(
     assignedBoothWhere
       ? prisma.eventBooth.findFirst({
           where: assignedBoothWhere,
-          select: { code: true },
+          orderBy: [{ status: "desc" }, { updatedAt: "desc" }],
+          select: {
+            code: true,
+            status: true,
+            paymentVerified: true,
+            eventExhibitorId: true,
+          },
         })
+      : Promise.resolve(null),
+    boothLookupEventId
+      ? (async () => {
+          await ensureEventFloorPlanBoothsInternal(boothLookupEventId);
+          return loadEventFloorPlanBooths(boothLookupEventId);
+        })()
       : Promise.resolve(null),
   ]);
 
@@ -245,9 +263,29 @@ export async function loadExhibitorDashboardPageData(
   const serializedMemberWorkflows = memberWorkflowRows.map(serializeWorkflow);
   const serializedBrandingArtwork = brandingArtworkRows.map(serializeBrandingArtworkSubmission);
 
-  const boothNumber =
-    assignedBoothRow?.code?.toUpperCase() ?? eventEntry?.boothNumber?.toUpperCase() ?? null;
+  const allocatedCode = eventEntry?.boothNumber?.trim().toUpperCase() ?? null;
+  const ownBoothFromPlan =
+    floorPlanSnapshot?.booths.find((b) => b.eventExhibitorId === eventExhibitorId) ?? null;
+  const linkedBooth =
+    ownBoothFromPlan ??
+    (assignedBoothRow
+      ? {
+          code: assignedBoothRow.code,
+          status: assignedBoothRow.status,
+          paymentVerified: assignedBoothRow.paymentVerified,
+        }
+      : null);
+
+  const { phase: boothPhase, boothNumber, boothReservedCode } = resolveExhibitorBoothPhase({
+    allocatedBoothNumber: allocatedCode,
+    linkedBooth,
+  });
+
   const boothStandLabel = boothNumber ? standLabelForBoothCode(boothNumber) : null;
+  const floorPlan = floorPlanSnapshot?.floorPlan ?? null;
+  const floorPlanBooths = floorPlanSnapshot
+    ? sanitizeBoothsForExhibitor(floorPlanSnapshot.booths, eventExhibitorId ?? null)
+    : [];
 
   const [tourTravelItineraries, notificationUnreadCount, boothVisitData] = await Promise.all([
     eventId ? loadPublishedTourTravelItineraries(eventId) : Promise.resolve([]),
@@ -270,6 +308,10 @@ export async function loadExhibitorDashboardPageData(
     endDate: (event?.endDate ?? new Date()).toISOString(),
     boothNumber,
     boothStandLabel,
+    boothPhase,
+    boothReservedCode,
+    floorPlan,
+    floorPlanBooths,
     hall: eventEntry?.hall ?? null,
     expoDays,
     eventActivities: activities.map(serializeActivity),

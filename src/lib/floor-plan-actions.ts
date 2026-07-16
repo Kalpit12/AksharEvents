@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import type { BoothStatus } from "@prisma/client";
 import { requireRole } from "@/lib/auth";
-import { loadEventFloorPlanBooths } from "@/lib/floor-plan-data";
 import {
-  FLOOR_PLAN_BOOTHS,
+  ensureEventFloorPlanBoothsInternal,
+  loadEventFloorPlanBooths,
+} from "@/lib/floor-plan-data";
+import {
   FLOOR_PLAN_LAYOUT_BY_CODE,
   type BoothStatusValue,
 } from "@/lib/floor-plan-layout";
-import { resolveFloorPlanViewBox, scaledLayoutForBoothCode } from "@/lib/floor-plan-scale";
 import type { FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import { prisma } from "@/lib/prisma";
 
@@ -38,69 +39,15 @@ async function resolveEventExhibitorForBooth(
   return entry?.id ?? null;
 }
 
+function defaultStatusForCode(code: string): BoothStatus {
+  return (FLOOR_PLAN_LAYOUT_BY_CODE[code]?.defaultStatus ?? "AVAILABLE") as BoothStatus;
+}
+
 export async function ensureEventFloorPlanBooths(eventId: string) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId },
-    select: {
-      id: true,
-      floorPlanWidth: true,
-      floorPlanHeight: true,
-    },
-  });
-  if (!event) return { error: "Event not found" };
-
-  const viewBox = resolveFloorPlanViewBox(event.floorPlanWidth, event.floorPlanHeight);
-
-  const existing = await prisma.eventBooth.findMany({
-    where: { eventId },
-    select: { code: true },
-  });
-  const existingCodes = new Set(existing.map((row) => row.code));
-
-  const missing = FLOOR_PLAN_BOOTHS.filter((booth) => !existingCodes.has(booth.code));
-  if (missing.length > 0) {
-    await prisma.eventBooth.createMany({
-      data: missing.map((booth) => {
-        const geometry = scaledLayoutForBoothCode(booth.code, viewBox);
-        return {
-          eventId,
-          code: booth.code,
-          status: booth.defaultStatus ?? "AVAILABLE",
-          layoutX: geometry.x,
-          layoutY: geometry.y,
-          layoutW: geometry.w,
-          layoutH: geometry.h,
-        };
-      }),
-    });
-  }
-
-  const assigned = await prisma.eventExhibitor.findMany({
-    where: { eventId, boothNumber: { not: null } },
-    select: { id: true, boothNumber: true },
-  });
-
-  for (const entry of assigned) {
-    const code = entry.boothNumber?.trim().toUpperCase();
-    if (!code || !FLOOR_PLAN_LAYOUT_BY_CODE[code]) continue;
-
-    const booth = await prisma.eventBooth.findUnique({
-      where: { eventId_code: { eventId, code } },
-    });
-    if (!booth || booth.eventExhibitorId === entry.id) continue;
-
-    if (booth.eventExhibitorId && booth.eventExhibitorId !== entry.id) continue;
-
-    await prisma.eventBooth.update({
-      where: { id: booth.id },
-      data: { eventExhibitorId: entry.id, status: "OCCUPIED" },
-    });
-  }
-
-  return { success: true as const };
+  return ensureEventFloorPlanBoothsInternal(eventId);
 }
 
 export async function getEventFloorPlanBooths(eventId: string) {
@@ -109,7 +56,7 @@ export async function getEventFloorPlanBooths(eventId: string) {
     return { error: auth.error, booths: null as FloorPlanBoothRecord[] | null, floorPlan: null };
   }
 
-  await ensureEventFloorPlanBooths(eventId);
+  await ensureEventFloorPlanBoothsInternal(eventId);
 
   const snapshot = await loadEventFloorPlanBooths(eventId);
   if (!snapshot) {
@@ -119,6 +66,10 @@ export async function getEventFloorPlanBooths(eventId: string) {
   return { booths: snapshot.booths, floorPlan: snapshot.floorPlan, error: null };
 }
 
+/**
+ * Save booth details. Linking an exhibitor without allocate=true keeps RESERVED
+ * (payment pending). Pass allocate: true after payment verification to OCCUPIED.
+ */
 export async function updateEventBooth(input: {
   eventId: string;
   boothCode: string;
@@ -129,6 +80,9 @@ export async function updateEventBooth(input: {
   contactPhone: string;
   contactEmail: string;
   notes: string;
+  /** When true with an exhibitor linked, allocate (OCCUPIED + boothNumber). Requires paymentVerified unless forceAllocate. */
+  allocate?: boolean;
+  forceAllocate?: boolean;
 }) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
@@ -136,7 +90,7 @@ export async function updateEventBooth(input: {
   const code = input.boothCode.trim().toUpperCase();
   if (!FLOOR_PLAN_LAYOUT_BY_CODE[code]) return { error: "Unknown booth code" };
 
-  await ensureEventFloorPlanBooths(input.eventId);
+  await ensureEventFloorPlanBoothsInternal(input.eventId);
 
   const booth = await prisma.eventBooth.findUnique({
     where: { eventId_code: { eventId: input.eventId, code } },
@@ -153,68 +107,224 @@ export async function updateEventBooth(input: {
     input.eventExhibitorId || null,
     companyName
   );
+
+  const allocate = Boolean(input.allocate);
   let status: BoothStatus = input.status as BoothStatus;
 
-  if (exhibitorId) {
+  if (exhibitorId && allocate) {
+    if (!booth.paymentVerified && !input.forceAllocate) {
+      return {
+        error:
+          "Verify payment before allocating this booth. Use “Verify payment” first, or force allocate if needed.",
+      };
+    }
     status = "OCCUPIED";
-  } else if (status === "OCCUPIED") {
-    status = "AVAILABLE";
+  } else if (exhibitorId && !allocate) {
+    if (status === "OCCUPIED" || status === "AVAILABLE" || status === "PREMIUM") {
+      status = "RESERVED";
+    }
+  } else if (!exhibitorId && status === "OCCUPIED") {
+    status = defaultStatusForCode(code);
   }
 
-  await prisma.$transaction(async (tx) => {
-    if (exhibitorId) {
-      const previousBooth = await tx.eventBooth.findFirst({
-        where: { eventId: input.eventId, eventExhibitorId: exhibitorId, NOT: { id: booth.id } },
-      });
-      if (previousBooth) {
-        await tx.eventBooth.update({
-          where: { id: previousBooth.id },
-          data: {
-            eventExhibitorId: null,
-            status: "AVAILABLE",
-            companyName: null,
-            contactName: null,
-            contactPhone: null,
-            contactEmail: null,
-          },
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (exhibitorId) {
+        const previousBooth = await tx.eventBooth.findFirst({
+          where: { eventId: input.eventId, eventExhibitorId: exhibitorId, NOT: { id: booth.id } },
+        });
+        if (previousBooth) {
+          await tx.eventBooth.update({
+            where: { id: previousBooth.id },
+            data: {
+              eventExhibitorId: null,
+              status: defaultStatusForCode(previousBooth.code),
+              companyName: null,
+              contactName: null,
+              contactPhone: null,
+              contactEmail: null,
+              reservedAt: null,
+              paymentVerified: false,
+              paymentVerifiedAt: null,
+              paymentVerifiedBy: null,
+            },
+          });
+        }
+
+        await tx.eventExhibitor.update({
+          where: { id: exhibitorId },
+          data: { boothNumber: allocate ? code : null },
         });
       }
 
-      await tx.eventExhibitor.update({
-        where: { id: exhibitorId },
-        data: { boothNumber: code },
-      });
-    }
+      if (booth.eventExhibitorId && booth.eventExhibitorId !== exhibitorId) {
+        await tx.eventExhibitor.update({
+          where: { id: booth.eventExhibitorId },
+          data: { boothNumber: null },
+        });
+      }
 
-    if (booth.eventExhibitorId && booth.eventExhibitorId !== exhibitorId) {
-      await tx.eventExhibitor.update({
-        where: { id: booth.eventExhibitorId },
-        data: { boothNumber: null },
-      });
-    }
+      const clearing = !exhibitorId;
 
-    await tx.eventBooth.update({
-      where: { id: booth.id },
-      data: {
-        status,
-        notes,
-        companyName,
-        contactName,
-        contactPhone,
-        contactEmail,
-        eventExhibitorId: exhibitorId,
-      },
+      await tx.eventBooth.update({
+        where: { id: booth.id },
+        data: {
+          status,
+          notes,
+          companyName,
+          contactName,
+          contactPhone,
+          contactEmail,
+          eventExhibitorId: exhibitorId,
+          reservedAt:
+            exhibitorId && status === "RESERVED"
+              ? (booth.reservedAt ?? new Date())
+              : exhibitorId
+                ? booth.reservedAt
+                : null,
+          paymentVerified: clearing ? false : booth.paymentVerified,
+          paymentVerifiedAt: clearing ? null : booth.paymentVerifiedAt,
+          paymentVerifiedBy: clearing ? null : booth.paymentVerifiedBy,
+        },
+      });
+
+      if (!exhibitorId && booth.eventExhibitorId) {
+        await tx.eventExhibitor.update({
+          where: { id: booth.eventExhibitorId },
+          data: { boothNumber: null },
+        });
+      }
     });
-
-    if (!exhibitorId && booth.eventExhibitorId) {
-      await tx.eventExhibitor.update({
-        where: { id: booth.eventExhibitorId },
-        data: { boothNumber: null },
-      });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not save booth";
+    if (message.includes("Unique constraint") || message.includes("eventExhibitorId")) {
+      return { error: "This exhibitor already has another booth reserved or allocated." };
     }
+    return { error: message };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor", "layout");
+  return { success: true as const, status };
+}
+
+export async function verifyBoothPayment(input: {
+  eventId: string;
+  boothCode: string;
+}) {
+  const auth = await requireEventMaster();
+  if (auth.error || !auth.user) return { error: auth.error ?? "Event Master access required" };
+
+  const code = input.boothCode.trim().toUpperCase();
+  const booth = await prisma.eventBooth.findUnique({
+    where: { eventId_code: { eventId: input.eventId, code } },
+  });
+  if (!booth) return { error: "Booth not found" };
+  if (!booth.eventExhibitorId) {
+    return { error: "Link or wait for an exhibitor reservation before verifying payment." };
+  }
+  if (booth.status !== "RESERVED" && booth.status !== "OCCUPIED") {
+    return { error: "Only reserved or occupied booths can have payment verified." };
+  }
+
+  await prisma.eventBooth.update({
+    where: { id: booth.id },
+    data: {
+      paymentVerified: true,
+      paymentVerifiedAt: new Date(),
+      paymentVerifiedBy: auth.user.id,
+    },
   });
 
   revalidatePath("/admin");
-  revalidatePath("/exhibitor");
+  revalidatePath("/exhibitor", "layout");
+  return { success: true as const };
+}
+
+export async function allocateBoothToExhibitor(input: {
+  eventId: string;
+  boothCode: string;
+  forceAllocate?: boolean;
+}) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const code = input.boothCode.trim().toUpperCase();
+  const booth = await prisma.eventBooth.findUnique({
+    where: { eventId_code: { eventId: input.eventId, code } },
+    include: {
+      eventExhibitor: {
+        include: { exhibitor: true },
+      },
+    },
+  });
+  if (!booth) return { error: "Booth not found" };
+  if (!booth.eventExhibitorId || !booth.eventExhibitor) {
+    return { error: "No exhibitor reservation on this booth to allocate." };
+  }
+  if (!booth.paymentVerified && !input.forceAllocate) {
+    return { error: "Verify payment before allocating this booth." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.eventExhibitor.update({
+      where: { id: booth.eventExhibitorId! },
+      data: { boothNumber: code },
+    });
+    await tx.eventBooth.update({
+      where: { id: booth.id },
+      data: {
+        status: "OCCUPIED",
+        paymentVerified: true,
+        paymentVerifiedAt: booth.paymentVerifiedAt ?? new Date(),
+        companyName: booth.companyName ?? booth.eventExhibitor!.exhibitor.companyName,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor", "layout");
+  return { success: true as const };
+}
+
+export async function releaseBoothReservation(input: {
+  eventId: string;
+  boothCode: string;
+}) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const code = input.boothCode.trim().toUpperCase();
+  const booth = await prisma.eventBooth.findUnique({
+    where: { eventId_code: { eventId: input.eventId, code } },
+  });
+  if (!booth) return { error: "Booth not found" };
+
+  await prisma.$transaction(async (tx) => {
+    if (booth.eventExhibitorId) {
+      await tx.eventExhibitor.update({
+        where: { id: booth.eventExhibitorId },
+        data: { boothNumber: null },
+      });
+    }
+    await tx.eventBooth.update({
+      where: { id: booth.id },
+      data: {
+        status: defaultStatusForCode(code),
+        eventExhibitorId: null,
+        companyName: null,
+        contactName: null,
+        contactPhone: null,
+        contactEmail: null,
+        reservedAt: null,
+        paymentVerified: false,
+        paymentVerifiedAt: null,
+        paymentVerifiedBy: null,
+      },
+    });
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor", "layout");
   return { success: true as const };
 }

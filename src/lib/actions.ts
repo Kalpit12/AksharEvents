@@ -10,6 +10,8 @@ import { getPassBadgeLabel } from "@/lib/pass-badge";
 import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
 import { sendTicketConfirmation, sendWelcomeEmail, sendBookingInquiryEmail } from "@/lib/email";
 import { createCheckoutSession, isStripeEnabled } from "@/lib/stripe";
+import { createHdfcPaymentSession, generateHdfcOrderId, isHdfcEnabled } from "@/lib/hdfc";
+import { partnerPath } from "@/lib/partners";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
@@ -313,6 +315,7 @@ export async function createBooking(data: {
   attendeeCompany?: string;
   attendeeSector?: string;
   couponCode?: string;
+  partnerSlug?: string;
 }) {
   const parsed = bookingSchema.safeParse(data);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -412,6 +415,7 @@ export async function createBooking(data: {
       userId: user?.id,
       eventId: event.id,
       couponId,
+      partnerSlug: data.partnerSlug?.trim() || null,
       items: {
         create: bookingItems.map((item) => ({
           ticketTypeId: item.ticketTypeId,
@@ -477,6 +481,52 @@ export async function createBooking(data: {
     return { success: true, bookingId: booking.id, bookingNumber, free: true };
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:5001";
+  const partnerSlug = data.partnerSlug?.trim() || null;
+  const successUrl = partnerSlug
+    ? `${appUrl}${partnerPath(partnerSlug, "/booking/success")}?booking=${bookingNumber}`
+    : `${appUrl}/booking/success?booking=${bookingNumber}`;
+  const cancelUrl = partnerSlug
+    ? `${appUrl}${partnerPath(partnerSlug, `/events/${event.slug}`)}`
+    : `${appUrl}/events/${event.slug}`;
+
+  if (partnerSlug && totalAmount > 0) {
+    if (!isHdfcEnabled()) {
+      return { error: "Payment gateway is not configured. Please contact support." };
+    }
+
+    const hdfcOrderId = generateHdfcOrderId();
+    const returnUrl = `${appUrl}/api/payments/hdfc/return`;
+
+    try {
+      const session = await createHdfcPaymentSession({
+        orderId: hdfcOrderId,
+        amount: totalAmount,
+        customerId: normalizedEmail,
+        returnUrl,
+        currency: booking.currency === "KES" ? "INR" : booking.currency,
+      });
+
+      await prisma.payment.create({
+        data: {
+          bookingId: booking.id,
+          amount: totalAmount,
+          status: "PENDING",
+          gateway: "hdfc",
+          hdfcOrderId,
+          invoiceNumber: `INV-${bookingNumber}`,
+          metadata: { partnerSlug },
+        },
+      });
+
+      return { success: true, bookingId: booking.id, checkoutUrl: session.paymentLink };
+    } catch (err) {
+      await prisma.booking.delete({ where: { id: booking.id } });
+      console.error("HDFC payment session error:", err);
+      return { error: "Unable to start payment. Please try again." };
+    }
+  }
+
   if (isStripeEnabled()) {
     const session = await createCheckoutSession({
       bookingId: booking.id,
@@ -487,8 +537,8 @@ export async function createBooking(data: {
         unitAmount: item.unitPrice.toNumber(),
       })),
       customerEmail: data.attendeeEmail,
-      successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/booking/success?booking=${bookingNumber}`,
-      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/events/${event.slug}`,
+      successUrl,
+      cancelUrl,
     });
 
     await prisma.payment.create({
@@ -496,6 +546,7 @@ export async function createBooking(data: {
         bookingId: booking.id,
         amount: totalAmount,
         status: "PENDING",
+        gateway: "stripe",
         stripeSessionId: session.id,
         invoiceNumber: `INV-${bookingNumber}`,
       },

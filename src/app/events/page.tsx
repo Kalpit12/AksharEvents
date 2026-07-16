@@ -43,6 +43,7 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
       sort: (params.sort as "upcoming" | "newest" | "popular") || "upcoming",
       limit,
       offset,
+      platformOnly: true,
     }),
     isFrontendOnly()
       ? Promise.resolve(getMockCategories())

@@ -32,10 +32,68 @@ export function convertToKes(amount: string, currency: TravelLogisticsForm["mone
   return Math.round(value * EXCHANGE_RATES_TO_KES[currency]);
 }
 
-export type VisaDocuments = {
-  passport: File | null;
-  id: File | null;
-  yellowFever: File | null;
+export type VisaDocumentKey =
+  | "passportBioPage"
+  | "passportPhoto"
+  | "returnTicket"
+  | "accommodationProof"
+  | "employerLetter"
+  | "yellowFever";
+
+export type VisaDocuments = Record<VisaDocumentKey, File | null>;
+
+/** Documents commonly required for Kenya Electronic Travel Authorization (eTA) — business visitors. */
+export const KENYA_ETA_VISA_DOCUMENTS: {
+  key: VisaDocumentKey;
+  label: string;
+  hint: string;
+  required: boolean;
+}[] = [
+  {
+    key: "passportBioPage",
+    label: "Passport bio-data page",
+    hint: "Clear scan of the photo page. Passport must be valid at least 6 months beyond your stay.",
+    required: true,
+  },
+  {
+    key: "passportPhoto",
+    label: "Passport-size photograph",
+    hint: "Recent colour photo on a plain background (JPEG or PNG, as per etakenya.go.ke).",
+    required: true,
+  },
+  {
+    key: "returnTicket",
+    label: "Return or onward flight ticket",
+    hint: "Confirmed booking showing your entry and departure from Kenya.",
+    required: true,
+  },
+  {
+    key: "accommodationProof",
+    label: "Proof of accommodation",
+    hint: "Hotel booking confirmation or other proof of where you will stay in Kenya.",
+    required: true,
+  },
+  {
+    key: "employerLetter",
+    label: "Company / employer letter",
+    hint: "Letter on company letterhead confirming your role and business purpose for visiting Kenya.",
+    required: true,
+  },
+  {
+    key: "yellowFever",
+    label: "Yellow fever vaccination certificate",
+    hint: "Only if you are arriving from or transiting through a yellow-fever endemic country.",
+    required: false,
+  },
+];
+
+export const defaultVisaDocs: VisaDocuments = {
+  passportBioPage: null,
+  passportPhoto: null,
+  returnTicket: null,
+  accommodationProof: null,
+  employerLetter: null,
+  yellowFever: null,
 };
 
 export const defaultTravelForm: TravelLogisticsForm = {
@@ -50,12 +108,6 @@ export const defaultTravelForm: TravelLogisticsForm = {
   moneyExchangeAmount: "",
   moneyExchangeCurrency: "USD",
   dailyVenueTransport: "no",
-};
-
-export const defaultVisaDocs: VisaDocuments = {
-  passport: null,
-  id: null,
-  yellowFever: null,
 };
 
 type Props = {
@@ -90,25 +142,50 @@ export function TravelLogisticsFields({ travel, visaDocs, onTravelChange, onVisa
         />
       </QuestionSection>
 
-      <QuestionSection number="1a" title="Visa application" icon={FileUp} sub>
-        <p className="mb-3 text-sm text-muted-foreground">Do you need visa application help?</p>
+      <QuestionSection number="1a" title="Kenya travel authorization (eTA)" icon={FileUp} sub>
+        <p className="mb-1 text-sm text-muted-foreground">
+          Do you need help applying for Kenya&apos;s Electronic Travel Authorization (eTA)?
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          All international visitors must obtain an eTA before travel via{" "}
+          <a
+            href="https://www.etakenya.go.ke"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            etakenya.go.ke
+          </a>
+          . Apply at least 3 days before departure.
+        </p>
         <RadioOptions
           name="visaHelp"
           value={travel.visaHelp}
           onChange={(v) => set("visaHelp", v as TravelLogisticsForm["visaHelp"])}
           options={[
-            { value: "already_have", label: "No — I already have a visa" },
+            { value: "already_have", label: "No — I already have an eTA / authorization" },
             { value: "apply_myself", label: "No — I will apply by myself" },
-            { value: "need_help", label: "Yes — I need help with my visa application" },
+            { value: "need_help", label: "Yes — I need help with my eTA application" },
           ]}
         />
         {travel.visaHelp === "need_help" && (
           <div className="mt-4 rounded-xl border border-dashed border-champagne bg-champagne/10/50 p-4 dark:border-champagne/20 dark:bg-champagne/10">
-            <p className="mb-3 text-sm font-medium text-foreground">Upload required documents</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <DocUpload label="Passport" file={visaDocs.passport} onChange={(f) => setDoc("passport", f)} />
-              <DocUpload label="National ID" file={visaDocs.id} onChange={(f) => setDoc("id", f)} />
-              <DocUpload label="Yellow fever certificate" file={visaDocs.yellowFever} onChange={(f) => setDoc("yellowFever", f)} />
+            <p className="text-sm font-medium text-foreground">Upload documents for your Kenya eTA</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Our team will use these to assist with your application. The event host invitation letter
+              will be provided separately where required.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {KENYA_ETA_VISA_DOCUMENTS.map((doc) => (
+                <DocUpload
+                  key={doc.key}
+                  label={doc.label}
+                  hint={doc.hint}
+                  required={doc.required}
+                  file={visaDocs[doc.key]}
+                  onChange={(f) => setDoc(doc.key, f)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -337,20 +414,29 @@ function RadioOptions({
 
 function DocUpload({
   label,
+  hint,
+  required,
   file,
   onChange,
 }: {
   label: string;
+  hint?: string;
+  required?: boolean;
   file: File | null;
   onChange: (file: File | null) => void;
 }) {
   return (
-    <div>
-      <Label className="text-xs">{label}</Label>
+    <div className="rounded-lg border border-border/60 bg-background/80 p-3">
+      <Label className="text-xs font-semibold">
+        {label}
+        {required ? <span className="text-destructive"> *</span> : null}
+        {!required ? <span className="font-normal text-muted-foreground"> (if applicable)</span> : null}
+      </Label>
+      {hint ? <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</p> : null}
       <Input
         type="file"
         accept="image/jpeg,image/png,image/webp,application/pdf"
-        className="mt-1 text-xs"
+        className="mt-2 text-xs"
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}
       />
       {file && <p className="mt-1 truncate text-[11px] text-primary">{file.name}</p>}
@@ -358,10 +444,30 @@ function DocUpload({
   );
 }
 
+export function visaDocumentSummaryRows(visaDocs: VisaDocuments): [string, string][] {
+  return KENYA_ETA_VISA_DOCUMENTS.map((doc) => [
+    doc.label,
+    visaDocs[doc.key] ? visaDocs[doc.key]!.name : doc.required ? "Not uploaded" : "Not uploaded (optional)",
+  ]);
+}
+
+export function visaDocNamesFromFiles(
+  visaDocs: VisaDocuments
+): import("@/components/exhibitor-portal/registration-types").SavedRegistrationData["visaDocNames"] {
+  return {
+    passportBioPage: visaDocs.passportBioPage?.name ?? null,
+    passportPhoto: visaDocs.passportPhoto?.name ?? null,
+    returnTicket: visaDocs.returnTicket?.name ?? null,
+    accommodationProof: visaDocs.accommodationProof?.name ?? null,
+    employerLetter: visaDocs.employerLetter?.name ?? null,
+    yellowFever: visaDocs.yellowFever?.name ?? null,
+  };
+}
+
 export function formatTravelSummary(travel: TravelLogisticsForm, visaDocs: VisaDocuments) {
   const flightLabels = { no: "No", one_way: "One-way", two_way: "Two-way" };
   const visaLabels = {
-    already_have: "Already have visa",
+    already_have: "Already have eTA",
     apply_myself: "Applying myself",
     need_help: "Need help",
   };
@@ -369,14 +475,8 @@ export function formatTravelSummary(travel: TravelLogisticsForm, visaDocs: VisaD
 
   return [
     ["Flight ticket", flightLabels[travel.flightTicket]],
-    ["Visa assistance", visaLabels[travel.visaHelp]],
-    ...(travel.visaHelp === "need_help"
-      ? [
-          ["Passport uploaded", visaDocs.passport ? visaDocs.passport.name : "Not uploaded"],
-          ["ID uploaded", visaDocs.id ? visaDocs.id.name : "Not uploaded"],
-          ["Yellow fever cert.", visaDocs.yellowFever ? visaDocs.yellowFever.name : "Not uploaded"],
-        ]
-      : []),
+    ["Kenya eTA assistance", visaLabels[travel.visaHelp]],
+    ...(travel.visaHelp === "need_help" ? visaDocumentSummaryRows(visaDocs) : []),
     ["Hotel / accommodation", travel.hotel === "yes" ? "Yes" : "No"],
     ...(travel.hotel === "yes"
       ? [

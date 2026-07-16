@@ -25,4 +25,14 @@ export type FloorPlanBoothRecord = {
   contactPhone: string | null;
   contactEmail: string | null;
   notes: string | null;
+  reservedAt: string | null;
+  paymentVerified: boolean;
+  paymentVerifiedAt: string | null;
 };
+
+/** Exhibitor-facing booth assignment lifecycle */
+export type ExhibitorBoothPhase =
+  | "none"
+  | "reserved"
+  | "payment_verified"
+  | "allocated";

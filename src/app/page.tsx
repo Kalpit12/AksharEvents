@@ -2,10 +2,7 @@ import Link from "next/link";
 import { prisma, withDbRetry } from "@/lib/prisma";
 import { getPublishedEvents } from "@/lib/events";
 import { isFrontendOnly } from "@/lib/frontend-only";
-import {
-  getMockPopularVenues,
-  getMockTestimonials,
-} from "@/lib/mock-data";
+import { getMockPopularVenues } from "@/lib/mock-data";
 import { HomeHero } from "@/components/home/home-hero";
 import { UpcomingEventsCarousel } from "@/components/home/upcoming-events-carousel";
 import { NewsletterSignup } from "@/components/home/newsletter-signup";
@@ -21,7 +18,7 @@ import { getHeroImageForEvent, DEFAULT_HERO_SLIDES } from "@/lib/hero-images";
 import type { HeroSlide } from "@/components/home/home-hero";
 import { Button } from "@/components/ui/Button";
 import { CATEGORIES } from "@/lib/utils";
-import { ArrowRight, Star, Building2 } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 function serializeEventsForCarousel(
@@ -91,18 +88,13 @@ function buildHeroSlides(
 }
 
 export default async function HomePage() {
-  const [featured, upcoming, venues, testimonials] = await withDbRetry(async () => {
-    const featuredResult = await getPublishedEvents({ featured: true, limit: 8 });
-    const upcomingResult = await getPublishedEvents({ sort: "upcoming", limit: 12 });
-    const [venuesResult, testimonialsResult] = await Promise.all([
-      isFrontendOnly()
-        ? Promise.resolve(getMockPopularVenues(4))
-        : prisma.venue.findMany({ where: { isPopular: true }, take: 4 }),
-      isFrontendOnly()
-        ? Promise.resolve(getMockTestimonials())
-        : prisma.testimonial.findMany({ where: { isActive: true }, take: 3 }),
-    ]);
-    return [featuredResult, upcomingResult, venuesResult, testimonialsResult] as const;
+  const [featured, upcoming, venues] = await withDbRetry(async () => {
+    const featuredResult = await getPublishedEvents({ featured: true, limit: 8, platformOnly: true });
+    const upcomingResult = await getPublishedEvents({ sort: "upcoming", limit: 12, platformOnly: true });
+    const venuesResult = isFrontendOnly()
+      ? await Promise.resolve(getMockPopularVenues(4))
+      : await prisma.venue.findMany({ where: { isPopular: true }, take: 4 });
+    return [featuredResult, upcomingResult, venuesResult] as const;
   });
 
   const heroSlides = buildHeroSlides(featured.events, upcoming.events);
@@ -202,39 +194,6 @@ export default async function HomePage() {
       )}
 
       <HomePlatformSpotlight />
-
-      {testimonials.length > 0 && (
-        <section className="bg-muted py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <Reveal className="mb-10 flex justify-center">
-              <AnimatedHeading className="text-2xl font-bold sm:text-3xl">
-                What People Say
-              </AnimatedHeading>
-            </Reveal>
-            <RevealStagger className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              {testimonials.map((t) => (
-                <RevealItem key={t.id}>
-                  <div className="h-full rounded-2xl bg-card p-6 shadow-sm">
-                    <div className="mb-3 flex gap-1">
-                      {Array.from({ length: t.rating }).map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-champagne text-champagne" />
-                      ))}
-                    </div>
-                    <p className="text-muted-foreground">&ldquo;{t.content}&rdquo;</p>
-                    <div className="mt-4">
-                      <p className="font-semibold">{t.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {t.role}
-                        {t.company ? `, ${t.company}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                </RevealItem>
-              ))}
-            </RevealStagger>
-          </div>
-        </section>
-      )}
 
       <NewsletterSignup />
     </>

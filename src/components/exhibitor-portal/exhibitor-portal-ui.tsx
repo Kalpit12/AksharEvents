@@ -485,31 +485,38 @@ export function QuickAction({
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex min-w-[160px] flex-1 flex-col rounded-xl border px-4 py-3.5 text-left transition-all sm:min-w-0",
+        "group flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all",
         highlight
-          ? "border-primary bg-champagne/10 shadow-sm dark:border-champagne-dark dark:bg-espresso/30"
-          : "border-border bg-muted/20 hover:border-champagne hover:bg-champagne/10 dark:hover:border-champagne/20 dark:hover:bg-champagne/10"
+          ? "border-primary/40 bg-champagne/10 shadow-sm dark:border-champagne-dark/50 dark:bg-espresso/30"
+          : "border-border/80 bg-background hover:border-champagne/60 hover:bg-champagne/5 dark:hover:border-champagne/20 dark:hover:bg-champagne/10"
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className={cn("text-sm font-medium", highlight && "text-espresso dark:text-champagne-light")}>{label}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-        </div>
-        <ArrowRight
+      <div className="min-w-0 flex-1">
+        <div
           className={cn(
-            "mt-0.5 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5",
-            highlight ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+            "text-xs font-semibold leading-tight sm:text-[13px]",
+            highlight && "text-espresso dark:text-champagne-light"
           )}
-        />
+        >
+          {label}
+        </div>
+        <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
+          {sub}
+        </div>
       </div>
+      <ArrowRight
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5",
+          highlight ? "text-primary" : "text-muted-foreground/70 group-hover:text-primary"
+        )}
+      />
     </button>
   );
 }
 
 export function QuickActionsRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:grid-cols-4 lg:overflow-visible">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {children}
     </div>
   );

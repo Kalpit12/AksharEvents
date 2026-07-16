@@ -35,9 +35,15 @@ export type SavedRegistrationData = {
   form: RegistrationFormState;
   travel: TravelLogisticsForm;
   visaDocNames: {
-    passport: string | null;
-    id: string | null;
+    passportBioPage: string | null;
+    passportPhoto: string | null;
+    returnTicket: string | null;
+    accommodationProof: string | null;
+    employerLetter: string | null;
     yellowFever: string | null;
+    /** @deprecated Legacy saved registrations */
+    passport?: string | null;
+    id?: string | null;
   };
   members: TeamMember[];
   airBookingRequests?: AirBookingRequest[];

@@ -1,6 +1,7 @@
 import type { SavedRegistrationData } from "@/components/exhibitor-portal/registration-types";
 import {
   convertToKes,
+  KENYA_ETA_VISA_DOCUMENTS,
   type TravelLogisticsForm,
 } from "@/components/exhibitor-portal/registration-travel-step";
 import { activityLabelMap } from "@/lib/exhibitor-form-options";
@@ -42,7 +43,7 @@ export function formatTravelSummaryFromSaved(
 ): [string, string][] {
   const flightLabels = { no: "No", one_way: "One-way", two_way: "Two-way" };
   const visaLabels = {
-    already_have: "Already have visa",
+    already_have: "Already have eTA",
     apply_myself: "Applying myself",
     need_help: "Need help",
   };
@@ -50,15 +51,20 @@ export function formatTravelSummaryFromSaved(
 
   const rows: [string, string][] = [
     ["Flight ticket", flightLabels[travel.flightTicket]],
-    ["Visa assistance", visaLabels[travel.visaHelp]],
+    ["Kenya eTA assistance", visaLabels[travel.visaHelp]],
   ];
 
   if (travel.visaHelp === "need_help") {
-    rows.push(
-      ["Passport uploaded", visaDocNames.passport ?? "Not uploaded"],
-      ["ID uploaded", visaDocNames.id ?? "Not uploaded"],
-      ["Yellow fever cert.", visaDocNames.yellowFever ?? "Not uploaded"]
-    );
+    for (const doc of KENYA_ETA_VISA_DOCUMENTS) {
+      const uploaded =
+        visaDocNames[doc.key] ??
+        (doc.key === "passportBioPage" ? visaDocNames.passport : null) ??
+        (doc.key === "employerLetter" ? visaDocNames.id : null);
+      rows.push([
+        doc.label,
+        uploaded ?? (doc.required ? "Not uploaded" : "Not uploaded (optional)"),
+      ]);
+    }
   }
 
   rows.push(["Hotel / accommodation", travel.hotel === "yes" ? "Yes" : "No"]);
@@ -136,10 +142,9 @@ export function transportFormFields(
   const { form } = data;
   return [
     ["Accommodation pickup", form.accommodationPickup || "—"],
-    ["Daily venue shuttles", data.shuttles.length > 0 ? data.shuttles.join(", ") : "None selected"],
     ["Tours selected", tourLabelsFromIds(data.selectedTours, activities).join(", ") || "None"],
     ["Departure & drop-off", form.depart || "—"],
-    ["Vehicle preference", form.vehicle || "—"],
+    ["Vehicle", "Will be provided based on availability"],
   ];
 }
 

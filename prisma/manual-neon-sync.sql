@@ -37,3 +37,11 @@ BEGIN
       FOREIGN KEY ("eventExhibitorId") REFERENCES "EventExhibitor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
   END IF;
 END $$;
+
+-- Booth reservation / payment verification (exhibitor self-select → admin allocate)
+ALTER TABLE "EventBooth" ADD COLUMN IF NOT EXISTS "reservedAt" TIMESTAMP(3);
+ALTER TABLE "EventBooth" ADD COLUMN IF NOT EXISTS "paymentVerified" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "EventBooth" ADD COLUMN IF NOT EXISTS "paymentVerifiedAt" TIMESTAMP(3);
+ALTER TABLE "EventBooth" ADD COLUMN IF NOT EXISTS "paymentVerifiedBy" TEXT;
+
+CREATE INDEX IF NOT EXISTS "EventBooth_status_idx" ON "EventBooth"("status");

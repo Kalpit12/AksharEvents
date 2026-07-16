@@ -32,7 +32,13 @@ function gridColumnsClass(itemsPerView: number) {
   return "grid-cols-4";
 }
 
-export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) {
+export function UpcomingEventsCarousel({
+  events,
+  eventsBasePath = "/events",
+}: {
+  events: CarouselEvent[];
+  eventsBasePath?: string;
+}) {
   const [currentPage, setCurrentPage] = useState(0);
   const [itemsPerView, setItemsPerView] = useState(4);
 
@@ -93,6 +99,7 @@ export function UpcomingEventsCarousel({ events }: { events: CarouselEvent[] }) 
                 event={{ ...event, startDate: new Date(event.startDate) }}
                 variant="grid"
                 imagePriority={currentPage === 0 && index === 0}
+                eventsBasePath={eventsBasePath}
               />
             </div>
           ))}

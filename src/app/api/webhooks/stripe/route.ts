@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { constructWebhookEvent } from "@/lib/stripe";
-import { sendTicketConfirmation } from "@/lib/email";
-import { getPassBadgeLabel } from "@/lib/pass-badge";
-import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
+import { confirmBookingPayment } from "@/lib/payment-confirm";
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -32,55 +30,9 @@ export async function POST(request: Request) {
 
       if (!booking) return NextResponse.json({ received: true });
 
-      await prisma.$transaction([
-        prisma.booking.update({
-          where: { id: bookingId },
-          data: { status: "CONFIRMED" },
-        }),
-        prisma.payment.update({
-          where: { bookingId },
-          data: {
-            status: "COMPLETED",
-            stripePaymentId: session.payment_intent as string,
-          },
-        }),
-      ]);
-
-      if (booking.userId) {
-        await prisma.notification.create({
-          data: {
-            userId: booking.userId,
-            type: "BOOKING_CONFIRMED",
-            title: "Payment Confirmed",
-            message: `Your tickets for ${booking.event.title} are confirmed.`,
-            link: `/pass/${booking.bookingNumber}`,
-          },
-        });
-      }
-
-      const qrDataUrl = await generateQRCodeDataUrl(
-        getTicketQRPayload(booking.bookingNumber, booking.eventId)
-      );
-
-      const primaryTicket = booking.items[0]?.ticketType;
-      await sendTicketConfirmation({
-        to: booking.attendeeEmail,
-        name: booking.attendeeName,
-        designation: booking.attendeeDesignation,
-        company: booking.attendeeCompany,
-        eventTitle: booking.event.title,
-        eventSlug: booking.event.slug,
-        startDate: booking.event.startDate,
-        endDate: booking.event.endDate,
-        startTime: booking.event.startTime,
-        endTime: booking.event.endTime,
-        venueName: booking.event.venue?.name,
-        venueCity: booking.event.venue?.city,
-        bookingNumber: booking.bookingNumber,
-        qrCodeUrl: qrDataUrl,
-        totalAmount: booking.totalAmount.toString(),
-        currency: booking.currency,
-        passLabel: getPassBadgeLabel(primaryTicket?.name, primaryTicket?.tier),
+      await confirmBookingPayment(bookingId, {
+        gateway: "stripe",
+        stripePaymentId: session.payment_intent as string,
       });
     }
 

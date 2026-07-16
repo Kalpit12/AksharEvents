@@ -46,6 +46,9 @@ type Props = {
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  partnerSlug?: string;
+  eventsBasePath?: string;
+  bookingSuccessBasePath?: string;
 };
 
 export function VisitorRegistrationForm({
@@ -60,6 +63,9 @@ export function VisitorRegistrationForm({
   defaultName = "",
   defaultEmail = "",
   defaultPhone = "",
+  partnerSlug,
+  eventsBasePath = "/events",
+  bookingSuccessBasePath = "/booking/success",
 }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -104,6 +110,7 @@ export function VisitorRegistrationForm({
       attendeeCompany: data.attendeeCompany,
       attendeeDesignation: data.attendeeDesignation,
       attendeeSector: data.attendeeSector,
+      partnerSlug,
     });
     setLoading(false);
 
@@ -123,7 +130,7 @@ export function VisitorRegistrationForm({
     }
 
     toast.success("Registration complete! Your badge is ready.");
-    router.push(`/booking/success?booking=${result.bookingNumber}`);
+    router.push(`${bookingSuccessBasePath}?booking=${result.bookingNumber}`);
   };
 
   return (
@@ -132,7 +139,7 @@ export function VisitorRegistrationForm({
         <RegistrationCardHeader>
           <div className="mb-2">
             <Button asChild variant="ghost" size="sm" className="-ml-2 h-8 px-2 text-muted-foreground">
-              <Link href={`/events/${eventSlug}`}>
+              <Link href={`${eventsBasePath}/${eventSlug}`}>
                 <ArrowLeft className="h-4 w-4" />
                 Back to event
               </Link>

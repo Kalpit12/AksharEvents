@@ -36,6 +36,10 @@ export default async function ExhibitorDashboardPage() {
       endDate={data.endDate}
       boothNumber={data.boothNumber}
       boothStandLabel={data.boothStandLabel}
+      boothPhase={data.boothPhase}
+      boothReservedCode={data.boothReservedCode}
+      floorPlan={data.floorPlan}
+      floorPlanBooths={data.floorPlanBooths}
       hall={data.hall}
       expoDays={data.expoDays}
       eventActivities={data.eventActivities}

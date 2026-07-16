@@ -85,7 +85,7 @@ export const faqSections: FaqSection[] = [
       },
       {
         q: "How do I view my booth assignment?",
-        a: "Your assigned booth and hall appear on the Overview dashboard once the organiser allocates your company on the floor plan. Check back if your booth is not yet assigned.",
+        a: "Open Floor plan & booth in your exhibitor dashboard to select a stand on the map. After you reserve a booth and payment is verified, Event Master will allocate it — your booth number and stand size then appear on Overview.",
       },
     ],
   },

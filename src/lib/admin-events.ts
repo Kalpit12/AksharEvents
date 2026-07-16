@@ -42,6 +42,7 @@ export async function createAdminEvent(formData: FormData) {
   const publish = formData.get("publish") === "true";
   const slug = await uniqueEventSlug(parsed.data.title);
 
+  const capacity = parsed.data.capacity ?? null;
   const event = await prisma.event.create({
     data: {
       title: parsed.data.title,
@@ -54,15 +55,30 @@ export async function createAdminEvent(formData: FormData) {
       endDate: new Date(parsed.data.endDate),
       startTime: parsed.data.startTime?.trim() || null,
       endTime: parsed.data.endTime?.trim() || null,
-      capacity: parsed.data.capacity ?? null,
+      capacity,
       categoryId: parsed.data.categoryId,
       venueId: parsed.data.venueId || null,
       organizerId: user.id,
+      // Public "Register to visit" on the event page requires at least one ticket type.
+      ticketTypes: {
+        create: {
+          name: "General Pass",
+          description: "Free visitor registration for expo check-in and badge.",
+          tier: "FREE",
+          price: 0,
+          currency: "KES",
+          quantity: capacity && capacity > 0 ? capacity : 10000,
+          minPerOrder: 1,
+          maxPerOrder: 1,
+          isActive: true,
+        },
+      },
     },
   });
 
   revalidatePath("/admin");
   revalidatePath("/admin/events");
+  revalidatePath(`/events/${event.slug}`);
   revalidatePath("/auth/exhibitor");
   revalidatePath("/exhibitor");
 

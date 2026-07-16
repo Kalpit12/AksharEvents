@@ -23,9 +23,17 @@ interface EventCardProps {
   variant?: "grid" | "list";
   className?: string;
   imagePriority?: boolean;
+  eventsBasePath?: string;
 }
 
-export function EventCard({ event, variant = "grid", className, imagePriority = false }: EventCardProps) {
+export function EventCard({
+  event,
+  variant = "grid",
+  className,
+  imagePriority = false,
+  eventsBasePath = "/events",
+}: EventCardProps) {
+  const eventHref = `${eventsBasePath}/${event.slug}`;
   const minPrice = event.ticketTypes.length
     ? Math.min(...event.ticketTypes.map((t) => {
         const p = t.price;
@@ -37,7 +45,7 @@ export function EventCard({ event, variant = "grid", className, imagePriority = 
 
   if (variant === "list") {
     return (
-      <Link href={`/events/${event.slug}`}>
+      <Link href={eventHref}>
         <Card className="group overflow-hidden hover:shadow-lg transition-all duration-300">
           <div className="flex flex-col sm:flex-row">
             <div className="relative h-48 sm:h-auto sm:w-72 shrink-0">
@@ -82,7 +90,7 @@ export function EventCard({ event, variant = "grid", className, imagePriority = 
   }
 
   return (
-    <Link href={`/events/${event.slug}`}>
+    <Link href={eventHref}>
       <Card className={cn("group h-full overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl", className)}>
         <div className="relative aspect-[16/10] overflow-hidden">
           <SafeImage

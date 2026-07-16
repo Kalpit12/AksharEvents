@@ -101,7 +101,7 @@ export function aggregateTransport(
       items.push({
         company: record.companyName,
         title: shuttle,
-        sub: data.form.vehicle || "—",
+        sub: "Vehicle will be provided based on availability",
       });
     }
 
@@ -135,7 +135,7 @@ export function aggregateTransport(
       items.push({
         company: record.companyName,
         title: labels.get(tourId) ?? tourId,
-        sub: data.form.vehicle || "—",
+        sub: "Vehicle will be provided based on availability",
       });
     }
   }

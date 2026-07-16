@@ -18,6 +18,8 @@ export async function getPublishedEvents({
   featured,
   trending,
   sort = "upcoming",
+  partnerId,
+  platformOnly = false,
 }: {
   limit?: number;
   offset?: number;
@@ -28,6 +30,8 @@ export async function getPublishedEvents({
   featured?: boolean;
   trending?: boolean;
   sort?: "upcoming" | "newest" | "popular";
+  partnerId?: string;
+  platformOnly?: boolean;
 } = {}) {
   if (isFrontendOnly()) {
     return getMockPublishedEvents({
@@ -46,6 +50,10 @@ export async function getPublishedEvents({
   return withDbRetry(async () => {
     const where = {
       status: "PUBLISHED" as EventStatus,
+      ...(platformOnly && { partnerId: null }),
+      ...(partnerId && {
+        OR: [{ partnerId: null }, { partnerId }],
+      }),
       ...(categorySlug && { category: { slug: categorySlug } }),
       ...(format && { format }),
       ...(city && { venue: { city: { contains: city, mode: "insensitive" as const } } }),
@@ -88,14 +96,20 @@ export async function getPublishedEvents({
   });
 }
 
-export async function getEventBySlug(slug: string) {
+export async function getEventBySlug(slug: string, partnerId?: string) {
   if (isFrontendOnly()) {
     return getMockEventBySlug(slug);
   }
 
   return withDbRetry(() =>
-    prisma.event.findUnique({
-      where: { slug },
+    prisma.event.findFirst({
+      where: {
+        slug,
+        status: "PUBLISHED",
+        ...(partnerId
+          ? { OR: [{ partnerId: null }, { partnerId }] }
+          : { partnerId: null }),
+      },
       include: {
         category: true,
         venue: true,

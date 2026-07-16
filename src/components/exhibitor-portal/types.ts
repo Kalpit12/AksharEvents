@@ -1,5 +1,6 @@
 export type ExhibitorTab =
   | "overview"
+  | "booth"
   | "registration"
   | "additional"
   | "brandings"

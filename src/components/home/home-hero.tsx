@@ -17,7 +17,15 @@ export interface HeroSlide {
 
 const SLIDE_DURATION_MS = 5000;
 
-export function HomeHero({ slides }: { slides: HeroSlide[] }) {
+export function HomeHero({
+  slides,
+  eyebrow = "Discover. Book. Experience.",
+  exploreEventsHref = "/events",
+}: {
+  slides: HeroSlide[];
+  eyebrow?: string;
+  exploreEventsHref?: string;
+}) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const progressStartRef = useRef(Date.now());
@@ -157,7 +165,7 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
               className="mb-3 bg-gradient-to-r from-champagne-light via-white to-champagne-light bg-clip-text text-sm font-medium uppercase text-transparent"
               style={{ backgroundSize: "200% 100%" }}
             >
-              Discover. Book. Experience.
+              {eyebrow}
             </motion.p>
             <h1 className="text-3xl font-bold leading-tight text-white drop-shadow-sm sm:text-4xl lg:text-5xl xl:text-6xl">
               {slide.title.split(" ").map((word, index) => (
@@ -204,7 +212,7 @@ export function HomeHero({ slides }: { slides: HeroSlide[] }) {
                 className="border-white/30 bg-white/10 text-white hover:bg-white/20"
                 asChild
               >
-                <Link href="/events">
+                <Link href={exploreEventsHref}>
                   <Search className="h-5 w-5" />
                   Explore All Events
                 </Link>

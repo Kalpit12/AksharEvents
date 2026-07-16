@@ -110,11 +110,15 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
     loadEventTourTravelItineraries(eventId),
   ]);
 
-  const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
+  const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => {
+    const reservedBooth = (floorPlanResult.booths ?? []).find(
+      (b) => b.eventExhibitorId === entry.id && b.status === "RESERVED"
+    );
+    return {
     id: entry.id,
     companyName: entry.exhibitor.companyName,
     slug: entry.exhibitor.slug,
-    boothNumber: entry.boothNumber,
+    boothNumber: entry.boothNumber ?? reservedBooth?.code ?? null,
     hall: entry.hall,
     contactName: entry.exhibitor.contactName,
     contactEmail: entry.exhibitor.contactEmail,
@@ -127,7 +131,8 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
       ? (entry.registration.formData as SavedRegistrationData)
       : null,
     badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
-  }));
+  };
+  });
 
   return {
     exhibitors,

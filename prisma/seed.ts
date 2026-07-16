@@ -292,6 +292,40 @@ async function main() {
     skipDuplicates: true,
   });
 
+  // Sample white-label partner — theme matches TechHub Africa brand (orange + green)
+  await prisma.partner.upsert({
+    where: { slug: "techhub-africa" },
+    update: {
+      name: "TechHub Africa",
+      tagline: "Innovation events across East Africa",
+      logoUrl: "/partners/techhub-africa-logo.png",
+      primaryColor: "#F09224",
+      secondaryColor: "#1E8046",
+      accentColor: "#1E8046",
+      backgroundColor: "#FFFFFF",
+      foregroundColor: "#000000",
+      contactEmail: "events@techhub.africa",
+      aboutHtml:
+        "<p>TechHub Africa connects innovators, startups, and enterprises through world-class technology events and expos across the continent.</p>",
+      isActive: true,
+    },
+    create: {
+      name: "TechHub Africa",
+      slug: "techhub-africa",
+      tagline: "Innovation events across East Africa",
+      logoUrl: "/partners/techhub-africa-logo.png",
+      primaryColor: "#F09224",
+      secondaryColor: "#1E8046",
+      accentColor: "#1E8046",
+      backgroundColor: "#FFFFFF",
+      foregroundColor: "#000000",
+      contactEmail: "events@techhub.africa",
+      aboutHtml:
+        "<p>TechHub Africa connects innovators, startups, and enterprises through world-class technology events and expos across the continent.</p>",
+      isActive: true,
+    },
+  });
+
   console.log("✅ Seed completed!");
   console.log("\n📋 Demo Accounts:");
   console.log("  Admin:     admin@axarevents.com / admin123");
@@ -299,6 +333,7 @@ async function main() {
   console.log("  Attendee:  attendee@axarevents.com / password123");
   console.log("  Exhibitor: exhibitor@axarevents.com / password123");
   console.log("  Printing:  printing@axarevents.com / password123");
+  console.log("\n🌐 Sample partner site: /p/techhub-africa");
 }
 
 main()

@@ -32,7 +32,7 @@ export function LayoutShellClient({
     return () => window.removeEventListener(EXHIBITOR_SCAN_MODE_EVENT, sync);
   }, []);
 
-  if (pathname === "/launch" || pathname.startsWith("/booth")) {
+  if (pathname === "/launch" || pathname.startsWith("/booth") || pathname.startsWith("/p/")) {
     return <>{children}</>;
   }
 

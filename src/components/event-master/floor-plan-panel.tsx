@@ -8,7 +8,12 @@ import {
   STAND_TYPE_LABELS,
   type BoothStatusValue,
 } from "@/lib/floor-plan-layout";
-import { updateEventBooth } from "@/lib/floor-plan-actions";
+import {
+  allocateBoothToExhibitor,
+  releaseBoothReservation,
+  updateEventBooth,
+  verifyBoothPayment,
+} from "@/lib/floor-plan-actions";
 import { scaledLayoutForBoothCode } from "@/lib/floor-plan-scale";
 import type { EventFloorPlanConfig, FloorPlanBoothRecord } from "@/lib/floor-plan-types";
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
@@ -16,7 +21,18 @@ import { CustomSelect } from "@/components/exhibitor-portal/custom-select";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
-import { Building2, Download, Mail, MapPin, Phone, Search, Upload, User } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  Download,
+  Mail,
+  MapPin,
+  Phone,
+  Search,
+  ShieldCheck,
+  Upload,
+  User,
+} from "lucide-react";
 
 type Props = {
   eventId: string;
@@ -34,12 +50,37 @@ function boothFormFromRecord(booth: FloorPlanBoothRecord) {
   return {
     status: booth.status,
     exhibitorId: booth.eventExhibitorId ?? "",
-    companyName: booth.companyName ?? "",
+    companyName: booth.companyName ?? booth.exhibitorName ?? "",
     contactName: booth.contactName ?? "",
     contactPhone: booth.contactPhone ?? "",
     contactEmail: booth.contactEmail ?? "",
     notes: booth.notes ?? "",
   };
+}
+
+function reservationBanner(booth: FloorPlanBoothRecord) {
+  if (booth.status === "OCCUPIED" && booth.eventExhibitorId) {
+    return {
+      label: "Allocated",
+      detail: `${booth.companyName ?? booth.exhibitorName ?? "Company"} · booth confirmed`,
+      className: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200",
+    };
+  }
+  if (booth.status === "RESERVED" && booth.eventExhibitorId) {
+    if (booth.paymentVerified) {
+      return {
+        label: "Payment verified — ready to allocate",
+        detail: `${booth.companyName ?? booth.exhibitorName ?? "Company"} requested this booth`,
+        className: "border-sky-300 bg-sky-50 text-sky-900 dark:bg-sky-950/30 dark:text-sky-200",
+      };
+    }
+    return {
+      label: "Exhibitor request — verify payment",
+      detail: `${booth.companyName ?? booth.exhibitorName ?? "Company"} asked for this booth`,
+      className: "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200",
+    };
+  }
+  return null;
 }
 
 export default function FloorPlanPanel({
@@ -117,7 +158,36 @@ export default function FloorPlanPanel({
     else setMessage(`No booth found for "${q}".`);
   };
 
-  const saveBooth = () => {
+  const patchSelectedBooth = (patch: Partial<FloorPlanBoothRecord>) => {
+    if (!selectedCode) return;
+    setBooths((current) =>
+      current.map((b) => {
+        if (b.code === selectedCode) return { ...b, ...patch };
+        if (
+          patch.eventExhibitorId &&
+          b.eventExhibitorId === patch.eventExhibitorId &&
+          b.code !== selectedCode
+        ) {
+          return {
+            ...b,
+            status: "AVAILABLE" as BoothStatusValue,
+            eventExhibitorId: null,
+            exhibitorName: null,
+            companyName: null,
+            contactName: null,
+            contactPhone: null,
+            contactEmail: null,
+            reservedAt: null,
+            paymentVerified: false,
+            paymentVerifiedAt: null,
+          };
+        }
+        return b;
+      })
+    );
+  };
+
+  const saveBooth = (opts?: { allocate?: boolean; forceAllocate?: boolean }) => {
     if (!selectedCode) {
       setMessage("Select a booth on the plan first.");
       return;
@@ -134,6 +204,8 @@ export default function FloorPlanPanel({
         contactPhone,
         contactEmail,
         notes,
+        allocate: opts?.allocate,
+        forceAllocate: opts?.forceAllocate,
       });
 
       if ("error" in result && result.error) {
@@ -141,40 +213,108 @@ export default function FloorPlanPanel({
         return;
       }
 
-      const nextStatus: BoothStatusValue = exhibitorId ? "OCCUPIED" : status === "OCCUPIED" ? "AVAILABLE" : status;
+      const nextStatus: BoothStatusValue =
+        (result.status as BoothStatusValue | undefined) ??
+        (exhibitorId
+          ? opts?.allocate
+            ? "OCCUPIED"
+            : "RESERVED"
+          : status === "OCCUPIED"
+            ? "AVAILABLE"
+            : status);
 
-      setBooths((current) =>
-        current.map((b) => {
-          if (b.code === selectedCode) {
-            return {
-              ...b,
-              status: nextStatus,
-              eventExhibitorId: exhibitorId || null,
-              exhibitorName: companyName.trim() || exhibitors.find((e) => e.id === exhibitorId)?.companyName || null,
-              companyName: companyName.trim() || null,
-              contactName: contactName.trim() || null,
-              contactPhone: contactPhone.trim() || null,
-              contactEmail: contactEmail.trim() || null,
-              notes: notes.trim() || null,
-            };
-          }
-          if (exhibitorId && b.eventExhibitorId === exhibitorId && b.code !== selectedCode) {
-            return {
-              ...b,
-              status: "AVAILABLE",
-              eventExhibitorId: null,
-              exhibitorName: null,
-              companyName: null,
-              contactName: null,
-              contactPhone: null,
-              contactEmail: null,
-            };
-          }
-          return b;
-        })
-      );
+      patchSelectedBooth({
+        status: nextStatus,
+        eventExhibitorId: exhibitorId || null,
+        exhibitorName:
+          companyName.trim() || exhibitors.find((e) => e.id === exhibitorId)?.companyName || null,
+        companyName: companyName.trim() || null,
+        contactName: contactName.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        contactEmail: contactEmail.trim() || null,
+        notes: notes.trim() || null,
+        reservedAt:
+          exhibitorId && nextStatus === "RESERVED"
+            ? selected?.reservedAt ?? new Date().toISOString()
+            : exhibitorId
+              ? selected?.reservedAt ?? null
+              : null,
+      });
       setStatus(nextStatus);
-      setMessage("Booth details saved.");
+      setMessage(opts?.allocate ? "Booth allocated to exhibitor." : "Booth details saved.");
+      router.refresh();
+    });
+  };
+
+  const verifyPayment = () => {
+    if (!selectedCode) return;
+    startTransition(async () => {
+      const result = await verifyBoothPayment({ eventId, boothCode: selectedCode });
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      patchSelectedBooth({
+        paymentVerified: true,
+        paymentVerifiedAt: new Date().toISOString(),
+      });
+      setMessage("Payment verified. You can now allocate this booth.");
+      router.refresh();
+    });
+  };
+
+  const allocateBooth = (force = false) => {
+    if (!selectedCode) return;
+    startTransition(async () => {
+      const result = await allocateBoothToExhibitor({
+        eventId,
+        boothCode: selectedCode,
+        forceAllocate: force,
+      });
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      patchSelectedBooth({
+        status: "OCCUPIED",
+        paymentVerified: true,
+        paymentVerifiedAt: selected?.paymentVerifiedAt ?? new Date().toISOString(),
+      });
+      setStatus("OCCUPIED");
+      setMessage("Booth allocated to the requesting company.");
+      router.refresh();
+    });
+  };
+
+  const releaseBooth = () => {
+    if (!selectedCode) return;
+    startTransition(async () => {
+      const result = await releaseBoothReservation({ eventId, boothCode: selectedCode });
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      setExhibitorId("");
+      setCompanyName("");
+      setContactName("");
+      setContactPhone("");
+      setContactEmail("");
+      setNotes("");
+      setStatus("AVAILABLE");
+      patchSelectedBooth({
+        status: "AVAILABLE",
+        eventExhibitorId: null,
+        exhibitorName: null,
+        companyName: null,
+        contactName: null,
+        contactPhone: null,
+        contactEmail: null,
+        reservedAt: null,
+        paymentVerified: false,
+        paymentVerifiedAt: null,
+      });
+      setMessage("Booth released and marked available.");
+      router.refresh();
     });
   };
 
@@ -387,13 +527,34 @@ export default function FloorPlanPanel({
             </div>
           ) : (
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              {(() => {
+                const banner = reservationBanner(selected);
+                if (!banner) return null;
+                return (
+                  <div className={cn("rounded-lg border px-3 py-2.5 text-sm", banner.className)}>
+                    <p className="font-semibold">{banner.label}</p>
+                    <p className="mt-0.5 text-xs opacity-90">{banner.detail}</p>
+                    {selected.reservedAt ? (
+                      <p className="mt-1 text-xs opacity-80">
+                        Requested {new Date(selected.reservedAt).toLocaleString()}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Status
                 </label>
-                {exhibitorId ? (
+                {selected.status === "OCCUPIED" && exhibitorId ? (
                   <div className="rounded-lg border border-border bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
-                    Occupied (exhibitor linked)
+                    Occupied (allocated to exhibitor)
+                  </div>
+                ) : selected.status === "RESERVED" && exhibitorId ? (
+                  <div className="rounded-lg border border-border bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    Reserved (exhibitor request
+                    {selected.paymentVerified ? " · payment verified" : " · payment pending"})
                   </div>
                 ) : (
                   <CustomSelect
@@ -487,20 +648,65 @@ export default function FloorPlanPanel({
                 />
               </div>
 
-              <div className="flex gap-2 pt-1">
-                <Button type="button" className="flex-1" onClick={saveBooth} disabled={pending}>
-                  {pending ? "Saving…" : "Save booth"}
+              {exhibitorId && selected.status === "RESERVED" ? (
+                <div className="flex flex-col gap-2">
+                  {!selected.paymentVerified ? (
+                    <Button type="button" onClick={verifyPayment} disabled={pending} className="gap-1.5">
+                      <ShieldCheck className="h-4 w-4" />
+                      {pending ? "Verifying…" : "Verify payment"}
+                    </Button>
+                  ) : (
+                    <Button type="button" onClick={() => allocateBooth(false)} disabled={pending} className="gap-1.5">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {pending ? "Allocating…" : "Allocate booth to company"}
+                    </Button>
+                  )}
+                  {selected.paymentVerified ? null : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => allocateBooth(true)}
+                      disabled={pending}
+                      className="text-xs"
+                    >
+                      Force allocate without payment verify
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+
+              {exhibitorId && selected.status === "OCCUPIED" && !selected.paymentVerified ? (
+                <Button type="button" variant="outline" onClick={verifyPayment} disabled={pending} className="w-full gap-1.5">
+                  <ShieldCheck className="h-4 w-4" />
+                  Mark payment verified
                 </Button>
-                <Button type="button" variant="outline" onClick={clearForm} disabled={pending}>
-                  Clear
+              ) : null}
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button type="button" className="flex-1" onClick={() => saveBooth()} disabled={pending}>
+                  {pending ? "Saving…" : exhibitorId && status !== "OCCUPIED" ? "Save as reserved" : "Save booth"}
                 </Button>
+                {exhibitorId ? (
+                  <Button type="button" variant="outline" onClick={releaseBooth} disabled={pending}>
+                    Release
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" onClick={clearForm} disabled={pending}>
+                    Clear
+                  </Button>
+                )}
               </div>
 
               {message ? (
                 <p
                   className={cn(
                     "text-center text-sm",
-                    message === "Booth details saved." ? "text-emerald-600" : "text-muted-foreground"
+                    message.toLowerCase().includes("saved") ||
+                      message.toLowerCase().includes("verified") ||
+                      message.toLowerCase().includes("allocated") ||
+                      message.toLowerCase().includes("released")
+                      ? "text-emerald-600"
+                      : "text-muted-foreground"
                   )}
                 >
                   {message}

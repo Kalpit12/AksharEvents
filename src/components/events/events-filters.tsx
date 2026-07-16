@@ -8,9 +8,10 @@ import { EVENT_FORMATS } from "@/lib/utils";
 
 interface EventsFiltersProps {
   categories: { id: string; name: string; slug: string }[];
+  basePath?: string;
 }
 
-export function EventsFilters({ categories }: EventsFiltersProps) {
+export function EventsFilters({ categories, basePath = "/events" }: EventsFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -19,10 +20,10 @@ export function EventsFilters({ categories }: EventsFiltersProps) {
     if (value) params.set(key, value);
     else params.delete(key);
     params.delete("page");
-    router.push(`/events?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   };
 
-  const clearAll = () => router.push("/events");
+  const clearAll = () => router.push(basePath);
 
   const hasFilters = searchParams.toString().length > 0;
 
