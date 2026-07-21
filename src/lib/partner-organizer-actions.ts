@@ -246,93 +246,126 @@ export async function createManualPartnerExhibitor(formData: FormData) {
   }
 
   const tempPassword = buildTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 12);
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
   const exhibitorSlug = await uniqueExhibitorSlug(companyName);
 
-  let eventExhibitorId: string;
-
   try {
-    eventExhibitorId = await prisma.$transaction(async (tx) => {
-      let user = await tx.user.findUnique({ where: { email: contactEmail } });
-      if (!user) {
-        user = await tx.user.create({
-          data: {
-            name: contactName,
-            email: contactEmail,
-            passwordHash,
-            phone: contactPhone || null,
-            company: companyName,
-            role: "ATTENDEE",
-          },
-        });
-      }
-
-      let exhibitor = await tx.exhibitor.findFirst({
-        where: { OR: [{ userId: user.id }, { contactEmail }] },
-      });
-
-      if (!exhibitor) {
-        exhibitor = await tx.exhibitor.create({
-          data: {
-            userId: user.id,
-            companyName,
-            slug: exhibitorSlug,
-            contactName,
-            contactEmail,
-            contactPhone: contactPhone || null,
-            products: ["General"],
-            members: {
-              create: {
-                userId: user.id,
-                role: "OWNER",
-              },
-            },
-          },
-        });
-      } else if (!exhibitor.userId) {
-        await tx.exhibitor.update({
-          where: { id: exhibitor.id },
-          data: {
-            userId: user.id,
-            contactName: exhibitor.contactName ?? contactName,
-            contactEmail: exhibitor.contactEmail ?? contactEmail,
-            contactPhone: exhibitor.contactPhone ?? (contactPhone || null),
-          },
-        });
-      }
-
-      const existingEntry = await tx.eventExhibitor.findUnique({
-        where: { eventId_exhibitorId: { eventId: event.id, exhibitorId: exhibitor.id } },
-      });
-      if (existingEntry) {
-        throw new Error("ALREADY_REGISTERED");
-      }
-
-      const eventExhibitor = await tx.eventExhibitor.create({
-        data: { eventId: event.id, exhibitorId: exhibitor.id },
-      });
-
-      await tx.eventBooth.update({
-        where: { id: booth.id },
+    let user = await prisma.user.findUnique({ where: { email: contactEmail } });
+    if (!user) {
+      user = await prisma.user.create({
         data: {
-          status: "RESERVED",
-          eventExhibitorId: eventExhibitor.id,
-          companyName,
-          contactName,
-          contactPhone: contactPhone || null,
-          contactEmail,
-          reservedAt: new Date(),
-          paymentVerified: false,
-          paymentVerifiedAt: null,
-          paymentVerifiedBy: null,
+          name: contactName,
+          email: contactEmail,
+          passwordHash,
+          phone: contactPhone || null,
+          company: companyName,
+          role: "ATTENDEE",
         },
       });
+    }
 
-      return eventExhibitor.id;
+    let exhibitor = await prisma.exhibitor.findFirst({
+      where: { OR: [{ userId: user.id }, { contactEmail }] },
     });
-  } catch (error) {
-    if (error instanceof Error && error.message === "ALREADY_REGISTERED") {
+
+    if (!exhibitor) {
+      exhibitor = await prisma.exhibitor.create({
+        data: {
+          userId: user.id,
+          companyName,
+          slug: exhibitorSlug,
+          contactName,
+          contactEmail,
+          contactPhone: contactPhone || null,
+          products: ["General"],
+          members: {
+            create: {
+              userId: user.id,
+              role: "OWNER",
+            },
+          },
+        },
+      });
+    } else if (!exhibitor.userId) {
+      exhibitor = await prisma.exhibitor.update({
+        where: { id: exhibitor.id },
+        data: {
+          userId: user.id,
+          contactName: exhibitor.contactName ?? contactName,
+          contactEmail: exhibitor.contactEmail ?? contactEmail,
+          contactPhone: exhibitor.contactPhone ?? (contactPhone || null),
+        },
+      });
+    }
+
+    const existingEntry = await prisma.eventExhibitor.findUnique({
+      where: { eventId_exhibitorId: { eventId: event.id, exhibitorId: exhibitor.id } },
+    });
+    if (existingEntry) {
       redirect(`${redirectBase}?mail=duplicate`);
+    }
+
+    // Keep only the booth reservation critical section in a short transaction.
+    await prisma.$transaction(
+      async (tx) => {
+        const freshBooth = await tx.eventBooth.findUnique({ where: { id: booth.id } });
+        if (!freshBooth) {
+          throw new Error("INVALID_BOOTH");
+        }
+        if (
+          freshBooth.status === "OCCUPIED" ||
+          (freshBooth.status === "RESERVED" && freshBooth.eventExhibitorId)
+        ) {
+          throw new Error("BOOTH_TAKEN");
+        }
+
+        const eventExhibitor = await tx.eventExhibitor.create({
+          data: { eventId: event.id, exhibitorId: exhibitor.id },
+        });
+
+        await tx.eventBooth.update({
+          where: { id: booth.id },
+          data: {
+            status: "RESERVED",
+            eventExhibitorId: eventExhibitor.id,
+            companyName,
+            contactName,
+            contactPhone: contactPhone || null,
+            contactEmail,
+            reservedAt: new Date(),
+            paymentVerified: false,
+            paymentVerifiedAt: null,
+            paymentVerifiedBy: null,
+          },
+        });
+      },
+      { timeout: 20000, maxWait: 10000 }
+    );
+  } catch (error) {
+    // Next.js redirect() throws; rethrow so it is not turned into mail=error.
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      typeof (error as { digest?: unknown }).digest === "string" &&
+      (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    ) {
+      throw error;
+    }
+
+    if (error instanceof Error) {
+      if (error.message === "BOOTH_TAKEN") {
+        redirect(`${redirectBase}?mail=booth-taken`);
+      }
+      if (error.message === "INVALID_BOOTH") {
+        redirect(`${redirectBase}?mail=invalid-booth`);
+      }
+      if (error.message.includes("Unique constraint")) {
+        redirect(`${redirectBase}?mail=duplicate`);
+      }
+      console.error("createManualPartnerExhibitor failed:", error.message);
+    } else {
+      console.error("createManualPartnerExhibitor failed:", error);
     }
     redirect(`${redirectBase}?mail=error`);
   }
@@ -351,6 +384,106 @@ export async function createManualPartnerExhibitor(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/exhibitor", "layout");
   redirect(`${redirectBase}?tab=list&mail=booth-sent`);
+}
+
+async function markPartnerExhibitorPaymentConfirmed(input: {
+  eventExhibitorId: string;
+  verifiedByUserId: string;
+  paymentReference?: string | null;
+}) {
+  const eventExhibitor = await prisma.eventExhibitor.findUnique({
+    where: { id: input.eventExhibitorId },
+    include: { eventBooth: { select: { id: true, code: true, paymentVerified: true, notes: true } } },
+  });
+
+  if (!eventExhibitor) {
+    return { error: "Exhibitor record not found." as const };
+  }
+
+  if (eventExhibitor.eventBooth?.paymentVerified) {
+    return { error: "already_confirmed" as const };
+  }
+
+  const boothCode = eventExhibitor.eventBooth?.code ?? eventExhibitor.boothNumber;
+  if (!boothCode) {
+    return { error: "No booth assigned to confirm payment." as const };
+  }
+
+  const paymentNote = input.paymentReference?.trim();
+  const existingNotes = eventExhibitor.eventBooth?.notes?.trim() ?? "";
+  const notes =
+    paymentNote && !existingNotes.includes(paymentNote)
+      ? [existingNotes, `Payment ref: ${paymentNote}`].filter(Boolean).join("\n")
+      : existingNotes || null;
+
+  await prisma.$transaction(
+    async (tx) => {
+      if (eventExhibitor.eventBooth?.id) {
+        await tx.eventBooth.update({
+          where: { id: eventExhibitor.eventBooth.id },
+          data: {
+            paymentVerified: true,
+            paymentVerifiedAt: new Date(),
+            paymentVerifiedBy: input.verifiedByUserId,
+            status: "OCCUPIED",
+            notes,
+          },
+        });
+      }
+
+      await tx.eventExhibitor.update({
+        where: { id: eventExhibitor.id },
+        data: { boothNumber: boothCode },
+      });
+    },
+    { timeout: 20000, maxWait: 10000 }
+  );
+
+  return { success: true as const };
+}
+
+export async function confirmPartnerExhibitorPaymentManually(formData: FormData) {
+  const partnerSlug = String(formData.get("partnerSlug") || "").trim();
+  const eventExhibitorId = String(formData.get("eventExhibitorId") || "").trim();
+  const paymentReference = String(formData.get("paymentReference") || "").trim();
+
+  const redirectBase = partnerPath(partnerSlug || "unknown", "/organizer");
+
+  if (!partnerSlug || !eventExhibitorId) {
+    redirect(`${redirectBase}?tab=list&mail=error`);
+  }
+
+  const access = await requirePartnerOrganizerAccess(partnerSlug);
+  if (access.error || !access.partner || !access.user) {
+    redirect(`${redirectBase}?tab=list&mail=denied`);
+  }
+
+  const eventExhibitor = await prisma.eventExhibitor.findFirst({
+    where: { id: eventExhibitorId, event: partnerEventWhere(access.partner.id) },
+    select: { id: true },
+  });
+
+  if (!eventExhibitor) {
+    redirect(`${redirectBase}?tab=list&mail=error`);
+  }
+
+  const result = await markPartnerExhibitorPaymentConfirmed({
+    eventExhibitorId,
+    verifiedByUserId: access.user.id,
+    paymentReference: paymentReference || null,
+  });
+
+  if (result.error === "already_confirmed") {
+    redirect(`${redirectBase}?tab=list&mail=already-paid`);
+  }
+  if (result.error) {
+    redirect(`${redirectBase}?tab=list&mail=error`);
+  }
+
+  revalidatePath(partnerPath(partnerSlug, "/organizer"));
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor", "layout");
+  redirect(`${redirectBase}?tab=list&mail=payment-confirmed`);
 }
 
 export async function sendPartnerExhibitorPaymentConfirmation(formData: FormData) {
@@ -395,70 +528,50 @@ export async function sendPartnerExhibitorPaymentConfirmation(formData: FormData
     "";
 
   if (!loginEmail) {
-    redirect(`${redirectBase}?mail=missing-user`);
+    redirect(`${redirectBase}?tab=list&mail=missing-user`);
+  }
+
+  if (!eventExhibitor.eventBooth?.paymentVerified) {
+    redirect(`${redirectBase}?tab=list&mail=payment-pending`);
   }
 
   const tempPassword = buildTempPassword();
   const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-  await prisma.$transaction(async (tx) => {
-    if (eventExhibitor.exhibitor.user) {
-      await tx.user.update({
-        where: { id: eventExhibitor.exhibitor.user.id },
-        data: { passwordHash },
-      });
-    } else {
-      const user = await tx.user.create({
-        data: {
-          name: eventExhibitor.exhibitor.contactName ?? eventExhibitor.exhibitor.companyName,
-          email: loginEmail,
-          passwordHash,
-          company: eventExhibitor.exhibitor.companyName,
-          role: "ATTENDEE",
-        },
-      });
-      await tx.exhibitor.update({
-        where: { id: eventExhibitor.exhibitorId },
-        data: { userId: user.id },
-      });
-      await tx.exhibitorMember.upsert({
-        where: {
-          exhibitorId_userId: {
-            exhibitorId: eventExhibitor.exhibitorId,
-            userId: user.id,
-          },
-        },
-        create: {
+  if (eventExhibitor.exhibitor.user) {
+    await prisma.user.update({
+      where: { id: eventExhibitor.exhibitor.user.id },
+      data: { passwordHash },
+    });
+  } else {
+    const user = await prisma.user.create({
+      data: {
+        name: eventExhibitor.exhibitor.contactName ?? eventExhibitor.exhibitor.companyName,
+        email: loginEmail,
+        passwordHash,
+        company: eventExhibitor.exhibitor.companyName,
+        role: "ATTENDEE",
+      },
+    });
+    await prisma.exhibitor.update({
+      where: { id: eventExhibitor.exhibitorId },
+      data: { userId: user.id },
+    });
+    await prisma.exhibitorMember.upsert({
+      where: {
+        exhibitorId_userId: {
           exhibitorId: eventExhibitor.exhibitorId,
           userId: user.id,
-          role: "OWNER",
         },
-        update: {},
-      });
-    }
-
-    if (eventExhibitor.eventBooth?.code) {
-      await tx.eventBooth.update({
-        where: {
-          eventId_code: {
-            eventId: eventExhibitor.eventId,
-            code: eventExhibitor.eventBooth.code,
-          },
-        },
-        data: {
-          paymentVerified: true,
-          paymentVerifiedAt: new Date(),
-          paymentVerifiedBy: access.user!.id,
-          status: "OCCUPIED",
-        },
-      });
-
-      await tx.eventExhibitor.update({
-        where: { id: eventExhibitor.id },
-        data: { boothNumber: eventExhibitor.eventBooth.code },
-      });
-    }
-  });
+      },
+      create: {
+        exhibitorId: eventExhibitor.exhibitorId,
+        userId: user.id,
+        role: "OWNER",
+      },
+      update: {},
+    });
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5001";
   const loginUrl = `${appUrl}/auth/exhibitor`;
@@ -484,5 +597,5 @@ export async function sendPartnerExhibitorPaymentConfirmation(formData: FormData
   revalidatePath(partnerPath(partnerSlug, "/organizer"));
   revalidatePath("/admin");
   revalidatePath("/exhibitor", "layout");
-  redirect(`${redirectBase}?mail=sent`);
+  redirect(`${redirectBase}?tab=list&mail=sent`);
 }

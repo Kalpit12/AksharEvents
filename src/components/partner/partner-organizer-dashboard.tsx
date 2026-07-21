@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createManualPartnerExhibitor, sendPartnerExhibitorPaymentConfirmation } from "@/lib/partner-organizer-actions";
+import { createManualPartnerExhibitor, confirmPartnerExhibitorPaymentManually, sendPartnerExhibitorPaymentConfirmation } from "@/lib/partner-organizer-actions";
 import { partnerPath } from "@/lib/partners";
 import { formatDate } from "@/lib/utils";
 import { Input } from "@/components/ui/Input";
@@ -270,7 +270,7 @@ export function PartnerOrganizerDashboard({
                   <th className="px-4 py-3 font-medium">Booth</th>
                   <th className="px-4 py-3 font-medium">Booth Status</th>
                   <th className="px-4 py-3 font-medium">Payment</th>
-                  <th className="px-4 py-3 font-medium">Confirm payment</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -311,26 +311,48 @@ export function PartnerOrganizerDashboard({
                         )}
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <form
-                          action={sendPartnerExhibitorPaymentConfirmation}
-                          className="flex flex-wrap items-center gap-2"
-                        >
-                          <input type="hidden" name="partnerSlug" value={partnerSlug} />
-                          <input type="hidden" name="eventExhibitorId" value={row.id} />
-                          <input
-                            type="text"
-                            name="paymentReference"
-                            placeholder="Payment ref (optional)"
-                            className="w-40 rounded-md border border-border bg-background px-2 py-1.5 text-xs"
-                          />
-                          <button
-                            type="submit"
-                            disabled={paymentDone}
-                            className="rounded-md bg-[var(--partner-primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        <div className="flex min-w-[220px] flex-col gap-2">
+                          <form
+                            action={confirmPartnerExhibitorPaymentManually}
+                            className="flex flex-wrap items-center gap-2"
                           >
-                            Send payment + login mail
-                          </button>
-                        </form>
+                            <input type="hidden" name="partnerSlug" value={partnerSlug} />
+                            <input type="hidden" name="eventExhibitorId" value={row.id} />
+                            <input
+                              type="text"
+                              name="paymentReference"
+                              placeholder="Payment ref (optional)"
+                              disabled={paymentDone}
+                              className="w-40 rounded-md border border-border bg-background px-2 py-1.5 text-xs disabled:opacity-50"
+                            />
+                            <button
+                              type="submit"
+                              disabled={paymentDone}
+                              className="rounded-md border border-[var(--partner-primary)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--partner-primary)] shadow-sm hover:bg-[var(--partner-primary)]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Confirm payment
+                            </button>
+                          </form>
+                          <form
+                            action={sendPartnerExhibitorPaymentConfirmation}
+                            className="flex flex-wrap items-center gap-2"
+                          >
+                            <input type="hidden" name="partnerSlug" value={partnerSlug} />
+                            <input type="hidden" name="eventExhibitorId" value={row.id} />
+                            <button
+                              type="submit"
+                              disabled={!paymentDone}
+                              className="rounded-md bg-[var(--partner-primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Send login mail
+                            </button>
+                          </form>
+                          {!paymentDone ? (
+                            <p className="text-xs text-muted-foreground">
+                              Confirm payment first, then send login credentials.
+                            </p>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );

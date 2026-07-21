@@ -7,6 +7,14 @@ import {
   flightBookingRateEmailHtml,
   flightBookingRateEmailSubject,
 } from "@/lib/email-templates/flight-booking-rate";
+import {
+  partnerBoothReservedEmailHtml,
+  partnerBoothReservedEmailSubject,
+} from "@/lib/email-templates/partner-booth-reserved";
+import {
+  partnerPaymentAccessEmailHtml,
+  partnerPaymentAccessEmailSubject,
+} from "@/lib/email-templates/partner-payment-access";
 import { BRAND } from "./utils";
 import {
   visitorRegistrationEmailHtml,
@@ -262,18 +270,16 @@ export async function sendPartnerExhibitorBoothReservedEmail({
 }) {
   return sendEmail({
     to,
-    subject: `Booth reserved - ${eventTitle}`,
+    subject: partnerBoothReservedEmailSubject(eventTitle),
     tag: "partner-exhibitor-booth-reserved",
-    html: `
-      <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto;">
-        <h1 style="color: #1C1A17;">Your booth has been reserved</h1>
-        <p>Hi ${exhibitorName},</p>
-        <p>${partnerName} has reserved a booth for <strong>${companyName}</strong> at <strong>${eventTitle}</strong>.</p>
-        <p><strong>Booth number:</strong> ${boothCode}</p>
-        <p><strong>Contact email on file:</strong> ${contactEmail}</p>
-        <p style="margin-top: 24px;">Payment instructions will follow separately. Once payment is confirmed, you will receive login credentials for AxarEvents to access additional services such as furniture, branding, logistics, and team management.</p>
-      </div>
-    `,
+    html: partnerBoothReservedEmailHtml({
+      exhibitorName,
+      companyName,
+      partnerName,
+      eventTitle,
+      boothCode,
+      contactEmail,
+    }),
   });
 }
 
@@ -304,34 +310,20 @@ export async function sendPartnerExhibitorPaymentAndAccessEmail({
 }) {
   return sendEmail({
     to,
-    subject: `Booth payment confirmed - ${eventTitle}`,
+    subject: partnerPaymentAccessEmailSubject(eventTitle),
     tag: "partner-exhibitor-payment",
-    html: `
-      <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto;">
-        <h1 style="color: #1C1A17;">Booth payment confirmed</h1>
-        <p>Hi ${exhibitorName},</p>
-        <p>${partnerName} has confirmed your booth payment for <strong>${eventTitle}</strong>.</p>
-        <p><strong>Company:</strong> ${companyName}</p>
-        <p><strong>Booth:</strong> ${boothCode}</p>
-        ${paymentReference ? `<p><strong>Reference:</strong> ${paymentReference}</p>` : ""}
-        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-        <h2 style="font-size: 18px; color: #1C1A17;">Your login credentials</h2>
-        <p><strong>Email:</strong> ${loginEmail}</p>
-        <p><strong>Temporary password:</strong> ${temporaryPassword}</p>
-        <p>
-          <a href="${loginUrl}" style="display: inline-block; background: #C5A880; color: #1C1A17; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-            Login to AxarEvents
-          </a>
-        </p>
-        <h2 style="font-size: 18px; color: #1C1A17; margin-top: 24px;">Do you require additional services?</h2>
-        <p>After login, open your exhibitor dashboard to request add-ons such as furniture, branding, logistics, and other event services.</p>
-        <p>
-          <a href="${additionalServicesUrl}" style="display: inline-block; background: #1C1A17; color: #ffffff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-            Open additional services
-          </a>
-        </p>
-      </div>
-    `,
+    html: partnerPaymentAccessEmailHtml({
+      exhibitorName,
+      companyName,
+      partnerName,
+      eventTitle,
+      boothCode,
+      loginEmail,
+      temporaryPassword,
+      loginUrl,
+      additionalServicesUrl,
+      paymentReference,
+    }),
   });
 }
 

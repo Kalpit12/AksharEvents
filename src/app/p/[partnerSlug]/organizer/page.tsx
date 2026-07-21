@@ -6,7 +6,10 @@ import { PartnerOrganizerDashboard } from "@/components/partner/partner-organize
 export const dynamic = "force-dynamic";
 
 function mailNotice(mail: string | undefined) {
-  if (mail === "sent") return "Payment confirmation email sent with login credentials and additional services link.";
+  if (mail === "sent") return "Login credentials email sent successfully.";
+  if (mail === "payment-confirmed") return "Payment confirmed and booth status updated.";
+  if (mail === "already-paid") return "Payment was already confirmed for this exhibitor.";
+  if (mail === "payment-pending") return "Confirm payment first before sending the login email.";
   if (mail === "booth-sent") return "Exhibitor added and booth reservation email sent.";
   if (mail === "booth-taken") return "That booth is already reserved or occupied. Choose another booth.";
   if (mail === "invalid-booth") return "Unknown booth code. Check the floor plan and try again.";
