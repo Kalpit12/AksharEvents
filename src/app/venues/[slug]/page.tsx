@@ -3,7 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { isFrontendOnly } from "@/lib/frontend-only";
 import { getMockVenueBySlug } from "@/lib/mock-data";
-import { SafeImage } from "@/components/ui/SafeImage";
+import ImageSlider from "@/components/ui/ImageSlider";
 import { EventCard } from "@/components/events/event-card";
 import { Badge } from "@/components/ui/Badge";
 import { MapPin, Users, Car, Accessibility } from "lucide-react";
@@ -45,18 +45,25 @@ export default async function VenueDetailPage({ params }: VenuePageProps) {
 
   return (
     <div>
-      <div className="relative h-[40vh] min-h-[300px]">
-        <SafeImage src={venue.images[0]} alt={venue.name} fill priority />
-        <div className="absolute inset-0 bg-gradient-to-t from-espresso/80 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl">
-            <h1 className="text-2xl font-bold text-white sm:text-3xl lg:text-4xl">{venue.name}</h1>
-            <p className="mt-2 flex items-start gap-2 text-sm text-alabaster/80 sm:items-center sm:text-base">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />{venue.address}, {venue.city}
-            </p>
-          </div>
-        </div>
-      </div>
+      <ImageSlider
+        images={venue.images.map((src) => ({ src, alt: venue.name }))}
+        heightClass="h-[40vh] min-h-[300px]"
+        fit="cover"
+        priority
+        overlay={
+          <>
+            <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-espresso/80 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 z-10 p-4 pb-12 sm:p-6 sm:pb-14 lg:p-8 lg:pb-16">
+              <div className="mx-auto max-w-7xl">
+                <h1 className="text-2xl font-bold text-white sm:text-3xl lg:text-4xl">{venue.name}</h1>
+                <p className="mt-2 flex items-start gap-2 text-sm text-alabaster/80 sm:items-center sm:text-base">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />{venue.address}, {venue.city}
+                </p>
+              </div>
+            </div>
+          </>
+        }
+      />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

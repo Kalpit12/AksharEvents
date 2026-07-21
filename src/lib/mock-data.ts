@@ -33,7 +33,7 @@ const mockVenues = [
     address: "Prof. Wangari Maathai Rd, Nairobi",
     capacity: 3000,
     isPopular: true,
-    images: ["/Baps-outside-2.jpg"],
+    images: ["/Baps-Community-hall-1.png", "/Baps-Community-hall-2.jpeg"],
     description: "A spacious community hall in Nairobi suited to conferences, cultural programmes, exhibitions, and large gatherings.",
     facilities: ["Parking", "Assembly Hall"],
     parkingInfo: "On-site parking available.",

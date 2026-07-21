@@ -11,18 +11,15 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Home", path: "" },
-  { label: "Events", path: "/events" },
-  { label: "Venues", path: "/venues" },
-  { label: "Categories", path: "/categories" },
-  { label: "About", path: "/about" },
-  { label: "FAQ", path: "/faq" },
-  { label: "Contact", path: "/contact" },
+  { label: "Events", path: "#events" },
 ];
 
 export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const base = partnerPath(partner.slug);
+  const organizerPath = partnerPath(partner.slug, "/organizer");
+  const organizerLoginHref = partnerPath(partner.slug, "/organizer/login");
 
   return (
     <header className="sticky top-0 z-50 border-b border-[color-mix(in_oklab,var(--partner-primary)_35%,transparent)] bg-[var(--partner-background)]/95 backdrop-blur-md">
@@ -52,8 +49,11 @@ export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
 
         <nav className="hidden items-center gap-1 md:flex">
           {NAV.map((item) => {
-            const href = partnerPath(partner.slug, item.path);
-            const active = item.path === "" ? pathname === base : pathname.startsWith(href);
+            const href = item.path.startsWith("#") ? `${base}${item.path}` : partnerPath(partner.slug, item.path);
+            const active =
+              item.path === ""
+                ? pathname === base
+                : pathname === base || pathname.startsWith(`${base}/events`);
             return (
               <Link
                 key={item.path}
@@ -69,6 +69,17 @@ export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
               </Link>
             );
           })}
+          <Link
+            href={organizerLoginHref}
+            className={cn(
+              "ml-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              pathname.startsWith(organizerPath)
+                ? "bg-[var(--partner-primary)] text-white"
+                : "bg-[var(--partner-primary)]/10 text-[var(--partner-primary)] hover:bg-[var(--partner-primary)]/20"
+            )}
+          >
+            Organizer Dashboard
+          </Link>
         </nav>
 
         <button
@@ -84,16 +95,26 @@ export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
       {open && (
         <nav className="border-t border-border/60 px-4 py-3 md:hidden">
           <div className="flex flex-col gap-1">
-            {NAV.map((item) => (
-              <Link
-                key={item.path}
-                href={partnerPath(partner.slug, item.path)}
-                className="rounded-lg px-3 py-2 text-sm font-medium"
-                onClick={() => setOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV.map((item) => {
+              const href = item.path.startsWith("#") ? `${base}${item.path}` : partnerPath(partner.slug, item.path);
+              return (
+                <Link
+                  key={item.path}
+                  href={href}
+                  className="rounded-lg px-3 py-2 text-sm font-medium"
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            <Link
+              href={organizerLoginHref}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--partner-primary)]"
+              onClick={() => setOpen(false)}
+            >
+              Organizer Dashboard
+            </Link>
           </div>
         </nav>
       )}

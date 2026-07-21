@@ -122,7 +122,7 @@ async function main() {
         address: "Prof. Wangari Maathai Rd",
         city: "Nairobi",
         capacity: 3000,
-        images: ["/Baps-outside-2.jpg"],
+        images: ["/Baps-Community-hall-1.png", "/Baps-Community-hall-2.jpeg"],
         facilities: ["Parking", "Assembly Hall"],
         parkingInfo: "On-site parking available",
         accessibility: "Wheelchair accessible",
@@ -326,10 +326,31 @@ async function main() {
     },
   });
 
+  const techHubOrganizerPassword = await bcrypt.hash("organizer123", 12);
+  await prisma.user.upsert({
+    where: { email: "events@techhub.africa" },
+    update: {
+      passwordHash: techHubOrganizerPassword,
+      name: "TechHub Africa Organizer",
+      company: "TechHub Africa",
+      role: "ORGANIZER",
+      isVerified: true,
+    },
+    create: {
+      name: "TechHub Africa Organizer",
+      email: "events@techhub.africa",
+      passwordHash: techHubOrganizerPassword,
+      role: "ORGANIZER",
+      company: "TechHub Africa",
+      isVerified: true,
+    },
+  });
+
   console.log("✅ Seed completed!");
   console.log("\n📋 Demo Accounts:");
   console.log("  Admin:     admin@axarevents.com / admin123");
   console.log("  Organizer: organizer@axarevents.com / password123");
+  console.log("  Partner:   events@techhub.africa / organizer123  (TechHub organizer dashboard)");
   console.log("  Attendee:  attendee@axarevents.com / password123");
   console.log("  Exhibitor: exhibitor@axarevents.com / password123");
   console.log("  Printing:  printing@axarevents.com / password123");

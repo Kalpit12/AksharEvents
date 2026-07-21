@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { VenueShareButton } from "@/components/venues/venue-share-button";
@@ -28,12 +31,25 @@ interface VenueCardProps {
   className?: string;
 }
 
+const SLIDE_MS = 5000;
+
 export function VenueCard({
   venue,
   featured = false,
   priority = false,
   className,
 }: VenueCardProps) {
+  const images = venue.images.length > 0 ? venue.images : [""];
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1) % images.length);
+    }, SLIDE_MS);
+    return () => clearInterval(timer);
+  }, [images.length]);
+
   const shareData: VenueShareData = {
     name: venue.name,
     slug: venue.slug,
@@ -58,18 +74,24 @@ export function VenueCard({
         <span className="sr-only">View {venue.name}</span>
       </Link>
 
-      <SafeImage
-        src={venue.images[0]}
-        alt={venue.name}
-        fill
-        priority={priority}
-        sizes={
-          featured
-            ? "(max-width: 768px) 100vw, 100vw"
-            : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        }
-        className="object-cover transition-transform duration-700 group-hover:scale-105"
-      />
+      {images.map((src, i) => (
+        <SafeImage
+          key={src || i}
+          src={src}
+          alt={venue.name}
+          fill
+          priority={priority && i === 0}
+          sizes={
+            featured
+              ? "(max-width: 768px) 100vw, 100vw"
+              : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          }
+          className={cn(
+            "object-cover transition-[opacity,transform] duration-700 group-hover:scale-105",
+            i === index ? "opacity-100" : "opacity-0"
+          )}
+        />
+      ))}
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-espresso via-espresso/45 to-espresso/10 transition-opacity duration-500 group-hover:from-espresso/90 group-hover:via-espresso/40" />
 
@@ -81,6 +103,27 @@ export function VenueCard({
         <span className="absolute left-3 top-3 z-20 rounded-full border border-champagne/40 bg-champagne/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-champagne-light backdrop-blur-md sm:left-4 sm:top-4 sm:text-xs">
           Popular
         </span>
+      ) : null}
+
+      {images.length > 1 ? (
+        <div className="absolute bottom-[5.5rem] left-1/2 z-20 flex -translate-x-1/2 gap-1.5 sm:bottom-28">
+          {images.map((src, i) => (
+            <button
+              key={src || i}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIndex(i);
+              }}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === index ? "w-6 bg-champagne" : "w-1.5 bg-alabaster/50 hover:bg-alabaster/80"
+              )}
+              aria-label={`Show ${venue.name} image ${i + 1}`}
+            />
+          ))}
+        </div>
       ) : null}
 
       <div className="absolute inset-x-0 bottom-0 z-10 p-5 sm:p-6 lg:p-8">
