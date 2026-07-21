@@ -23,11 +23,12 @@ export default async function PartnerOrganizerPage({
   searchParams,
 }: {
   params: Promise<{ partnerSlug: string }>;
-  searchParams: Promise<{ mail?: string }>;
+  searchParams: Promise<{ mail?: string; tab?: string }>;
 }) {
   const { partnerSlug } = await params;
-  const { mail } = await searchParams;
+  const { mail, tab } = await searchParams;
   const data = await loadPartnerOrganizerDashboard(partnerSlug);
+  const initialTab = tab === "list" ? "list" : "add";
 
   if (data.error === "Sign in required") {
     redirect(partnerPath(partnerSlug, "/organizer/login"));
@@ -50,6 +51,7 @@ export default async function PartnerOrganizerPage({
       rows={data.rows}
       boothOptionsByEvent={data.boothOptionsByEvent}
       notice={mailNotice(mail)}
+      initialTab={initialTab}
     />
   );
 }

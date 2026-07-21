@@ -12,7 +12,8 @@ import {
 } from "@/lib/email";
 import { ensureEventFloorPlanBoothsInternal } from "@/lib/floor-plan-data";
 import { FLOOR_PLAN_LAYOUT_BY_CODE } from "@/lib/floor-plan-layout";
-import { partnerPath } from "@/lib/partners";
+import { partnerPath, partnerEventWhere } from "@/lib/partners";
+import { EXHIBITOR_EVENT_FORMATS } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
 
@@ -141,12 +142,17 @@ export async function loadPartnerOrganizerDashboard(partnerSlug: string) {
 
   const [events, rows] = await Promise.all([
     prisma.event.findMany({
-      where: { partnerId: access.partner.id, status: "PUBLISHED" },
+      where: {
+        ...partnerEventWhere(access.partner.id),
+        format: { in: EXHIBITOR_EVENT_FORMATS },
+      },
       select: { id: true, title: true, slug: true },
       orderBy: { startDate: "asc" },
     }),
     prisma.eventExhibitor.findMany({
-      where: { event: { partnerId: access.partner.id } },
+      where: {
+        event: partnerEventWhere(access.partner.id),
+      },
       include: {
         event: { select: { id: true, title: true, slug: true } },
         exhibitor: {
@@ -213,7 +219,11 @@ export async function createManualPartnerExhibitor(formData: FormData) {
   }
 
   const event = await prisma.event.findFirst({
-    where: { id: eventId, partnerId: access.partner.id, status: "PUBLISHED" },
+    where: {
+      id: eventId,
+      ...partnerEventWhere(access.partner.id),
+      format: { in: EXHIBITOR_EVENT_FORMATS },
+    },
     select: { id: true, title: true },
   });
   if (!event) {
@@ -340,7 +350,7 @@ export async function createManualPartnerExhibitor(formData: FormData) {
   revalidatePath(partnerPath(partnerSlug, "/organizer"));
   revalidatePath("/admin");
   revalidatePath("/exhibitor", "layout");
-  redirect(`${redirectBase}?mail=booth-sent`);
+  redirect(`${redirectBase}?tab=list&mail=booth-sent`);
 }
 
 export async function sendPartnerExhibitorPaymentConfirmation(formData: FormData) {
@@ -360,7 +370,7 @@ export async function sendPartnerExhibitorPaymentConfirmation(formData: FormData
   }
 
   const eventExhibitor = await prisma.eventExhibitor.findFirst({
-    where: { id: eventExhibitorId, event: { partnerId: access.partner.id } },
+    where: { id: eventExhibitorId, event: partnerEventWhere(access.partner.id) },
     include: {
       event: { select: { title: true } },
       exhibitor: {
