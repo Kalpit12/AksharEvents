@@ -19,7 +19,7 @@ export default async function PartnerFaqPage({
   const partner = await requirePartner(partnerSlug);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
       <FaqPageContent
         title={`FAQ — ${partner.name}`}
         subtitle={`Answers about ${partner.name} events on AxarEvents — visitor badges, exhibitor portal, payments, and support.`}

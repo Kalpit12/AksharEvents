@@ -12,7 +12,7 @@ export default function FAQPage() {
   return (
     <div className="relative min-h-[calc(100vh-4rem)] overflow-hidden">
       <AboutBackground />
-      <div className="relative mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+      <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <FaqPageContent />
       </div>
     </div>

@@ -94,23 +94,23 @@ export const faqSections: FaqSection[] = [
   {
     id: "payments",
     title: "Payments",
-    description: "Fees, Stripe, HDFC, and exhibitor booth payments.",
+    description: "Event fees and external payment arrangements.",
     faqs: [
       {
         q: "Are there registration fees?",
-        a: "Some events are free; others require payment. Fees are set per event and shown on the event registration flow.",
+        a: "Some events are free; others require payment. Fees are set per event and shown on the event page or communicated by the organiser.",
       },
       {
-        q: "How do I pay on the main AxarEvents website?",
-        a: "Paid visitor tickets on the main AxarEvents site are processed securely via Stripe (card payments such as Visa and Mastercard).",
+        q: "How do I pay for visitor registration or tickets?",
+        a: "For now, payments are handled externally — not through the AxarEvents website. After you register or express interest, the event organiser or AxarEvents team will share payment instructions (for example bank transfer, mobile money, or invoice) based on the event.",
       },
       {
         q: "How do I pay on a partner white-label site?",
-        a: "Partner sites (for example /p/techhub-africa) use HDFC SmartGateway for paid visitor bookings when payment is required.",
+        a: "Partner sites (for example /p/techhub-africa) also use external payments for now. Complete registration on the site, then follow the payment instructions provided by the partner or organiser.",
       },
       {
         q: "How do exhibitors pay for booths?",
-        a: "Booth payments are typically arranged offline or as directed by the organiser. On partner sites, the partner organiser confirms payment manually in the organiser dashboard. After payment is confirmed, login credentials for AxarEvents can be emailed so the exhibitor can access additional services.",
+        a: "Booth payments are arranged externally or offline as directed by the organiser. On partner sites, the partner organiser confirms payment manually in the organiser dashboard after receiving it. Once payment is confirmed, login credentials for AxarEvents can be emailed so the exhibitor can access additional services.",
       },
     ],
   },
