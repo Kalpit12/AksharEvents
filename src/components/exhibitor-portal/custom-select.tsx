@@ -89,7 +89,7 @@ export function CustomSelect({
           align="start"
           sideOffset={4}
           collisionPadding={12}
-          avoidCollisions
+          avoidCollisions={false}
         >
           <SelectPrimitive.Viewport className="max-h-[min(24rem,70vh)] overflow-y-auto bg-card p-1">
             {normalizedOptions.map((option) => (
