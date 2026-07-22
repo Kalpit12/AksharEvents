@@ -5,7 +5,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser, signIn } from "@/lib/auth";
-import { loginSchema } from "@/lib/validations";
+import { eventSchema, loginSchema } from "@/lib/validations";
 import {
   sendPartnerExhibitorBoothReservedEmail,
   sendPartnerExhibitorPaymentAndAccessEmail,
@@ -16,6 +16,7 @@ import { partnerPath, partnerEventWhere } from "@/lib/partners";
 import { EXHIBITOR_EVENT_FORMATS } from "@/lib/exhibitor-events";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/utils";
+import type { EventFormat } from "@prisma/client";
 
 function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
@@ -36,6 +37,20 @@ async function uniqueExhibitorSlug(base: string) {
 
   return slug;
 }
+
+async function uniqueEventSlug(base: string) {
+  let slug = slugify(base);
+  let suffix = 0;
+
+  while (await prisma.event.findUnique({ where: { slug } })) {
+    suffix += 1;
+    slug = `${slugify(base)}-${suffix}`;
+  }
+
+  return slug;
+}
+
+const PARTNER_CREATABLE_FORMATS = new Set<EventFormat>(EXHIBITOR_EVENT_FORMATS);
 
 async function requirePartnerOrganizerAccess(partnerSlug: string) {
   const user = await getCurrentUser();
@@ -136,17 +151,19 @@ export async function loadPartnerOrganizerDashboard(partnerSlug: string) {
       partner: null,
       events: [],
       rows: [],
+      categories: [] as { id: string; name: string }[],
+      venues: [] as { id: string; name: string; city: string }[],
       boothOptionsByEvent: {} as Record<string, { code: string; status: string; companyName: string | null }[]>,
     };
   }
 
-  const [events, rows] = await Promise.all([
+  const [events, rows, categories, venues] = await Promise.all([
     prisma.event.findMany({
       where: {
         ...partnerEventWhere(access.partner.id),
         format: { in: EXHIBITOR_EVENT_FORMATS },
       },
-      select: { id: true, title: true, slug: true },
+      select: { id: true, title: true, slug: true, startDate: true, status: true },
       orderBy: { startDate: "asc" },
     }),
     prisma.eventExhibitor.findMany({
@@ -170,6 +187,14 @@ export async function loadPartnerOrganizerDashboard(partnerSlug: string) {
       },
       orderBy: [{ event: { startDate: "asc" } }, { exhibitor: { companyName: "asc" } }],
     }),
+    prisma.eventCategory.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.venue.findMany({
+      select: { id: true, name: true, city: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const boothOptionsByEvent: Record<
@@ -187,7 +212,126 @@ export async function loadPartnerOrganizerDashboard(partnerSlug: string) {
     boothOptionsByEvent[event.id] = booths;
   }
 
-  return { error: null, partner: access.partner, events, rows, boothOptionsByEvent };
+  return {
+    error: null,
+    partner: access.partner,
+    events,
+    rows,
+    categories,
+    venues,
+    boothOptionsByEvent,
+  };
+}
+
+export async function createPartnerOrganizerEvent(formData: FormData) {
+  const partnerSlug = String(formData.get("partnerSlug") || "").trim();
+  const redirectBase = partnerPath(partnerSlug || "unknown", "/organizer");
+
+  if (!partnerSlug) {
+    redirect(`${redirectBase}?tab=events&mail=error`);
+  }
+
+  const access = await requirePartnerOrganizerAccess(partnerSlug);
+  if (access.error || !access.partner || !access.user) {
+    redirect(`${redirectBase}?tab=events&mail=denied`);
+  }
+
+  const parsed = eventSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    shortDescription: formData.get("shortDescription") || undefined,
+    categoryId: formData.get("categoryId"),
+    venueId: formData.get("venueId") || undefined,
+    format: formData.get("format"),
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    startTime: formData.get("startTime") || undefined,
+    endTime: formData.get("endTime") || undefined,
+    capacity: formData.get("capacity") || undefined,
+  });
+
+  if (!parsed.success) {
+    redirect(`${redirectBase}?tab=events&mail=invalid-event-fields`);
+  }
+
+  if (!PARTNER_CREATABLE_FORMATS.has(parsed.data.format)) {
+    redirect(`${redirectBase}?tab=events&mail=invalid-event-format`);
+  }
+
+  if (new Date(parsed.data.endDate) < new Date(parsed.data.startDate)) {
+    redirect(`${redirectBase}?tab=events&mail=invalid-event-dates`);
+  }
+
+  const category = await prisma.eventCategory.findUnique({
+    where: { id: parsed.data.categoryId },
+    select: { id: true },
+  });
+  if (!category) {
+    redirect(`${redirectBase}?tab=events&mail=invalid-event-fields`);
+  }
+
+  if (parsed.data.venueId) {
+    const venue = await prisma.venue.findUnique({
+      where: { id: parsed.data.venueId },
+      select: { id: true },
+    });
+    if (!venue) {
+      redirect(`${redirectBase}?tab=events&mail=invalid-event-fields`);
+    }
+  }
+
+  const slug = await uniqueEventSlug(parsed.data.title);
+  const capacity = parsed.data.capacity ?? null;
+
+  let event: { id: string; slug: string };
+  try {
+    event = await prisma.event.create({
+      data: {
+        title: parsed.data.title,
+        slug,
+        description: parsed.data.description,
+        shortDescription: parsed.data.shortDescription?.trim() || null,
+        status: "PUBLISHED",
+        format: parsed.data.format,
+        startDate: new Date(parsed.data.startDate),
+        endDate: new Date(parsed.data.endDate),
+        startTime: parsed.data.startTime?.trim() || null,
+        endTime: parsed.data.endTime?.trim() || null,
+        capacity,
+        categoryId: parsed.data.categoryId,
+        venueId: parsed.data.venueId || null,
+        organizerId: access.user.id,
+        partnerId: access.partner.id,
+        ticketTypes: {
+          create: {
+            name: "General Pass",
+            description: "Free visitor registration for expo check-in and badge.",
+            tier: "FREE",
+            price: 0,
+            currency: "KES",
+            quantity: capacity && capacity > 0 ? capacity : 10000,
+            minPerOrder: 1,
+            maxPerOrder: 1,
+            isActive: true,
+          },
+        },
+      },
+      select: { id: true, slug: true },
+    });
+  } catch {
+    redirect(`${redirectBase}?tab=events&mail=error`);
+  }
+
+  await ensureEventFloorPlanBoothsInternal(event.id);
+
+  revalidatePath(partnerPath(partnerSlug, "/organizer"));
+  revalidatePath(partnerPath(partnerSlug));
+  revalidatePath(partnerPath(partnerSlug, "/events"));
+  revalidatePath(`/p/${partnerSlug}`);
+  revalidatePath("/admin/events");
+  revalidatePath("/exhibitor");
+
+  redirect(`${redirectBase}?tab=add&mail=event-created`);
 }
 
 function buildTempPassword() {
