@@ -4,14 +4,15 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma, isPrismaSchemaDriftError } from "@/lib/prisma";
 import { signIn } from "@/lib/auth";
-import { registerSchema, loginSchema, bookingSchema, reviewSchema, bookingInquirySchema, exhibitorRegisterSchema } from "@/lib/validations";
+import { registerSchema, loginSchema, bookingSchema, reviewSchema, bookingInquirySchema, partnerEnquirySchema, exhibitorRegisterSchema } from "@/lib/validations";
 import { generateBookingNumber, slugify } from "@/lib/utils";
 import { getPassBadgeLabel } from "@/lib/pass-badge";
 import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
-import { sendTicketConfirmation, sendWelcomeEmail, sendBookingInquiryEmail } from "@/lib/email";
+import { sendTicketConfirmation, sendWelcomeEmail, sendBookingInquiryEmail, sendPartnerEnquiryEmail } from "@/lib/email";
 import { createCheckoutSession, isStripeEnabled } from "@/lib/stripe";
 import { createHdfcPaymentSession, generateHdfcOrderId, isHdfcEnabled } from "@/lib/hdfc";
-import { partnerPath } from "@/lib/partners";
+import { createPayPalOrder, isPayPalEnabled } from "@/lib/paypal";
+import { getPartnerBySlug, partnerPath } from "@/lib/partners";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 import { getOpenExhibitorEventById } from "@/lib/exhibitor-events";
@@ -510,6 +511,7 @@ export async function createBooking(data: {
       await prisma.payment.create({
         data: {
           bookingId: booking.id,
+          purpose: "ticket",
           amount: totalAmount,
           status: "PENDING",
           gateway: "hdfc",
@@ -523,6 +525,41 @@ export async function createBooking(data: {
     } catch (err) {
       await prisma.booking.delete({ where: { id: booking.id } });
       console.error("HDFC payment session error:", err);
+      return { error: "Unable to start payment. Please try again." };
+    }
+  }
+
+  if (!partnerSlug && isPayPalEnabled()) {
+    const returnUrl = `${appUrl}/api/payments/paypal/return`;
+    const description = `${event.title} — booking ${bookingNumber}`;
+
+    try {
+      const order = await createPayPalOrder({
+        amount: totalAmount,
+        currency: booking.currency,
+        returnUrl,
+        cancelUrl,
+        customId: booking.id,
+        description,
+      });
+
+      await prisma.payment.create({
+        data: {
+          bookingId: booking.id,
+          purpose: "ticket",
+          amount: totalAmount,
+          currency: booking.currency,
+          status: "PENDING",
+          gateway: "paypal",
+          paypalOrderId: order.orderId,
+          invoiceNumber: `INV-${bookingNumber}`,
+        },
+      });
+
+      return { success: true, bookingId: booking.id, checkoutUrl: order.approvalUrl };
+    } catch (err) {
+      await prisma.booking.delete({ where: { id: booking.id } });
+      console.error("PayPal payment session error:", err);
       return { error: "Unable to start payment. Please try again." };
     }
   }
@@ -544,6 +581,7 @@ export async function createBooking(data: {
     await prisma.payment.create({
       data: {
         bookingId: booking.id,
+        purpose: "ticket",
         amount: totalAmount,
         status: "PENDING",
         gateway: "stripe",
@@ -563,6 +601,7 @@ export async function createBooking(data: {
   await prisma.payment.create({
     data: {
       bookingId: booking.id,
+      purpose: "ticket",
       amount: totalAmount,
       status: "COMPLETED",
       invoiceNumber: `INV-${bookingNumber}`,
@@ -948,5 +987,59 @@ export async function submitBookingInquiry(formData: FormData) {
     return { success: true };
   } catch {
     return { error: "Failed to send inquiry. Please try again or email hello@axarevents.com." };
+  }
+}
+
+export async function submitPartnerEnquiry(formData: FormData) {
+  const raw = {
+    partnerSlug: formData.get("partnerSlug") as string,
+    name: formData.get("name") as string,
+    email: formData.get("email") as string,
+    phone: (formData.get("phone") as string) || undefined,
+    subject: formData.get("subject") as string,
+    message: formData.get("message") as string,
+  };
+
+  const parsed = partnerEnquirySchema.safeParse(raw);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message };
+  }
+
+  const partner = await getPartnerBySlug(parsed.data.partnerSlug);
+  if (!partner) {
+    return { error: "Partner not found." };
+  }
+
+  const fallbackInbox = process.env.INQUIRY_EMAIL || "hello@axarevents.com";
+  const to = partner.contactEmail || fallbackInbox;
+  const cc =
+    partner.contactEmail && partner.contactEmail !== fallbackInbox
+      ? fallbackInbox
+      : undefined;
+
+  try {
+    const result = await sendPartnerEnquiryEmail({
+      partnerName: partner.name,
+      partnerSlug: partner.slug,
+      to,
+      cc,
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      subject: parsed.data.subject,
+      message: parsed.data.message,
+    });
+
+    if (!result.success) {
+      return {
+        error: `Failed to send enquiry. Please try again or email ${to}.`,
+      };
+    }
+
+    return { success: true };
+  } catch {
+    return {
+      error: `Failed to send enquiry. Please try again or email ${to}.`,
+    };
   }
 }

@@ -12,8 +12,6 @@ import {
 import {
   defaultTravelForm,
   defaultVisaDocs,
-  formatTravelSummary,
-  TravelLogisticsFields,
   visaDocNamesFromFiles,
   type TravelLogisticsForm,
   type VisaDocuments,
@@ -25,6 +23,18 @@ import {
   type ExhibitorTab,
   type TeamMember,
 } from "@/components/exhibitor-portal/types";
+import {
+  AccommodationSection,
+  AirportLogisticsSection,
+  ExpoTransportSection,
+  FoodOutingsSection,
+  ToursSection,
+} from "@/components/exhibitor-portal/member-logistics-sections";
+import {
+  computeSectionProgress,
+  overallRegistrationPct,
+  type SectionKey,
+} from "@/lib/exhibitor-section-progress";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
   EventHotelOption,
@@ -32,7 +42,7 @@ import type {
   EventRestaurantOption,
   EventScheduleItemOption,
 } from "@/lib/event-config-types";
-import { EventPreferencesStep } from "@/components/exhibitor-portal/event-preferences-step";
+import { formatHotelOptionLabel } from "@/lib/event-config-types";
 import ExhibitorFloorPlanPanel from "@/components/exhibitor-portal/exhibitor-floor-plan-panel";
 import { AdditionalRequirementsPanel } from "@/components/exhibitor-portal/additional-requirements-panel";
 import { BrandingsPanel } from "@/components/exhibitor-portal/brandings-panel";
@@ -56,9 +66,8 @@ import {
   PortalHero,
   type PortalHeroStatus,
   PortalNav,
-  QuickAction,
-  QuickActionsRow,
-  StepBar,
+  type PortalNavGroup,
+  type PortalNavItem,
 } from "@/components/exhibitor-portal/exhibitor-portal-ui";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -138,6 +147,7 @@ import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { SerializedBrandingArtworkSubmission } from "@/lib/branding-artwork-types";
 import type { OpenExhibitorEvent } from "@/lib/exhibitor-events";
+import type { RegisteredExhibitorEvent } from "@/lib/exhibitor-page-data";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardUrlState, useUrlEnumState } from "@/hooks/use-dashboard-url-state";
 import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
@@ -167,6 +177,12 @@ export type ExhibitorPortalProps = {
   boothReservedCode?: string | null;
   floorPlan?: EventFloorPlanConfig | null;
   floorPlanBooths?: FloorPlanBoothRecord[];
+  paypalBoothCheckout?: {
+    available: boolean;
+    amount: number | null;
+    currency: string | null;
+    eventBoothId: string | null;
+  };
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -176,6 +192,9 @@ export type ExhibitorPortalProps = {
   itemCatalog?: EventItemMasterOption[];
   canManageMembers?: boolean;
   openEvents?: OpenExhibitorEvent[];
+  registeredEvents?: RegisteredExhibitorEvent[];
+  eventId?: string | null;
+  eventSlug?: string | null;
   memberDocuments?: SerializedMemberDocument[];
   airBookingRequests?: SerializedAirBookingRequest[];
   memberWorkflows?: SerializedAirBookingMemberWorkflow[];
@@ -186,33 +205,46 @@ export type ExhibitorPortalProps = {
   boothVisitors?: import("@/lib/exhibitor-booth-visits").ExhibitorBoothVisitRecord[];
 };
 
-const TABS: { id: ExhibitorTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "booth", label: "Floor plan & booth", icon: Map },
-  { id: "registration", label: "Registration form", icon: FileText },
-  { id: "additional", label: "Booth Additional Requirements", icon: PackagePlus },
-  { id: "brandings", label: "Brandings", icon: Palette },
-  { id: "members", label: "Team members", icon: Users },
-  { id: "tours", label: "Tours & travel", icon: MapPin },
-  { id: "schedules", label: "Event and Tour Schedules", icon: Route },
-  { id: "food", label: "Food outings", icon: ForkKnife },
-  { id: "checkins", label: "Check-ins", icon: IdCard },
-];
-
-const EXHIBITOR_TAB_IDS = [
+const PRIMARY_TAB_IDS = [
   "overview",
-  "booth",
-  "registration",
-  "additional",
-  "brandings",
-  "members",
+  "booth-members",
+  "booth-floor",
+  "booth-additional",
+  "booth-brandings",
+  "airport",
+  "accommodation",
+  "expo",
   "tours",
-  "schedules",
   "food",
   "checkins",
 ] as const satisfies readonly ExhibitorTab[];
 
-const REGISTRATION_STEP_COUNT = 6;
+const EXHIBITOR_TAB_IDS = [
+  ...PRIMARY_TAB_IDS,
+  "registration",
+  "booth",
+  "additional",
+  "brandings",
+  "members",
+  "schedules",
+] as const satisfies readonly ExhibitorTab[];
+
+const LEGACY_TAB_REDIRECT: Partial<Record<ExhibitorTab, ExhibitorTab>> = {
+  registration: "overview",
+  booth: "booth-floor",
+  additional: "booth-additional",
+  brandings: "booth-brandings",
+  members: "booth-members",
+  schedules: "tours",
+};
+
+const SECTION_TAB: Record<SectionKey, ExhibitorTab> = {
+  booth: "booth-members",
+  airport: "airport",
+  accommodation: "accommodation",
+  expo: "expo",
+  tours: "tours",
+};
 
 function defaultForm(props: ExhibitorPortalProps) {
   const setupOptions = buildSetupDateOptions(props.startDate);
@@ -247,8 +279,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [tab, setTabRaw] = useUrlEnumState("tab", EXHIBITOR_TAB_IDS, "overview");
 
   useEffect(() => {
-    if (searchParams.get("tab") === "itinerary") {
-      setParams({ tab: "schedules" });
+    const raw = searchParams.get("tab");
+    if (raw === "itinerary") {
+      setParams({ tab: "tours" });
+      return;
+    }
+    if (raw && LEGACY_TAB_REDIRECT[raw as ExhibitorTab]) {
+      setParams({ tab: LEGACY_TAB_REDIRECT[raw as ExhibitorTab] });
     }
   }, [searchParams, setParams]);
 
@@ -263,19 +300,13 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     () => props.eventActivities.filter((a) => a.kind === "TRAVEL"),
     [props.eventActivities]
   );
-  const diningOptions = useMemo(
+  const hotelSelectOptions = useMemo(
     () =>
-      (props.eventRestaurants ?? []).map((restaurant) =>
-        [restaurant.name, restaurant.cuisine, restaurant.location].filter(Boolean).join(" · ")
-      ),
-    [props.eventRestaurants]
+      (props.eventHotels ?? [])
+        .filter((hotel) => hotel.isActive)
+        .map((hotel) => formatHotelOptionLabel(hotel)),
+    [props.eventHotels]
   );
-  const hotelSelectOptions = useMemo(() => {
-    const hotels = (props.eventHotels ?? []).map((hotel) =>
-      hotel.location ? `${hotel.name} — ${hotel.location}` : hotel.name
-    );
-    return ["Own accommodation", ...hotels];
-  }, [props.eventHotels]);
   const scheduleByDay = useMemo(
     () => groupScheduleByDay(props.eventSchedule ?? []),
     [props.eventSchedule]
@@ -301,20 +332,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   const [airBookingForm, setAirBookingForm] = useState({ travelDate: "", notes: "" });
   const [airBookingMemberIds, setAirBookingMemberIds] = useState<string[]>([]);
   const [documentsMember, setDocumentsMember] = useState<TeamMember | null>(null);
+  const [documentsNoticeMember, setDocumentsNoticeMember] = useState<TeamMember | null>(null);
   const [documentsPassportDraft, setDocumentsPassportDraft] = useState("");
   const [savingPassport, setSavingPassport] = useState(false);
   const [submittingAirBooking, setSubmittingAirBooking] = useState(false);
-  const [regStep, setRegStep] = useState(() => {
-    const fromUrl = Number(searchParams.get("step"));
-    if (fromUrl >= 1 && fromUrl <= REGISTRATION_STEP_COUNT) return fromUrl;
-    return saved?.regStep ?? 1;
-  });
+  const [regStep] = useState(() => saved?.regStep ?? 1);
 
   const setTab = useCallback(
     (next: ExhibitorTab) => {
-      setTabRaw(next, next === "registration" ? { step: String(regStep) } : { step: null });
+      setTabRaw(next, { step: null });
     },
-    [setTabRaw, regStep]
+    [setTabRaw]
   );
 
   const [scanMode, setScanModeState] = useState(false);
@@ -343,15 +371,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     }
   }, [scanMode, tab, setTabRaw]);
 
-  useEffect(() => {
-    const step = Number(searchParams.get("step"));
-    if (tab === "registration" && step >= 1 && step <= REGISTRATION_STEP_COUNT) {
-      setRegStep(step);
-    }
-  }, [searchParams, tab]);
-
   const [formSteps, setFormSteps] = useState(
-    () => saved?.formSteps ?? { company: false, event: false, travel: false, transport: false, food: false }
+    () =>
+      saved?.formSteps ?? {
+        company: false,
+        event: false,
+        travel: false,
+        transport: false,
+        food: false,
+        boothAdditional: false,
+        boothBrandings: false,
+      }
   );
   const [travel, setTravel] = useState<TravelLogisticsForm>(() => saved?.travel ?? defaultTravelForm);
   const [visaDocs, setVisaDocs] = useState<VisaDocuments>(defaultVisaDocs);
@@ -419,18 +449,89 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     [members, membersAlreadyRequested]
   );
 
-  const progressPct = useMemo(() => {
-    let count = 0;
-    if (formSteps.company) count++;
-    if (formSteps.event) count++;
-    if (members.length > 0) count++;
-    if (formSteps.travel) count++;
-    if (formSteps.transport) count++;
-    if (formSteps.food) count++;
-    return Math.round((count / 6) * 100);
-  }, [formSteps, members.length]);
+  const sectionProgress = useMemo(
+    () =>
+      computeSectionProgress({
+        members,
+        selectedAdditionalItemIds: [...selectedAdditionalItemIds],
+        brandingCount: props.brandingArtworkSubmissions?.length ?? selectedBrandingItemIds.length,
+        additionalReviewed: formSteps.boothAdditional,
+        brandingsReviewed: formSteps.boothBrandings,
+      }),
+    [
+      members,
+      selectedAdditionalItemIds,
+      props.brandingArtworkSubmissions?.length,
+      selectedBrandingItemIds.length,
+      formSteps.boothAdditional,
+      formSteps.boothBrandings,
+    ]
+  );
+
+  const progressPct = useMemo(() => overallRegistrationPct(sectionProgress), [sectionProgress]);
+
+  const sectionPct = useMemo(() => {
+    const map = Object.fromEntries(sectionProgress.map((s) => [s.key, s.pct])) as Record<
+      SectionKey,
+      number
+    >;
+    return map;
+  }, [sectionProgress]);
+
+  const navGroups = useMemo((): (PortalNavItem<ExhibitorTab> | PortalNavGroup<ExhibitorTab>)[] => {
+    return [
+      { id: "overview", label: "Overview", icon: LayoutDashboard, pct: progressPct },
+      {
+        id: "your-booth",
+        label: "Your Booth",
+        icon: Building2,
+        pct: sectionPct.booth ?? 0,
+        items: [
+          { id: "booth-members", label: "Team members", icon: Users },
+          { id: "booth-floor", label: "Floor plan & booth", icon: Map },
+          { id: "booth-additional", label: "Additional requirements", icon: PackagePlus },
+          { id: "booth-brandings", label: "Brandings", icon: Palette },
+        ],
+      },
+      {
+        id: "airport",
+        label: "Airport pick up & drop off",
+        icon: Plane,
+        pct: sectionPct.airport ?? 0,
+      },
+      {
+        id: "accommodation",
+        label: "Accommodation",
+        icon: Building2,
+        pct: sectionPct.accommodation ?? 0,
+      },
+      {
+        id: "expo",
+        label: "Expo pick up & drop off",
+        icon: Bus,
+        pct: sectionPct.expo ?? 0,
+      },
+      {
+        id: "tours",
+        label: "Tours",
+        icon: MapPin,
+        pct: sectionPct.tours ?? 0,
+      },
+      {
+        id: "food",
+        label: "Food outings",
+        icon: ForkKnife,
+        pct: formSteps.food ? 100 : selectedFoodExp.size > 0 ? 50 : 0,
+      },
+      { id: "checkins", label: "Check-ins", icon: IdCard },
+    ];
+  }, [progressPct, sectionPct, formSteps.food, selectedFoodExp.size]);
 
   const dateRange = `${formatDate(props.startDate, "MMM d")}–${formatDate(props.endDate, "d, yyyy")}`;
+
+  const updateMemberFields = useCallback((memberId: string, patch: Partial<TeamMember>) => {
+    setMembers((current) => current.map((m) => (m.id === memberId ? { ...m, ...patch } : m)));
+  }, []);
 
   useEffect(() => {
     if (selectedBoothItemId || !saved?.form.booth || boothCatalog.length === 0) return;
@@ -647,44 +748,35 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     persistRegistration,
   ]);
 
-  const goStep = (n: number) => {
-    const nextFormSteps = {
-      ...formSteps,
-      company: n > 1 ? true : formSteps.company,
-      event: n > 2 ? true : formSteps.event,
-      travel: n > 3 ? true : formSteps.travel,
-      transport: n > 4 ? true : formSteps.transport,
-      food: n > 5 ? true : formSteps.food,
-    };
-    setFormSteps(nextFormSteps);
-    setRegStep(n);
-    setParams({ tab: "registration", step: String(n) });
-    if (!isSubmitted) {
-      void persistRegistration({ formSteps: nextFormSteps, regStep: n });
-    }
-  };
-
   const submitRegistration = async () => {
     if (isSubmitted) {
       notify.info("Already submitted");
       return;
     }
-    if (!form.company.trim()) {
-      notify.error("Company name required");
-      goStep(1);
+    if (members.length === 0) {
+      notify.error("Add at least one team member");
+      setTab("booth-members");
       return;
     }
     setSubmitting(true);
-    try {
-      const finalSteps = { company: true, event: true, travel: true, transport: true, food: true };
-      setFormSteps(finalSteps);
-      const result = await persistRegistration({ formSteps: finalSteps, regStep }, "SUBMITTED");
-      if (result && "success" in result && result.success) {
-        setRegistrationStatus("SUBMITTED");
-        notify.success("Registration submitted");
-      }
-    } finally {
-      setSubmitting(false);
+    const finalSteps = {
+      ...formSteps,
+      company: true,
+      event: true,
+      travel: true,
+      transport: true,
+      food: true,
+      boothAdditional: true,
+      boothBrandings: true,
+    };
+    setFormSteps(finalSteps);
+    const result = await persistRegistration({ formSteps: finalSteps, regStep }, "SUBMITTED");
+    setSubmitting(false);
+    if (result.error) notify.error(result.error);
+    else {
+      setRegistrationStatus("SUBMITTED");
+      notify.success("Registration submitted");
+      setTab("overview");
     }
   };
 
@@ -921,12 +1013,41 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         notify.error(result.error);
         return;
       }
-      notify.success("Event linked");
+      if (result.alreadyLinked) {
+        notify.success(`Switched to ${result.eventTitle ?? "event"}`);
+      } else {
+        notify.success(`Registered for ${result.eventTitle ?? "event"}`);
+      }
+      setSelectedEventId("");
+      const params = new URLSearchParams(window.location.search);
+      if (result.eventSlug) params.set("event", result.eventSlug);
+      params.delete("tab");
+      params.delete("step");
+      const qs = params.toString();
+      router.push(qs ? `/exhibitor?${qs}` : "/exhibitor");
       router.refresh();
     } finally {
       setLinkingEvent(false);
     }
   };
+
+  const switchToRegisteredEvent = (slug: string) => {
+    if (!slug || slug === props.eventSlug) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("event", slug);
+    const qs = params.toString();
+    router.push(qs ? `/exhibitor?${qs}` : "/exhibitor");
+  };
+
+  const registeredEvents = props.registeredEvents ?? [];
+  const registeredEventIds = useMemo(
+    () => new Set(registeredEvents.map((e) => e.eventId)),
+    [registeredEvents]
+  );
+  const availableEvents = useMemo(
+    () => (props.openEvents ?? []).filter((event) => !registeredEventIds.has(event.id)),
+    [props.openEvents, registeredEventIds]
+  );
 
   const removeMember = async (id: string) => {
     const nextMembers = members.filter((m) => m.id !== id);
@@ -1003,6 +1124,20 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
     setDocumentsPassportDraft(passportNumber);
   };
 
+  const requestDocumentsModal = (member: TeamMember) => {
+    if (memberDocCount(member.id) > 0) {
+      void openDocumentsModal(member);
+      return;
+    }
+    setDocumentsNoticeMember(member);
+  };
+
+  const acknowledgeDocumentsNotice = async () => {
+    const member = documentsNoticeMember;
+    setDocumentsNoticeMember(null);
+    if (member) await openDocumentsModal(member);
+  };
+
   const saveMemberPassport = async (options?: { silent?: boolean }) => {
     if (!documentsMember || !props.eventExhibitorId) {
       notify.error("No event linked");
@@ -1076,16 +1211,17 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
   };
 
   const n = members.length;
-  const tourCount = selectedTours.size;
+  const tourCount = members.reduce(
+    (sum, m) => sum + (m.tourLogistics?.selectedTourIds.length ?? 0),
+    0
+  );
 
-  const checklist = [
-    { key: "company", label: "Company details", done: formSteps.company },
-    { key: "event", label: "Event preferences", done: formSteps.event },
-    { key: "members", label: "Team members added", done: members.length > 0 },
-    { key: "travel", label: "Travel & logistics", done: formSteps.travel },
-    { key: "tours", label: "Tours & transport", done: formSteps.transport },
-    { key: "food", label: "Food outings confirmed", done: formSteps.food },
-  ];
+  const checklist = sectionProgress.map((section) => ({
+    key: section.key,
+    label: section.label,
+    done: section.complete,
+    pct: section.pct,
+  }));
 
   const dietMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -1145,90 +1281,24 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
 
     if (isSubmitted) {
       return {
-        label: "View registration summary",
-        onAction: () => {
-          setTab("registration");
-          goStep(6);
-        },
+        label: "View registration progress",
+        onAction: () => setTab("overview"),
       };
     }
 
-    if (!formSteps.company) {
+    const next = sectionProgress.find((s) => !s.complete);
+    if (next) {
       return {
-        label: "Complete company details",
-        onAction: () => {
-          setTab("registration");
-          goStep(1);
-        },
-      };
-    }
-
-    if (!formSteps.event) {
-      return {
-        label: "Set event preferences",
-        onAction: () => {
-          setTab("registration");
-          goStep(2);
-        },
-      };
-    }
-
-    if (members.length === 0) {
-      return {
-        label: "Add team members",
-        onAction: () => {
-          setTab("members");
-          openAddMemberModal();
-        },
-      };
-    }
-
-    if (!formSteps.travel) {
-      return {
-        label: "Complete travel details",
-        onAction: () => {
-          setTab("registration");
-          goStep(3);
-        },
-      };
-    }
-
-    if (!formSteps.transport) {
-      return {
-        label: "Book tours & transport",
-        onAction: () => {
-          setTab("registration");
-          goStep(4);
-        },
-      };
-    }
-
-    if (!formSteps.food) {
-      return {
-        label: "Confirm food outings",
-        onAction: () => {
-          setTab("registration");
-          goStep(5);
-        },
+        label: `Continue: ${next.label}`,
+        onAction: () => setTab(SECTION_TAB[next.key]),
       };
     }
 
     return {
-      label: "Review & submit",
-      onAction: () => {
-        setTab("registration");
-        goStep(6);
-      },
+      label: "Registration complete",
+      onAction: () => setTab("overview"),
     };
-  }, [
-    props.eventExhibitorId,
-    isSubmitted,
-    formSteps,
-    members.length,
-    setTab,
-    goStep,
-    openAddMemberModal,
-  ]);
+  }, [props.eventExhibitorId, isSubmitted, sectionProgress, setTab]);
 
   return (
     <div className="space-y-5">
@@ -1276,34 +1346,61 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         status={heroStatus}
         actionLabel={heroAction.label}
         onAction={heroAction.onAction}
-        headerActions={
-          props.eventExhibitorId ? (
-            <ExhibitorScanModeToggle enabled={scanMode} onChange={setScanMode} />
-          ) : undefined
-        }
       />
 
       {tab === "overview" && (
-        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard label="Team members" value={n} icon={Users} accent="teal" />
+        <section aria-label="Key metrics" className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+          <MetricCard
+            label="Team members"
+            value={n}
+            icon={Users}
+            accent="teal"
+            hint={n === 0 ? "Add your first member" : "On your booth roster"}
+          />
           <MetricCard
             label="Booth visitors"
             value={props.boothVisitorCount ?? 0}
             icon={IdCard}
             accent="sky"
+            hint="Checked in at your stand"
           />
-          <MetricCard label="Meal passes" value={n * props.expoDays * 3} icon={Ticket} accent="emerald" />
-          <MetricCard label="Tours booked" value={tourCount} icon={MapPin} accent="violet" />
+          <MetricCard
+            label="Meal passes"
+            value={n * props.expoDays * 3}
+            icon={Ticket}
+            accent="emerald"
+            hint={`${props.expoDays}-day expo × 3 meals`}
+          />
+          <MetricCard
+            label="Tours booked"
+            value={tourCount}
+            icon={MapPin}
+            accent="violet"
+            hint="Selected across the team"
+          />
         </section>
       )}
 
-      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-        <PortalNav tabs={TABS} active={tab} onChange={setTab} />
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <PortalNav
+          groups={navGroups}
+          active={tab}
+          onChange={setTab}
+          footer={
+            props.eventExhibitorId ? (
+              <ExhibitorScanModeToggle
+                variant="sidebar"
+                enabled={scanMode}
+                onChange={setScanMode}
+              />
+            ) : undefined
+          }
+        />
 
         <main className="min-w-0 space-y-4">
       {tab === "overview" && (
         <div className="space-y-4">
-          {!props.eventExhibitorId && (
+          {!props.eventExhibitorId ? (
             <Panel title="Select your event" icon={Calendar}>
               <p className="mb-4 text-sm text-muted-foreground">
                 Choose the expo or event you are exhibiting at to unlock registration, team members, and logistics.
@@ -1335,25 +1432,138 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 </div>
               )}
             </Panel>
+          ) : (
+            <Panel title="Your events" icon={Calendar}>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Current event
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">{props.eventTitle}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {formatDate(props.startDate, "MMM d")} – {formatDate(props.endDate, "MMM d, yyyy")}
+                    {props.eventCity ? ` · ${props.eventCity}` : ""}
+                  </p>
+                </div>
+
+                {registeredEvents.length > 1 && (
+                  <div>
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      Switch registered event
+                    </Label>
+                    <select
+                      value={props.eventSlug ?? props.eventId ?? ""}
+                      onChange={(e) => switchToRegisteredEvent(e.target.value)}
+                      className="flex h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                    >
+                      {registeredEvents.map((event) => (
+                        <option key={event.eventId} value={event.slug}>
+                          {event.title} · {formatDate(event.startDate, "MMM d")} –{" "}
+                          {formatDate(event.endDate, "MMM d, yyyy")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {availableEvents.length > 0 ? (
+                  <div className="border-t border-border pt-4">
+                    <p className="mb-3 text-sm text-muted-foreground">
+                      Already exhibited with us? Register your company for another open event.
+                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1">
+                        <Label className="mb-1 block text-xs text-muted-foreground">
+                          Register for another event
+                        </Label>
+                        <select
+                          value={selectedEventId}
+                          onChange={(e) => setSelectedEventId(e.target.value)}
+                          className="flex h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                        >
+                          <option value="">Select an event</option>
+                          {availableEvents.map((event) => (
+                            <option key={event.id} value={event.id}>
+                              {event.title} · {formatDate(event.startDate, "MMM d")} –{" "}
+                              {formatDate(event.endDate, "MMM d, yyyy")}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Button
+                        onClick={linkToEvent}
+                        disabled={linkingEvent || !selectedEventId}
+                        className="sm:shrink-0"
+                      >
+                        {linkingEvent ? "Registering…" : "Register for event"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No other open events are available to register for right now.
+                  </p>
+                )}
+              </div>
+            </Panel>
           )}
-          <Panel title="Quick actions" icon={LayoutDashboard}>
-            <QuickActionsRow>
-              <QuickAction highlight label="Complete registration" sub="Fill in company, travel & food details" onClick={() => { setTab("registration"); goStep(1); }} />
-              <QuickAction
-                label={boothPhase === "allocated" ? "View booth details" : "Select booth on floor plan"}
-                sub={
-                  boothPhase === "allocated"
-                    ? boothLabel
-                    : boothPhase === "reserved" || boothPhase === "payment_verified"
-                      ? boothSubline
-                      : "Reserve your stand on the event map"
-                }
-                onClick={() => setTab("booth")}
-              />
-              <QuickAction label="Add team members" sub="Manage passes, transport & meals" onClick={() => { setTab("members"); openAddMemberModal(); }} />
-              <QuickAction label="Book tours" sub="Safari, city tours & excursions" onClick={() => setTab("tours")} />
-              <QuickAction label="Plan food outings" sub="Vegetarian meals & dining" onClick={() => setTab("food")} />
-            </QuickActionsRow>
+          <Panel title="Booth snapshot" icon={Building2}>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Booth</p>
+                <p className="mt-1 text-sm font-semibold leading-snug">{boothGlanceTitle}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{boothSubline}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Team</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {n} member{n === 1 ? "" : "s"}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {n === 0 ? "Add people under Your Booth" : "Documents & logistics per member"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Progress</p>
+                <p className="mt-1 text-sm font-semibold text-primary">{progressPct}%</p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-champagne to-champagne-dark"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Next up</p>
+                {(() => {
+                  const next = sectionProgress.find((s) => !s.complete);
+                  if (!next) {
+                    return (
+                      <>
+                        <p className="mt-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                          All sections done
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {isSubmitted ? "Submitted to Event Master" : "Ready to submit"}
+                        </p>
+                      </>
+                    );
+                  }
+                  return (
+                    <>
+                      <p className="mt-1 text-sm font-semibold">{next.label}</p>
+                      <button
+                        type="button"
+                        className="mt-1 text-xs font-medium text-primary hover:underline"
+                        onClick={() => setTab(SECTION_TAB[next.key])}
+                      >
+                        Continue →
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
           </Panel>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -1378,27 +1588,33 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 {checklist.map((item) => (
                   <ChecklistItem
                     key={item.key}
-                    label={item.label}
+                    label={`${item.label} (${item.pct}%)`}
                     done={item.done}
-                    onAction={
-                      item.key === "members"
-                        ? () => openAddMemberModal()
-                        : () => {
-                            setTab("registration");
-                            const stepMap: Record<string, number> = {
-                              company: 1,
-                              event: 2,
-                              travel: 3,
-                              tours: 4,
-                              food: 5,
-                            };
-                            goStep(stepMap[item.key] ?? 1);
-                          }
-                    }
+                    onAction={() => setTab(SECTION_TAB[item.key as SectionKey])}
                   />
                 ))}
               </ul>
-              <ContinueButton onClick={() => { setTab("registration"); goStep(1); }} />
+              <ContinueButton
+                onClick={() => {
+                  const next = sectionProgress.find((s) => !s.complete);
+                  setTab(next ? SECTION_TAB[next.key] : "overview");
+                }}
+              />
+              {props.eventExhibitorId && !isSubmitted && progressPct >= 50 && (
+                <Button
+                  className="mt-3 w-full gap-1"
+                  onClick={() => void submitRegistration()}
+                  disabled={submitting || saving}
+                >
+                  <Send className="h-4 w-4" />
+                  {submitting ? "Submitting…" : "Submit registration"}
+                </Button>
+              )}
+              {isSubmitted && (
+                <p className="mt-3 text-center text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  Registration submitted
+                </p>
+              )}
             </Panel>
 
             <Panel title="Event at a glance" icon={Calendar}>
@@ -1474,204 +1690,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         </div>
       )}
 
-      {tab === "registration" && (
-        <Panel title="" icon={FileText} noHeader>
-          <StepBar step={regStep} onStepClick={goStep} />
-          {regStep === 1 && (
-            <RegStep title="Company information" icon={Building2}>
-              <FormRow>
-                <Field label="Company / organisation name">
-                  <Input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} placeholder="Acme Technologies Ltd" />
-                </Field>
-                <Field label="Industry / sector">
-                  <Select value={form.industry} onChange={(v) => setForm({ ...form, industry: v })} options={["", "Technology", "Agriculture", "Finance & fintech", "Health & pharma", "Education", "Manufacturing", "Logistics", "Media & creative", "Government", "Other"]} placeholder="Select…" />
-                </Field>
-              </FormRow>
-              <FormRow>
-                <Field label="Contact person (full name)"><Input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></Field>
-                <Field label="Job title"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Marketing Director" /></Field>
-              </FormRow>
-              <FormRow>
-                <Field label="Email address"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-                <Field label="Phone number"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+254 700 000000" /></Field>
-              </FormRow>
-              <FormRow>
-                <Field label="Country of origin">
-                  <Select value={form.country} onChange={(v) => setForm({ ...form, country: v })} options={["Kenya", "Uganda", "Tanzania", "Rwanda", "Ethiopia", "South Africa", "Nigeria", "Ghana", "Other"]} />
-                </Field>
-                <Field label="Number of staff attending">
-                  <Input type="number" min={1} max={50} value={form.staff} onChange={(e) => setForm({ ...form, staff: e.target.value })} placeholder="4" />
-                </Field>
-              </FormRow>
-              <Field label="Brief company description">
-                <Textarea value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })} placeholder="What does your company do? What will you exhibit?" rows={3} />
-              </Field>
-              <NavButtons onNext={() => goStep(2)} />
-            </RegStep>
-          )}
-          {regStep === 2 && (
-            <RegStep title="Event preferences & requirements" icon={Calendar}>
-              <EventPreferencesStep
-                catalog={itemCatalog}
-                setupOptions={setupOptions}
-                selectedBoothItemId={selectedBoothItemId}
-                form={{ setup: form.setup, access: form.access }}
-                onBoothChange={handleBoothItemChange}
-                onFormChange={(patch) => setForm({ ...form, ...patch })}
-              />
-              <NavButtons onBack={() => goStep(1)} onNext={() => goStep(3)} nextLabel="Next: Travel & logistics" />
-            </RegStep>
-          )}
-          {regStep === 3 && (
-            <RegStep title="Travel & logistics" icon={Bus}>
-              <InfoBox>
-                Tell us what travel services you need. Our team will coordinate flights, visas, accommodation, and local logistics for your visit.
-              </InfoBox>
-              <TravelLogisticsFields
-                travel={travel}
-                visaDocs={visaDocs}
-                onTravelChange={setTravel}
-                onVisaDocsChange={setVisaDocs}
-              />
-              <NavButtons onBack={() => goStep(2)} onNext={() => goStep(4)} nextLabel="Next: Tours & transport" />
-            </RegStep>
-          )}
-          {regStep === 4 && (
-            <RegStep title="Tours & travel arrangements" icon={MapPin}>
-              {scheduleByDay.length > 0 && (
-                <div className="mb-5">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Event schedule</p>
-                  <EventScheduleGrid scheduleByDay={scheduleByDay} compact />
-                </div>
-              )}
-              <InfoBox>Select all transport and tours your team requires. Costs are per person and will be invoiced separately.</InfoBox>
-              <Field label="Pickup from hotel or accommodation required?">
-                <Select
-                  value={form.accommodationPickup}
-                  onChange={(v) => setForm({ ...form, accommodationPickup: v })}
-                  options={["No", "Yes — from hotel or accommodation"]}
-                />
-              </Field>
-              <Field label="Optional tours — select all your team will join">
-                <p className="mb-2 text-sm text-muted-foreground">
-                  Tours will be scheduled based on the number of team members.
-                </p>
-                {tourOptions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No tours have been published for this event yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {tourOptions.map((t) => (
-                      <TourSelect key={t.id} tour={t} selected={selectedTours.has(t.id)} onToggle={() => toggleSet(selectedTours, t.id, setSelectedTours)} />
-                    ))}
-                  </div>
-                )}
-              </Field>
-              <Field label="Departure date & drop-off to accommodation">
-                <Select value={form.depart} onChange={(v) => setForm({ ...form, depart: v })} options={departureOptions} />
-              </Field>
-              <p className="text-sm text-muted-foreground">
-                Vehicle will be provided based on availability.
-              </p>
-              <NavButtons onBack={() => goStep(3)} onNext={() => goStep(5)} nextLabel="Next: Food outings" />
-            </RegStep>
-          )}
-          {regStep === 5 && (
-            <RegStep title="Food outings & dining" icon={ForkKnife}>
-              <InfoBox>All event meals and dining outings are 100% vegetarian — no meat or fish is served.</InfoBox>
-              <Field label="Which vegetarian team meals will your group attend?">
-                <CheckGroup options={mealOptions} selected={selectedMeals} onToggle={(k) => toggleSet(selectedMeals, k, setSelectedMeals)} />
-              </Field>
-              <Field label="Optional vegetarian dining experiences — select all of interest">
-                {diningOptions.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
-                    No restaurant outings have been published yet. The Event Master will add options here.
-                  </p>
-                ) : (
-                  <CheckGroup options={diningOptions} selected={selectedFoodExp} onToggle={(k) => toggleSet(selectedFoodExp, k, setSelectedFoodExp)} />
-                )}
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-1">
-                <Field label="Allergies to note (veg menu)"><Input value={form.allergy} onChange={(e) => setForm({ ...form, allergy: e.target.value })} placeholder="e.g. nuts, dairy, gluten…" /></Field>
-              </div>
-              <Field label="Any special food requests or notes for the organiser?">
-                <Textarea value={form.foodnotes} onChange={(e) => setForm({ ...form, foodnotes: e.target.value })} rows={2} />
-              </Field>
-              <NavButtons onBack={() => goStep(4)} onNext={() => goStep(6)} nextLabel="Review & submit" />
-            </RegStep>
-          )}
-          {regStep === 6 && (
-            <RegStep title="Review your submission" icon={ClipboardCheck}>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company & event</h4>
-              <div className="mb-4 grid gap-2.5 sm:grid-cols-2">
-                {[
-                  ["Company", form.company || "—"],
-                  ["Contact person", form.contact || "—"],
-                  ["Industry", form.industry || "—"],
-                  ["Email", form.email || "—"],
-                  ["Team members", `${members.length} registered`],
-                  ["Staff attending", form.staff || "0"],
-                  ["Booth package", form.booth || "—"],
-                  ["Setup date", form.setup || "—"],
-                  [
-                    "Booth Additional Requirements",
-                    selectedAdditionalItemIds.size > 0
-                      ? `${selectedAdditionalItemIds.size} item(s) — see Booth Additional Requirements tab`
-                      : "None selected",
-                  ],
-                  ["Accommodation pickup", form.accommodationPickup],
-                  ["Tours selected", String(selectedTours.size)],
-                ].map(([label, val]) => (
-                  <div key={label} className="rounded-lg bg-muted/50 p-3">
-                    <div className="text-[11px] text-muted-foreground">{label}</div>
-                    <div className="text-sm font-medium">{val}</div>
-                  </div>
-                ))}
-              </div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Travel & logistics</h4>
-              <div className="mb-4 grid gap-2.5 sm:grid-cols-2">
-                {formatTravelSummary(travel, visaDocs).map(([label, val]) => (
-                  <div key={label} className="rounded-lg bg-muted/50 p-3">
-                    <div className="text-[11px] text-muted-foreground">{label}</div>
-                    <div className="text-sm font-medium">{val}</div>
-                  </div>
-                ))}
-              </div>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Food & dining</h4>
-              <div className="mb-4 grid gap-2.5 sm:grid-cols-2">
-                {[
-                  ["Meal plan", "All vegetarian"],
-                  ["Meals selected", String(selectedMeals.size)],
-                  ["Veg dining experiences", String(selectedFoodExp.size)],
-                  ["Allergies noted", form.allergy || "None"],
-                ].map(([label, val]) => (
-                  <div key={label} className="rounded-lg bg-muted/50 p-3">
-                    <div className="text-[11px] text-muted-foreground">{label}</div>
-                    <div className="text-sm font-medium">{val}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="my-4 h-px bg-border" />
-              <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Please review all details carefully. Once submitted, changes must be requested via your event coordinator.
-              </div>
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => goStep(5)} className="gap-1"><ArrowLeft className="h-4 w-4" /> Back</Button>
-                <Button
-                  onClick={submitRegistration}
-                  disabled={submitting || saving || isSubmitted}
-                  className="gap-1 bg-primary hover:bg-champagne-dark"
-                >
-                  <Send className="h-4 w-4" />
-                  {submitting ? "Submitting…" : isSubmitted ? "Submitted" : "Submit registration"}
-                </Button>
-              </div>
-            </RegStep>
-          )}
-        </Panel>
-      )}
-
-      {tab === "booth" && (
+      {tab === "booth-floor" && (
         <Panel title="Floor plan & booth selection" icon={Map}>
           {!props.eventExhibitorId ? (
             <EmptyState
@@ -1693,13 +1712,32 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
               initialPhase={boothPhase}
               initialOwnBoothCode={props.boothNumber ?? props.boothReservedCode ?? null}
               hall={props.hall}
+              paypalBoothCheckout={props.paypalBoothCheckout}
             />
           )}
         </Panel>
       )}
 
-      {tab === "additional" && (
-        <AdditionalRequirementsPanel
+      {tab === "booth-additional" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4">
+            <p className="text-sm text-muted-foreground">
+              Select any booth add-ons you need, then mark this booth section complete.
+            </p>
+            <Button
+              size="sm"
+              variant={formSteps.boothAdditional ? "outline" : "default"}
+              onClick={() => {
+                const next = { ...formSteps, boothAdditional: true };
+                setFormSteps(next);
+                void persistRegistration({ formSteps: next });
+                notify.success("Additional requirements marked complete");
+              }}
+            >
+              {formSteps.boothAdditional ? "Section complete" : "Mark section complete"}
+            </Button>
+          </div>
+          <AdditionalRequirementsPanel
           catalog={itemCatalog}
           selectedItemIds={selectedAdditionalItemIds}
           onToggleItem={handleAdditionalItemToggle}
@@ -1708,10 +1746,29 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           contactName={form.contact}
           onInvoiceDownload={handleAdditionalInvoiceDownload}
         />
+        </div>
       )}
 
-      {tab === "brandings" && (
-        <BrandingsPanel
+      {tab === "booth-brandings" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4">
+            <p className="text-sm text-muted-foreground">
+              Upload branding artwork for selected items, then mark this section complete.
+            </p>
+            <Button
+              size="sm"
+              variant={formSteps.boothBrandings ? "outline" : "default"}
+              onClick={() => {
+                const next = { ...formSteps, boothBrandings: true };
+                setFormSteps(next);
+                void persistRegistration({ formSteps: next });
+                notify.success("Brandings marked complete");
+              }}
+            >
+              {formSteps.boothBrandings ? "Section complete" : "Mark section complete"}
+            </Button>
+          </div>
+          <BrandingsPanel
           eventExhibitorId={props.eventExhibitorId}
           catalog={itemCatalog}
           selectedBrandingItemIds={selectedBrandingItemIds}
@@ -1719,10 +1776,11 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           onSubmissionsChange={setBrandingSubmissions}
           onRemoveBrandingItem={handleRemoveBrandingItem}
         />
+        </div>
       )}
 
       {/* Members */}
-      {tab === "members" && (
+      {tab === "booth-members" && (
         <div className="space-y-4">
           {props.canManageMembers && (
             <BulkUploadMembersPanel
@@ -1783,7 +1841,7 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                 full
                 airBookingRequests={airBookingRequests}
                 memberWorkflows={memberWorkflows}
-                onOpenDocuments={openDocumentsModal}
+                onOpenDocuments={requestDocumentsModal}
                 memberDocCount={memberDocCount}
                 memberHasPassportDoc={memberHasPassportDoc}
               />
@@ -1813,103 +1871,68 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         </div>
       )}
 
-      {/* Tours */}
-      {tab === "tours" && (
-        <div className="space-y-4">
-          <Panel title="Your transport & tour selections" icon={MapPin}>
-            {selectedTours.size === 0 && travelActivities.length === 0 && form.accommodationPickup === "No" && form.depart.startsWith("No") ? (
-              <EmptyState
-                icon={MapPin}
-                title="No transport or tours selected"
-                description="Complete the registration form to choose tours and travel options."
-                compact
-                action={<Button onClick={() => { setTab("registration"); goStep(4); }}>Open registration form</Button>}
-              />
-            ) : (
-              <div className="space-y-2.5">
-                {form.accommodationPickup.toLowerCase().startsWith("yes") && (
-                  <SelectionRow title="Accommodation pickup" detail={form.accommodationPickup} />
-                )}
-                {tourOptions
-                  .filter((t) => selectedTours.has(t.id))
-                  .map((t) => (
-                    <SelectionRow key={t.id} title={t.title} detail={t.sub} />
-                  ))}
-                {travelActivities.map((a) => (
-                  <SelectionRow
-                    key={a.id}
-                    title={a.title}
-                    detail={`${formatDate(a.startAt, "MMM d · h:mm a")}${a.location ? ` · ${a.location}` : ""}`}
-                  />
-                ))}
-                {!form.depart.toLowerCase().startsWith("no") && (
-                  <SelectionRow title="Departure drop-off" detail={form.depart} />
-                )}
-              </div>
-            )}
-          </Panel>
-          {members.length > 0 && selectedTours.size > 0 && (
-            <Panel title="Team size for selected tours" icon={Users}>
-              <p className="text-sm text-muted-foreground">
-                {members.length} team member{members.length === 1 ? "" : "s"} registered · {selectedTours.size} tour{selectedTours.size === 1 ? "" : "s"} selected
-              </p>
-            </Panel>
-          )}
-        </div>
+      {tab === "airport" && (
+        <AirportLogisticsSection members={members} onUpdateMember={updateMemberFields} />
       )}
 
-      {tab === "schedules" && (
-        <ExhibitorItineraryPanel
-          itineraries={props.tourTravelItineraries ?? []}
-          scheduleItems={props.eventSchedule ?? []}
+      {tab === "accommodation" && (
+        <AccommodationSection
+          members={members}
+          hotels={props.eventHotels ?? []}
+          onUpdateMember={updateMemberFields}
         />
       )}
 
-      {/* Food */}
+      {tab === "expo" && (
+        <ExpoTransportSection members={members} onUpdateMember={updateMemberFields} />
+      )}
+
+      {tab === "tours" && (
+        <ToursSection
+          members={members}
+          tourActivities={props.eventActivities.filter((a) => a.kind === "TOUR")}
+          tourItineraries={props.tourTravelItineraries ?? []}
+          onUpdateMember={(memberId, patch) => {
+            setMembers((current) => {
+              const next = current.map((m) => (m.id === memberId ? { ...m, ...patch } : m));
+              if (patch.tourLogistics) {
+                const ids = new Set<string>();
+                for (const m of next) {
+                  for (const id of m.tourLogistics?.selectedTourIds ?? []) ids.add(id);
+                }
+                setSelectedTours(ids);
+              }
+              return next;
+            });
+          }}
+          schedules={
+            <ExhibitorItineraryPanel
+              itineraries={props.tourTravelItineraries ?? []}
+              scheduleItems={props.eventSchedule ?? []}
+            />
+          }
+        />
+      )}
+
       {tab === "food" && (
-        <div className="space-y-4">
-          <Panel title="Your meal selections" icon={ForkKnife}>
-            {selectedMeals.size === 0 && selectedFoodExp.size === 0 ? (
-              <EmptyState
-                icon={ForkKnife}
-                title="No meals selected yet"
-                description="Choose vegetarian meals and dining experiences in the registration form."
-                compact
-                action={<Button onClick={() => { setTab("registration"); goStep(5); }}>Open registration form</Button>}
-              />
-            ) : (
-              <div className="space-y-2.5">
-                {[...selectedMeals].map((meal) => (
-                  <SelectionRow key={meal} title={meal} detail={`${members.length || form.staff || 0} attending`} />
-                ))}
-                {[...selectedFoodExp].map((exp) => (
-                  <SelectionRow key={exp} title={exp} detail="Optional experience" />
-                ))}
-                {form.allergy && <SelectionRow title="Allergies noted" detail={form.allergy} />}
-                {form.foodnotes && <SelectionRow title="Special notes" detail={form.foodnotes} />}
-              </div>
-            )}
-          </Panel>
-          <Panel title="Team dietary notes" icon={Leaf}>
-            <p className="mb-3 text-sm text-muted-foreground">All catering is vegetarian. Note any allergies below when adding team members.</p>
-            {Object.keys(dietMap).length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">Add team members to see dietary breakdown</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead><tr className="border-b border-border text-left text-[11px] text-muted-foreground"><th className="pb-2 w-[35%]">Preference</th><th className="pb-2">Count</th><th className="pb-2">Members</th></tr></thead>
-                <tbody>
-                  {Object.entries(dietMap).map(([diet, names]) => (
-                    <tr key={diet} className="border-b border-border last:border-0">
-                      <td className="py-2">{diet}</td>
-                      <td className="py-2">{names.length}</td>
-                      <td className="py-2 text-xs text-muted-foreground">{names.join(", ")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Panel>
-        </div>
+        <FoodOutingsSection
+          restaurants={props.eventRestaurants ?? []}
+          selected={selectedFoodExp}
+          onChange={(next) => {
+            setSelectedFoodExp(next);
+            void persistRegistration({ selectedFoodExp: [...next] });
+          }}
+          isComplete={Boolean(formSteps.food)}
+          onMarkComplete={() => {
+            const next = { ...formSteps, food: true };
+            setFormSteps(next);
+            void persistRegistration({
+              formSteps: next,
+              selectedFoodExp: [...selectedFoodExp],
+            });
+            notify.success("Food outings saved");
+          }}
+        />
       )}
 
       {tab === "checkins" && (
@@ -1921,11 +1944,6 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           boothLabel={
             props.boothStandLabel ??
             (props.boothNumber ? `Booth ${props.boothNumber}` : null)
-          }
-          scanModeToggle={
-            props.eventExhibitorId ? (
-              <ExhibitorScanModeToggle enabled={scanMode} onChange={setScanMode} />
-            ) : undefined
           }
         />
       )}
@@ -1988,8 +2006,10 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
                   <Select value={memberForm.transport} onChange={(v) => setMemberForm({ ...memberForm, transport: v })} options={[...TRANSPORT_OPTIONS]} placeholder="Select…" />
                 </Field>
                 <Field label="Hotel">
-                  {hotelSelectOptions.length <= 1 ? (
-                    <Input value={memberForm.hotel} onChange={(e) => setMemberForm({ ...memberForm, hotel: e.target.value })} placeholder="Hotel name or own accommodation" />
+                  {hotelSelectOptions.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      No hotels are listed for this event yet.
+                    </p>
                   ) : (
                     <Select
                       value={memberForm.hotel}
@@ -2009,6 +2029,34 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
         </ModalShell>
       )}
 
+      {documentsNoticeMember && (
+        <ModalShell
+          title="Document upload"
+          icon={Info}
+          onClose={() => setDocumentsNoticeMember(null)}
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setDocumentsNoticeMember(null)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void acknowledgeDocumentsNotice()}>
+                Continue
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-foreground">
+              Document upload is required only for <strong>flight booking</strong> and{" "}
+              <strong>tours</strong>.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              If this team member does not need flights or tours, you can skip uploading documents.
+            </p>
+          </div>
+        </ModalShell>
+      )}
+
       {documentsMember && props.eventExhibitorId && (
         <ModalShell
           title={`Documents — ${documentsMember.fn} ${documentsMember.ln}`}
@@ -2022,6 +2070,10 @@ export default function ExhibitorPortalDashboard(props: ExhibitorPortalProps) {
           }
         >
           <div className="space-y-5">
+            <div className="rounded-xl border border-champagne/30 bg-champagne/10 px-4 py-3 text-sm text-champagne-dark dark:border-champagne/25 dark:bg-champagne/10 dark:text-champagne-light">
+              Document upload is required only for <strong>flight booking</strong> and{" "}
+              <strong>tours</strong>.
+            </div>
             <p className="text-sm text-muted-foreground">
               Upload official travel documents for this team member. Files are stored privately and only shared with Event Master and the travel agent when a flight booking is sent.
             </p>
@@ -2680,12 +2732,14 @@ function ExhibitorScanModeToggle({
   enabled,
   onChange,
   className,
+  variant = "button",
 }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   className?: string;
+  variant?: "button" | "sidebar";
 }) {
-  return (
+  const slider = (
     <button
       type="button"
       role="switch"
@@ -2693,23 +2747,46 @@ function ExhibitorScanModeToggle({
       aria-label={enabled ? "Turn scan mode off" : "Turn scan mode on"}
       onClick={() => onChange(!enabled)}
       className={cn(
-        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-        enabled
-          ? "border-primary bg-primary text-white shadow-sm shadow-primary/20"
-          : "border-border bg-card text-muted-foreground hover:border-champagne/30 hover:text-foreground",
+        "relative h-8 w-[4.25rem] shrink-0 rounded-full border border-foreground/80 bg-background transition-colors",
         className
       )}
     >
-      <ScanLine className="h-4 w-4" />
-      <span>Scan mode</span>
       <span
         className={cn(
-          "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-          enabled ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+          "pointer-events-none absolute inset-y-0 flex items-center text-[10px] font-semibold uppercase tracking-wide text-foreground/80 transition-opacity",
+          enabled ? "left-2 opacity-100" : "left-2 opacity-0"
         )}
       >
-        {enabled ? "On" : "Off"}
+        On
       </span>
+      <span
+        className={cn(
+          "pointer-events-none absolute inset-y-0 flex items-center text-[10px] font-semibold uppercase tracking-wide text-foreground/80 transition-opacity",
+          enabled ? "right-2 opacity-0" : "right-2 opacity-100"
+        )}
+      >
+        Off
+      </span>
+      <span
+        className={cn(
+          "absolute top-0.5 h-6 w-6 rounded-full bg-foreground shadow-sm transition-transform duration-200 ease-out",
+          enabled ? "left-0.5 translate-x-[1.85rem]" : "left-0.5 translate-x-0"
+        )}
+      />
     </button>
   );
+
+  if (variant === "sidebar") {
+    return (
+      <div className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+        <ScanLine
+          className={cn("h-4 w-4 shrink-0", enabled ? "text-primary" : "text-muted-foreground")}
+        />
+        <p className="min-w-0 flex-1 text-sm font-medium text-foreground">Scan mode</p>
+        {slider}
+      </div>
+    );
+  }
+
+  return slider;
 }

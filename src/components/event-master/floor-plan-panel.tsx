@@ -12,6 +12,7 @@ import {
   allocateBoothToExhibitor,
   releaseBoothReservation,
   updateEventBooth,
+  updateEventBoothFee,
   verifyBoothPayment,
 } from "@/lib/floor-plan-actions";
 import { scaledLayoutForBoothCode } from "@/lib/floor-plan-scale";
@@ -38,6 +39,8 @@ type Props = {
   eventId: string;
   initialBooths: FloorPlanBoothRecord[];
   initialFloorPlan: EventFloorPlanConfig;
+  initialBoothFee?: number | null;
+  initialBoothFeeCurrency?: string;
   exhibitors: AdminExhibitorRecord[];
 };
 
@@ -87,10 +90,16 @@ export default function FloorPlanPanel({
   eventId,
   initialBooths,
   initialFloorPlan,
+  initialBoothFee = null,
+  initialBoothFeeCurrency = "KES",
   exhibitors,
 }: Props) {
   const [booths, setBooths] = useState(initialBooths);
   const [floorPlan, setFloorPlan] = useState(initialFloorPlan);
+  const [boothFeeInput, setBoothFeeInput] = useState(
+    initialBoothFee != null ? String(initialBoothFee) : ""
+  );
+  const [boothFeeCurrencyInput, setBoothFeeCurrencyInput] = useState(initialBoothFeeCurrency);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<BoothStatusValue>("AVAILABLE");
@@ -366,9 +375,67 @@ export default function FloorPlanPanel({
     }
   };
 
+  const saveBoothFee = () => {
+    startTransition(async () => {
+      const trimmed = boothFeeInput.trim();
+      const fee = trimmed === "" ? null : Number(trimmed);
+      if (fee != null && Number.isNaN(fee)) {
+        setMessage("Booth fee must be a number.");
+        return;
+      }
+      const result = await updateEventBoothFee({
+        eventId,
+        boothFee: fee,
+        boothFeeCurrency: boothFeeCurrencyInput,
+      });
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      setMessage(
+        fee == null || fee === 0
+          ? "Booth fee cleared (manual payment verification)."
+          : `Booth fee saved: ${boothFeeCurrencyInput.toUpperCase()} ${fee}`
+      );
+      router.refresh();
+    });
+  };
+
   return (
     <div className="flex h-[calc(100dvh-10rem)] min-h-[400px] flex-col gap-2 overflow-hidden xl:flex-row xl:gap-4">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        <div className="flex shrink-0 flex-wrap items-end gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <div className="min-w-[120px]">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              Booth fee (main site)
+            </label>
+            <Input
+              value={boothFeeInput}
+              onChange={(e) => setBoothFeeInput(e.target.value)}
+              placeholder="e.g. 50000"
+              className="h-9"
+              inputMode="decimal"
+            />
+          </div>
+          <div className="w-24">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              Currency
+            </label>
+            <Input
+              value={boothFeeCurrencyInput}
+              onChange={(e) => setBoothFeeCurrencyInput(e.target.value.toUpperCase())}
+              placeholder="KES"
+              className="h-9"
+              maxLength={3}
+            />
+          </div>
+          <Button type="button" size="sm" variant="outline" disabled={pending} onClick={saveBoothFee}>
+            Save fee
+          </Button>
+          <p className="pb-1 text-xs text-muted-foreground">
+            Used for PayPal booth checkout when PayPal is enabled. Leave empty for manual verification only.
+          </p>
+        </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}

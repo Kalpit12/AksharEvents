@@ -17,6 +17,8 @@ type PartnerRow = {
   slug: string;
   tagline: string | null;
   primaryColor: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   isActive: boolean;
   _count: { events: number };
 };
@@ -77,6 +79,10 @@ export default function AdminPartnersPanel({
             <Input id="contactEmail" name="contactEmail" type="email" className="mt-1.5" />
           </div>
           <div>
+            <Label htmlFor="contactPhone">Contact number</Label>
+            <Input id="contactPhone" name="contactPhone" type="tel" className="mt-1.5" />
+          </div>
+          <div>
             <Label htmlFor="aboutHtml">About (HTML)</Label>
             <Textarea id="aboutHtml" name="aboutHtml" rows={4} className="mt-1.5" />
           </div>
@@ -115,6 +121,18 @@ export default function AdminPartnersPanel({
             >
               <Input name="name" defaultValue={partner.name} />
               <Input name="tagline" defaultValue={partner.tagline ?? ""} placeholder="Tagline" />
+              <Input
+                name="contactEmail"
+                type="email"
+                defaultValue={partner.contactEmail ?? ""}
+                placeholder="Contact email"
+              />
+              <Input
+                name="contactPhone"
+                type="tel"
+                defaultValue={partner.contactPhone ?? ""}
+                placeholder="Contact number"
+              />
               <Input name="primaryColor" type="color" defaultValue={partner.primaryColor} />
               <select name="isActive" defaultValue={partner.isActive ? "true" : "false"} className="h-10 rounded-lg border px-3 text-sm">
                 <option value="true">Active</option>

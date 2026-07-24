@@ -4,6 +4,7 @@ import {
   type AdminExhibitorRecord,
 } from "@/lib/exhibitor-registration-display";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 
 export type TourTravelExhibitorSelection = {
   eventExhibitorId: string;
@@ -24,6 +25,9 @@ export function exhibitorHasToursAndTravelsSelection(
 ): boolean {
   if (!formData) return false;
   if (formData.selectedTours.length > 0) return true;
+  if (formData.members.some((m) => (m.tourLogistics?.selectedTourIds.length ?? 0) > 0)) {
+    return true;
+  }
   if (formData.shuttles.length > 0) return true;
   if (formData.form.accommodationPickup?.toLowerCase().startsWith("yes")) return true;
   if (formData.form.depart && !formData.form.depart.toLowerCase().startsWith("no")) return true;
@@ -32,12 +36,15 @@ export function exhibitorHasToursAndTravelsSelection(
 
 export function aggregateTourTravelExhibitorSelections(
   exhibitors: AdminExhibitorRecord[],
-  activities: EventActivityOption[] = []
+  activities: EventActivityOption[] = [],
+  itineraries: Pick<SerializedTourTravelItinerary, "id" | "title">[] = []
 ): TourTravelExhibitorSelection[] {
   return exhibitors
     .filter((record) => exhibitorHasToursAndTravelsSelection(record.formData))
     .map((record) => {
       const data = record.formData!;
+      const memberTourIds = data.members.flatMap((m) => m.tourLogistics?.selectedTourIds ?? []);
+      const allTourIds = [...new Set([...data.selectedTours, ...memberTourIds])];
       return {
         eventExhibitorId: record.id,
         companyName: record.companyName,
@@ -46,7 +53,7 @@ export function aggregateTourTravelExhibitorSelections(
         boothNumber: record.boothNumber,
         registrationStatus: record.registrationStatus,
         memberCount: Math.max(data.members.length, Number(data.form.staff) || 0),
-        tours: tourLabelsFromIds(data.selectedTours, activities),
+        tours: tourLabelsFromIds(allTourIds, activities, itineraries),
         shuttles: [...data.shuttles],
         accommodationPickup: data.form.accommodationPickup || null,
         departure: data.form.depart || null,

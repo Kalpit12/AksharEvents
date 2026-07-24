@@ -1,6 +1,7 @@
 import type { AdminExhibitorRecord } from "@/lib/exhibitor-registration-display";
 import { activityLabelMap } from "@/lib/exhibitor-form-options";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
 import { formatDate } from "@/lib/utils";
 import { addDays, differenceInCalendarDays } from "date-fns";
 
@@ -80,9 +81,13 @@ export function aggregateMembers(exhibitors: AdminExhibitorRecord[]): Aggregated
 
 export function aggregateTransport(
   exhibitors: AdminExhibitorRecord[],
-  activities: EventActivityOption[]
+  activities: EventActivityOption[],
+  itineraries: Pick<SerializedTourTravelItinerary, "id" | "title">[] = []
 ): TransportItem[] {
   const labels = activityLabelMap(activities);
+  for (const trip of itineraries) {
+    labels.set(trip.id, trip.title);
+  }
   const items: TransportItem[] = [];
 
   for (const record of exhibitors) {
@@ -131,7 +136,9 @@ export function aggregateTransport(
       });
     }
 
-    for (const tourId of data.selectedTours) {
+    const memberTourIds = data.members.flatMap((m) => m.tourLogistics?.selectedTourIds ?? []);
+    const tourIds = [...new Set([...data.selectedTours, ...memberTourIds])];
+    for (const tourId of tourIds) {
       items.push({
         company: record.companyName,
         title: labels.get(tourId) ?? tourId,

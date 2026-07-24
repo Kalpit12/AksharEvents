@@ -103,6 +103,8 @@ type Props = {
   exhibitors?: AdminExhibitorRecord[];
   floorPlanBooths?: FloorPlanBoothRecord[];
   floorPlan?: EventFloorPlanConfig;
+  boothFee?: number | null;
+  boothFeeCurrency?: string;
   activities?: EventActivityOption[];
   eventHotels?: EventHotelOption[];
   eventRestaurants?: EventRestaurantOption[];
@@ -167,6 +169,8 @@ export default function EventMasterDashboard({
   exhibitors = [],
   floorPlanBooths = [],
   floorPlan,
+  boothFee = null,
+  boothFeeCurrency = "KES",
   activities = [],
   eventHotels = [],
   eventRestaurants = [],
@@ -189,7 +193,10 @@ export default function EventMasterDashboard({
   const expoDays = expoDaysFromRange(startDate, endDate);
   const members = useMemo(() => aggregateMembers(exhibitors), [exhibitors]);
   const memberCount = members.length;
-  const transportItems = useMemo(() => aggregateTransport(exhibitors, activities), [exhibitors, activities]);
+  const transportItems = useMemo(
+    () => aggregateTransport(exhibitors, activities, tourTravelItineraries),
+    [exhibitors, activities, tourTravelItineraries]
+  );
   const hotelRequests = useMemo(() => aggregateHotelRequests(exhibitors), [exhibitors]);
   const hotelAssignments = useMemo(() => aggregateHotelAssignments(exhibitors), [exhibitors]);
   const mealAggregates = useMemo(() => aggregateMeals(exhibitors), [exhibitors]);
@@ -308,6 +315,8 @@ export default function EventMasterDashboard({
           eventId={eventId}
           initialBooths={floorPlanBooths}
           initialFloorPlan={floorPlan}
+          initialBoothFee={boothFee}
+          initialBoothFeeCurrency={boothFeeCurrency}
           exhibitors={exhibitors}
         />
       )}

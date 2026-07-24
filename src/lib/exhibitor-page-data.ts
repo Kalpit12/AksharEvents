@@ -19,6 +19,7 @@ import {
   loadEventFloorPlanBooths,
   sanitizeBoothsForExhibitor,
 } from "@/lib/floor-plan-data";
+import { getPaypalBoothCheckoutAvailability } from "@/lib/booth-payment-actions";
 import type {
   EventFloorPlanConfig,
   ExhibitorBoothPhase,
@@ -81,14 +82,33 @@ function pickEventEntry(
   eventEntries: Awaited<
     ReturnType<typeof prisma.eventExhibitor.findMany<{ include: typeof eventExhibitorInclude }>>
   >,
-  primaryEventId: string | undefined
+  primaryEventId: string | undefined,
+  preferredEvent?: string | null
 ) {
   if (eventEntries.length === 0) return null;
+  if (preferredEvent) {
+    const preferred = preferredEvent.trim();
+    const match = eventEntries.find(
+      (entry) => entry.eventId === preferred || entry.event.slug === preferred
+    );
+    if (match) return match;
+  }
   if (primaryEventId) {
     return eventEntries.find((entry) => entry.eventId === primaryEventId) ?? eventEntries[0];
   }
   return eventEntries[0];
 }
+
+export type RegisteredExhibitorEvent = {
+  eventExhibitorId: string;
+  eventId: string;
+  slug: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  city: string | null;
+  venueName: string | null;
+};
 
 export type ExhibitorDashboardPageData = {
   exhibitor: Exhibitor;
@@ -107,6 +127,12 @@ export type ExhibitorDashboardPageData = {
   boothReservedCode: string | null;
   floorPlan: EventFloorPlanConfig | null;
   floorPlanBooths: FloorPlanBoothRecord[];
+  paypalBoothCheckout: {
+    available: boolean;
+    amount: number | null;
+    currency: string | null;
+    eventBoothId: string | null;
+  };
   hall: string | null;
   expoDays: number;
   eventActivities: EventActivityOption[];
@@ -115,6 +141,9 @@ export type ExhibitorDashboardPageData = {
   eventSchedule: ReturnType<typeof serializeEventScheduleItem>[];
   itemCatalog: ReturnType<typeof serializeEventItemMaster>[];
   openEvents: OpenExhibitorEvent[];
+  registeredEvents: RegisteredExhibitorEvent[];
+  eventId: string | null;
+  eventSlug: string | null;
   memberDocuments: SerializedMemberDocument[];
   airBookingRequests: SerializedAirBookingRequest[];
   memberWorkflows: SerializedAirBookingMemberWorkflow[];
@@ -128,7 +157,8 @@ export type ExhibitorDashboardPageData = {
 export async function loadExhibitorDashboardPageData(
   exhibitor: Exhibitor,
   membershipRole: ExhibitorMemberRole | "OWNER",
-  userId: string
+  userId: string,
+  preferredEvent?: string | null
 ): Promise<ExhibitorDashboardPageData> {
   const [primaryEvent, openEvents, eventEntries] = await Promise.all([
     getPrimaryPublishedEvent(),
@@ -140,11 +170,22 @@ export async function loadExhibitorDashboardPageData(
     }),
   ]);
 
-  const eventEntry = pickEventEntry(eventEntries, primaryEvent?.id);
+  const eventEntry = pickEventEntry(eventEntries, primaryEvent?.id, preferredEvent);
   const event = eventEntry?.event ?? primaryEvent;
   const expoDays = event
     ? Math.max(1, differenceInCalendarDays(event.endDate, event.startDate) + 1)
     : 1;
+
+  const registeredEvents: RegisteredExhibitorEvent[] = eventEntries.map((entry) => ({
+    eventExhibitorId: entry.id,
+    eventId: entry.event.id,
+    slug: entry.event.slug,
+    title: entry.event.title,
+    startDate: entry.event.startDate.toISOString(),
+    endDate: entry.event.endDate.toISOString(),
+    city: entry.event.venue?.city ?? null,
+    venueName: entry.event.venue?.name ?? null,
+  }));
 
   const savedRegistration = redactRegistrationForClient(
     eventEntry?.registration?.formData
@@ -287,12 +328,19 @@ export async function loadExhibitorDashboardPageData(
     ? sanitizeBoothsForExhibitor(floorPlanSnapshot.booths, eventExhibitorId ?? null)
     : [];
 
-  const [tourTravelItineraries, notificationUnreadCount, boothVisitData] = await Promise.all([
+  const [tourTravelItineraries, boothVisitData, paypalBoothCheckout] = await Promise.all([
     eventId ? loadPublishedTourTravelItineraries(eventId) : Promise.resolve([]),
-    prisma.notification.count({ where: { userId, isRead: false } }),
     eventExhibitorId
       ? loadBoothVisitsForExhibitor(eventExhibitorId)
       : Promise.resolve({ visitorCount: 0, records: [] as ExhibitorBoothVisitRecord[] }),
+    eventExhibitorId
+      ? getPaypalBoothCheckoutAvailability(eventExhibitorId)
+      : Promise.resolve({
+          available: false as const,
+          amount: null,
+          currency: null,
+          eventBoothId: null,
+        }),
   ]);
 
   return {
@@ -312,6 +360,12 @@ export async function loadExhibitorDashboardPageData(
     boothReservedCode,
     floorPlan,
     floorPlanBooths,
+    paypalBoothCheckout: {
+      available: paypalBoothCheckout.available,
+      amount: paypalBoothCheckout.amount,
+      currency: paypalBoothCheckout.currency,
+      eventBoothId: paypalBoothCheckout.eventBoothId,
+    },
     hall: eventEntry?.hall ?? null,
     expoDays,
     eventActivities: activities.map(serializeActivity),
@@ -320,12 +374,15 @@ export async function loadExhibitorDashboardPageData(
     eventSchedule: eventSchedule.map(serializeEventScheduleItem),
     itemCatalog: itemCatalogRows.map(serializeEventItemMaster),
     openEvents,
+    registeredEvents,
+    eventId: event?.id ?? null,
+    eventSlug: event?.slug ?? null,
     memberDocuments: serializedMemberDocuments,
     airBookingRequests: serializedAirBookingRequests,
     memberWorkflows: serializedMemberWorkflows,
     brandingArtworkSubmissions: serializedBrandingArtwork,
     tourTravelItineraries,
-    notificationUnreadCount,
+    notificationUnreadCount: 0,
     boothVisitorCount: boothVisitData.visitorCount,
     boothVisitors: boothVisitData.records,
   };
@@ -334,7 +391,10 @@ export async function loadExhibitorDashboardPageData(
 export async function loadExhibitorDashboardPageDataWithRetry(
   exhibitor: Exhibitor,
   membershipRole: ExhibitorMemberRole | "OWNER",
-  userId: string
+  userId: string,
+  preferredEvent?: string | null
 ) {
-  return withDbRetry(() => loadExhibitorDashboardPageData(exhibitor, membershipRole, userId));
+  return withDbRetry(() =>
+    loadExhibitorDashboardPageData(exhibitor, membershipRole, userId, preferredEvent)
+  );
 }

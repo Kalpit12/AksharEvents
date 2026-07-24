@@ -61,13 +61,14 @@ async function handleReturn(request: Request, body: Record<string, unknown>) {
     include: { booking: { include: { event: { select: { slug: true } } } } },
   });
 
-  if (!payment) {
+  if (!payment?.booking) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  const booking = payment.booking;
   const status = extractStatus(body, url);
   const partnerSlug =
-    payment.booking.partnerSlug ??
+    booking.partnerSlug ??
     (typeof payment.metadata === "object" &&
     payment.metadata !== null &&
     "partnerSlug" in payment.metadata
@@ -76,23 +77,20 @@ async function handleReturn(request: Request, body: Record<string, unknown>) {
 
   if (isSuccessStatus(status) || payment.status === "COMPLETED") {
     if (payment.status !== "COMPLETED") {
-      await confirmBookingPayment(payment.bookingId, {
+      await confirmBookingPayment(booking.id, {
         gateway: "hdfc",
         hdfcPaymentId: (body.payment_id as string | undefined) ?? orderId,
       });
     }
 
     return NextResponse.redirect(
-      new URL(
-        bookingSuccessPath(payment.booking.bookingNumber, partnerSlug),
-        request.url
-      )
+      new URL(bookingSuccessPath(booking.bookingNumber, partnerSlug), request.url)
     );
   }
 
   const cancelTarget = partnerSlug
-    ? `/p/${partnerSlug}/events/${payment.booking.event.slug}`
-    : `/events/${payment.booking.event.slug}`;
+    ? `/p/${partnerSlug}/events/${booking.event.slug}`
+    : `/events/${booking.event.slug}`;
 
   return NextResponse.redirect(new URL(cancelTarget, request.url));
 }

@@ -146,7 +146,8 @@ export function EventHotelsManager({
   return (
     <ConfigPanel title="Manage hotels for exhibitor registration" icon={Building2}>
       <p className="mb-4 text-xs text-muted-foreground">
-        Hotels you add here appear in the exhibitor registration form when team members choose accommodation.
+        Hotels you add here appear in the exhibitor Accommodation page when a team member selects
+        Yes — I need accommodation.
       </p>
       <form onSubmit={handleCreate} className="mb-5 grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -156,6 +157,29 @@ export function EventHotelsManager({
         <div>
           <Label htmlFor="hotel-location">Location (optional)</Label>
           <Input id="hotel-location" name="location" placeholder="e.g. Nairobi CBD" className="mt-1.5" />
+        </div>
+        <div>
+          <Label htmlFor="hotel-price">Price (optional)</Label>
+          <Input
+            id="hotel-price"
+            name="price"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="e.g. 15000"
+            className="mt-1.5"
+          />
+        </div>
+        <div>
+          <Label htmlFor="hotel-currency">Currency</Label>
+          <Input
+            id="hotel-currency"
+            name="currency"
+            defaultValue="KES"
+            maxLength={3}
+            placeholder="KES"
+            className="mt-1.5 uppercase"
+          />
         </div>
         <div className="sm:col-span-2">
           <Label htmlFor="hotel-description">Notes (optional)</Label>
@@ -176,7 +200,15 @@ export function EventHotelsManager({
             <ConfigListItem
               key={hotel.id}
               title={hotel.name}
-              subtitle={hotel.location || hotel.description}
+              subtitle={[
+                hotel.location,
+                hotel.price != null
+                  ? `${hotel.currency} ${hotel.price.toLocaleString()}`
+                  : null,
+                hotel.description,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               isActive={hotel.isActive}
               onToggle={() => void handleToggle(hotel.id)}
             />
@@ -228,7 +260,7 @@ export function EventRestaurantsManager({
   return (
     <ConfigPanel title="Manage restaurants for exhibitor registration" icon={ForkKnife}>
       <p className="mb-4 text-xs text-muted-foreground">
-        Restaurants you add here appear as dining options on the exhibitor food outings step.
+        Restaurants you add here appear on the exhibitor Food outings page for companies to select.
       </p>
       <form onSubmit={handleCreate} className="mb-5 grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">

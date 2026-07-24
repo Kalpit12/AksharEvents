@@ -4,7 +4,7 @@ import { ExhibitorHeaderNotifications } from "@/components/layout/exhibitor-head
 import { PortalProfileMenu } from "@/components/layout/portal-profile-menu";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { exhibitorPortalLinks } from "@/lib/exhibitor-portal-links";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { BRAND } from "@/lib/utils";
 import { Building2 } from "lucide-react";
 
@@ -13,11 +13,22 @@ const portalLinks = exhibitorPortalLinks;
 export default async function ExhibitorHeader() {
   const session = await auth();
   const displayName = session?.user?.name ?? "Exhibitor";
-  const unreadCount = session?.user?.id
-    ? await prisma.notification.count({
-        where: { userId: session.user.id, isRead: false },
-      })
-    : 0;
+  let unreadCount = 0;
+  if (session?.user?.id) {
+    const userId = session.user.id;
+    try {
+      unreadCount = await withDbRetry(
+        () =>
+          prisma.notification.count({
+            where: { userId, isRead: false },
+          }),
+        3
+      );
+    } catch {
+      // Don't fail the whole portal shell if the pool is busy.
+      unreadCount = 0;
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-champagne/30 bg-gradient-to-r from-espresso via-espresso/95 to-espresso text-alabaster shadow-md shadow-espresso/20 supports-[backdrop-filter]:bg-espresso/95">

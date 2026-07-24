@@ -417,12 +417,14 @@ function DocUpload({
   hint,
   required,
   file,
+  fileName,
   onChange,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
   file: File | null;
+  fileName?: string | null;
   onChange: (file: File | null) => void;
 }) {
   return (
@@ -439,10 +441,14 @@ function DocUpload({
         className="mt-2 text-xs"
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}
       />
-      {file && <p className="mt-1 truncate text-[11px] text-primary">{file.name}</p>}
+      {(file || fileName) && (
+        <p className="mt-1 truncate text-[11px] text-primary">{file?.name ?? fileName}</p>
+      )}
     </div>
   );
 }
+
+export { DocUpload };
 
 export function visaDocumentSummaryRows(visaDocs: VisaDocuments): [string, string][] {
   return KENYA_ETA_VISA_DOCUMENTS.map((doc) => [

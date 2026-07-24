@@ -105,6 +105,15 @@ export const contactSchema = z.object({
   message: z.string().min(10),
 });
 
+export const partnerEnquirySchema = z.object({
+  partnerSlug: z.string().min(1, "Partner is required"),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  subject: z.string().min(3, "Subject must be at least 3 characters"),
+  message: z.string().min(10, "Message must be at least 10 characters"),
+});
+
 export const newsletterSchema = z.object({
   email: z.string().email(),
 });
@@ -185,6 +194,8 @@ export const createEventHotelSchema = z.object({
   name: z.string().min(2, "Hotel name is required"),
   location: z.string().optional(),
   description: z.string().optional(),
+  price: z.coerce.number().min(0, "Price must be zero or greater").optional(),
+  currency: z.string().min(3).max(3).default("KES"),
 });
 
 export const createEventRestaurantSchema = z.object({
@@ -225,3 +236,4 @@ export type EventInput = z.infer<typeof eventSchema>;
 export type BookingInput = z.infer<typeof bookingSchema>;
 export type ReviewInput = z.infer<typeof reviewSchema>;
 export type BookingInquiryInput = z.infer<typeof bookingInquirySchema>;
+export type PartnerEnquiryInput = z.infer<typeof partnerEnquirySchema>;

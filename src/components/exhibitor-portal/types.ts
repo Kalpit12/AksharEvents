@@ -1,14 +1,22 @@
 export type ExhibitorTab =
   | "overview"
-  | "booth"
+  | "booth-members"
+  | "booth-floor"
+  | "booth-additional"
+  | "booth-brandings"
+  | "airport"
+  | "accommodation"
+  | "expo"
+  | "tours"
+  | "checkins"
+  /** @deprecated Legacy tabs — redirected in dashboard */
   | "registration"
+  | "booth"
   | "additional"
   | "brandings"
   | "members"
-  | "tours"
   | "food"
-  | "schedules"
-  | "checkins";
+  | "schedules";
 
 export type TeamMember = {
   id: string;
@@ -26,7 +34,96 @@ export type TeamMember = {
   tours: string;
   notes: string;
   portalAccess?: boolean;
+  /** Per-member airport pick-up / drop-off answers */
+  airportLogistics?: MemberAirportLogistics;
+  /** Per-member accommodation answers */
+  accommodationLogistics?: MemberAccommodationLogistics;
+  /** Per-member expo shuttle answers */
+  expoLogistics?: MemberExpoLogistics;
+  /** Per-member tour selections */
+  tourLogistics?: MemberTourLogistics;
 };
+
+export type MemberAirportLogistics = {
+  answered: boolean;
+  flightTicket: "no" | "one_way" | "two_way";
+  visaHelp: "already_have" | "apply_myself" | "need_help";
+  airportHotelTransfer: "yes" | "no";
+  flightNumber: string;
+  arrivalTime: string;
+  sim: "none" | "new_sim" | "recharge_only";
+  moneyExchange: "no" | "yes";
+  moneyExchangeAmount: string;
+  moneyExchangeCurrency: "USD" | "EUR" | "GBP";
+  /** Filenames for Kenya eTA support documents (when visaHelp is need_help) */
+  visaDocNames?: {
+    passportBioPage: string | null;
+    passportPhoto: string | null;
+    returnTicket: string | null;
+    accommodationProof: string | null;
+    employerLetter: string | null;
+    yellowFever: string | null;
+  };
+};
+
+export type MemberAccommodationLogistics = {
+  answered: boolean;
+  needHotel: "yes" | "no";
+  hotel: string;
+};
+
+export type MemberExpoLogistics = {
+  answered: boolean;
+  dailyShuttle: "yes" | "no";
+};
+
+export type MemberTourLogistics = {
+  answered: boolean;
+  selectedTourIds: string[];
+  notes: string;
+};
+
+export const defaultMemberAirportVisaDocNames = (): NonNullable<
+  MemberAirportLogistics["visaDocNames"]
+> => ({
+  passportBioPage: null,
+  passportPhoto: null,
+  returnTicket: null,
+  accommodationProof: null,
+  employerLetter: null,
+  yellowFever: null,
+});
+
+export const defaultMemberAirportLogistics = (): MemberAirportLogistics => ({
+  answered: false,
+  flightTicket: "no",
+  visaHelp: "already_have",
+  airportHotelTransfer: "no",
+  flightNumber: "",
+  arrivalTime: "",
+  sim: "none",
+  moneyExchange: "no",
+  moneyExchangeAmount: "",
+  moneyExchangeCurrency: "USD",
+  visaDocNames: defaultMemberAirportVisaDocNames(),
+});
+
+export const defaultMemberAccommodationLogistics = (): MemberAccommodationLogistics => ({
+  answered: false,
+  needHotel: "no",
+  hotel: "",
+});
+
+export const defaultMemberExpoLogistics = (): MemberExpoLogistics => ({
+  answered: false,
+  dailyShuttle: "no",
+});
+
+export const defaultMemberTourLogistics = (): MemberTourLogistics => ({
+  answered: false,
+  selectedTourIds: [],
+  notes: "",
+});
 
 export type AirBookingRequest = {
   id: string;

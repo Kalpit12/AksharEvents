@@ -67,8 +67,8 @@ export default function ItineraryPanel({
   );
 
   const tourTravelExhibitors = useMemo(
-    () => aggregateTourTravelExhibitorSelections(exhibitors, activities),
-    [exhibitors, activities]
+    () => aggregateTourTravelExhibitorSelections(exhibitors, activities, itineraries),
+    [exhibitors, activities, itineraries]
   );
 
   const run = async (

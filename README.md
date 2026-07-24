@@ -62,6 +62,7 @@ Required variables:
 
 Optional:
 - `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
+- `PAYPAL_ENABLED`, `PAYPAL_ENV`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` (main-site tickets + booth fees; keep `PAYPAL_ENABLED=false` until ready)
 - `RESEND_API_KEY`, `EMAIL_FROM`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 
@@ -154,6 +155,7 @@ Set `DATABASE_URL` in Vercel environment variables.
 Add all variables from `.env.example` in the Vercel dashboard:
 - `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`
 - `STRIPE_*` keys
+- `PAYPAL_*` keys (leave `PAYPAL_ENABLED=false` until go-live)
 - `RESEND_API_KEY`
 - `CLOUDINARY_*` keys
 
@@ -172,6 +174,13 @@ Point Stripe webhook to: `https://your-domain.com/api/webhooks/stripe`
 
 Events: `checkout.session.completed`
 
+### 7. Configure PayPal (when enabling)
+
+1. Set `PAYPAL_ENABLED=true`, `PAYPAL_ENV=sandbox` (then `live`), client ID/secret, and `PAYPAL_WEBHOOK_ID`
+2. Return URL: `https://your-domain.com/api/payments/paypal/return`
+3. Webhook URL: `https://your-domain.com/api/webhooks/paypal` — event `PAYMENT.CAPTURE.COMPLETED`
+4. Set a booth fee on the event in Event Master → Floor plan
+
 ## API Routes
 
 | Method | Route | Auth | Description |
@@ -179,6 +188,8 @@ Events: `checkout.session.completed`
 | GET/POST | `/api/auth/[...nextauth]` | — | NextAuth handlers |
 | GET | `/api/search?q=` | Public | Global search |
 | POST | `/api/webhooks/stripe` | Stripe | Payment webhooks |
+| GET | `/api/payments/paypal/return` | PayPal | Capture order after approval |
+| POST | `/api/webhooks/paypal` | PayPal | Capture-completed backup |
 
 ## License
 

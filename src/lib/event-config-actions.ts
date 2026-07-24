@@ -106,11 +106,14 @@ export async function createEventHotel(formData: FormData) {
   const auth = await requireEventMaster();
   if (auth.error) return { error: auth.error };
 
+  const priceRaw = formData.get("price");
   const parsed = createEventHotelSchema.safeParse({
     eventId: formData.get("eventId"),
     name: formData.get("name"),
     location: formData.get("location") || undefined,
     description: formData.get("description") || undefined,
+    price: priceRaw === "" || priceRaw == null ? undefined : priceRaw,
+    currency: formData.get("currency") || "KES",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -125,6 +128,8 @@ export async function createEventHotel(formData: FormData) {
       name: parsed.data.name.trim(),
       location: parsed.data.location?.trim() || null,
       description: parsed.data.description?.trim() || null,
+      price: parsed.data.price ?? null,
+      currency: (parsed.data.currency || "KES").toUpperCase(),
       sortOrder: count,
     },
   });

@@ -6,6 +6,8 @@ import {
 } from "@/components/exhibitor-portal/registration-travel-step";
 import { activityLabelMap } from "@/lib/exhibitor-form-options";
 import type { EventActivityOption } from "@/lib/event-activity-types";
+import type { SerializedTourTravelItinerary } from "@/lib/itinerary-types";
+import { registrationProgress as sectionRegistrationProgress } from "@/lib/exhibitor-section-progress";
 
 export type AdminExhibitorRecord = {
   id: string;
@@ -26,15 +28,7 @@ export type AdminExhibitorRecord = {
 };
 
 export function registrationProgress(data: SavedRegistrationData | null): number {
-  if (!data) return 0;
-  let count = 0;
-  if (data.formSteps.company) count++;
-  if (data.formSteps.event) count++;
-  if (data.members.length > 0) count++;
-  if (data.formSteps.travel) count++;
-  if (data.formSteps.transport) count++;
-  if (data.formSteps.food) count++;
-  return Math.round((count / 6) * 100);
+  return sectionRegistrationProgress(data);
 }
 
 export function formatTravelSummaryFromSaved(
@@ -97,8 +91,15 @@ export function formatTravelSummaryFromSaved(
   return rows;
 }
 
-export function tourLabelsFromIds(ids: string[], activities: EventActivityOption[] = []): string[] {
+export function tourLabelsFromIds(
+  ids: string[],
+  activities: EventActivityOption[] = [],
+  itineraries: Pick<SerializedTourTravelItinerary, "id" | "title">[] = []
+): string[] {
   const labels = activityLabelMap(activities);
+  for (const trip of itineraries) {
+    labels.set(trip.id, trip.title);
+  }
   return ids.map((id) => labels.get(id) ?? id);
 }
 

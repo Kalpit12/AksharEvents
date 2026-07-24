@@ -11,6 +11,7 @@ import {
   cancelExhibitorBoothRequest,
   requestExhibitorBooth,
 } from "@/lib/exhibitor-booth-actions";
+import { startBoothPayPalCheckout } from "@/lib/booth-payment-actions";
 import type {
   EventFloorPlanConfig,
   ExhibitorBoothPhase,
@@ -19,7 +20,7 @@ import type {
 import { ModalShell } from "@/components/exhibitor-portal/exhibitor-portal-ui";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { Building2, CheckCircle2, Clock, MapPin, ShieldCheck } from "lucide-react";
+import { Building2, CheckCircle2, Clock, CreditCard, MapPin, ShieldCheck } from "lucide-react";
 
 type Props = {
   eventExhibitorId: string;
@@ -28,6 +29,12 @@ type Props = {
   initialPhase: ExhibitorBoothPhase;
   initialOwnBoothCode: string | null;
   hall?: string | null;
+  paypalBoothCheckout?: {
+    available: boolean;
+    amount: number | null;
+    currency: string | null;
+    eventBoothId: string | null;
+  };
 };
 
 const PHASE_COPY: Record<
@@ -69,6 +76,7 @@ export default function ExhibitorFloorPlanPanel({
   initialPhase,
   initialOwnBoothCode,
   hall,
+  paypalBoothCheckout,
 }: Props) {
   const router = useRouter();
   const [booths, setBooths] = useState(initialBooths);
@@ -213,6 +221,28 @@ export default function ExhibitorFloorPlanPanel({
     });
   };
 
+  const payWithPayPal = () => {
+    const boothId = paypalBoothCheckout?.eventBoothId;
+    if (!boothId) {
+      setMessage("PayPal checkout is not available for this booth.");
+      return;
+    }
+    startTransition(async () => {
+      const result = await startBoothPayPalCheckout(boothId);
+      if ("error" in result && result.error) {
+        setMessage(result.error);
+        return;
+      }
+      if ("checkoutUrl" in result && result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      }
+    });
+  };
+
+  const showPaypalPay =
+    phase === "reserved" &&
+    Boolean(paypalBoothCheckout?.available && paypalBoothCheckout.eventBoothId);
+
   return (
     <div className="space-y-4">
       <div
@@ -342,9 +372,23 @@ export default function ExhibitorFloorPlanPanel({
               ) : (
                 <div className="flex flex-col gap-2">
                   {selected.eventExhibitorId === eventExhibitorId && phase === "reserved" ? (
-                    <Button type="button" variant="outline" onClick={cancelRequest} disabled={pending}>
-                      {pending ? "Cancelling…" : "Cancel reservation"}
-                    </Button>
+                    <>
+                      {showPaypalPay ? (
+                        <Button type="button" onClick={payWithPayPal} disabled={pending}>
+                          <CreditCard className="mr-1.5 h-4 w-4" />
+                          {pending
+                            ? "Redirecting…"
+                            : `Pay with PayPal${
+                                paypalBoothCheckout?.amount != null && paypalBoothCheckout.currency
+                                  ? ` · ${paypalBoothCheckout.currency} ${paypalBoothCheckout.amount}`
+                                  : ""
+                              }`}
+                        </Button>
+                      ) : null}
+                      <Button type="button" variant="outline" onClick={cancelRequest} disabled={pending}>
+                        {pending ? "Cancelling…" : "Cancel reservation"}
+                      </Button>
+                    </>
                   ) : null}
                   {(selected.status === "AVAILABLE" ||
                     selected.status === "PREMIUM" ||

@@ -261,9 +261,9 @@ export function ExhibitorBoothCheckInsPanel({
       <Panel title="Booth visitor check-ins" icon={IdCard} action={scanModeToggle}>
         <p className="text-sm text-muted-foreground">
           Scan visitor badges at your booth{boothLabel ? ` (${boothLabel})` : ""}. Each visitor is
-          recorded once — repeat scans show as already checked in. Turn on{" "}
-          <span className="font-medium text-foreground">Scan mode</span> for a full-screen scanner
-          view without other portal menus.
+          recorded once — repeat scans show as already checked in. Use the{" "}
+          <span className="font-medium text-foreground">Scan mode</span> toggle in the sidebar for a
+          focused scanner view.
         </p>
       </Panel>
 

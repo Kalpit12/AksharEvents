@@ -20,8 +20,8 @@ function createPrismaClient() {
   const pooledUrl =
     databaseUrl && process.env.NODE_ENV !== "production"
       ? withDatabaseUrlParams(databaseUrl, {
-          // Allow a few concurrent queries in dev without exhausting Neon's pooler.
-          connection_limit: "3",
+          // Keep concurrency modest in local/dev; Next.js RSC + layout queries need headroom.
+          connection_limit: "5",
           pool_timeout: "60",
           connect_timeout: "60",
         })

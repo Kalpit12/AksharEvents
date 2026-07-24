@@ -372,6 +372,9 @@ model Event {
   floorPlanHeight         Int?
   floorPlanImagePublicId  String?
   floorPlanSvgPublicId    String?
+  /// Main-site exhibitor booth fee (PayPal when enabled)
+  boothFee                Decimal?  @db.Decimal(10, 2)
+  boothFeeCurrency        String    @default("KES")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -407,6 +410,7 @@ model EventBooth {
   layoutY          Int?
   layoutW          Int?
   layoutH          Int?
+  payment          Payment?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -497,8 +501,12 @@ model BookingItem {
 
 model Payment {
   id              String        @id @default(cuid())
-  bookingId       String        @unique
-  booking         Booking       @relation(fields: [bookingId], references: [id])
+  bookingId       String?       @unique
+  booking         Booking?      @relation(fields: [bookingId], references: [id])
+  eventBoothId    String?       @unique
+  eventBooth      EventBooth?   @relation(fields: [eventBoothId], references: [id], onDelete: SetNull)
+  /// ticket | booth
+  purpose         String        @default("ticket")
   amount          Decimal       @db.Decimal(10, 2)
   currency        String        @default("KES")
   status          PaymentStatus @default(PENDING)
@@ -506,7 +514,9 @@ model Payment {
   stripeSessionId String?       @unique
   hdfcOrderId     String?       @unique
   hdfcPaymentId   String?       @unique
-  gateway         String?       // stripe | hdfc
+  paypalOrderId   String?       @unique
+  paypalCaptureId String?       @unique
+  gateway         String?       // stripe | hdfc | paypal
   invoiceNumber   String?       @unique
   metadata        Json?
 
@@ -514,6 +524,7 @@ model Payment {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([purpose])
 }
 
 model Coupon {
@@ -811,6 +822,9 @@ model EventHotel {
   name        String
   location    String?
   description String?  @db.Text
+  /// Nightly / package rate shown to exhibitors
+  price       Decimal? @db.Decimal(10, 2)
+  currency    String   @default("KES")
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())

@@ -341,7 +341,14 @@ export async function registerExhibitorForEvent(eventId: string) {
 
   revalidatePath("/exhibitor");
   revalidatePath("/admin");
-  return { success: true, eventExhibitorId: result.eventExhibitorId };
+  return {
+    success: true,
+    eventExhibitorId: result.eventExhibitorId,
+    alreadyLinked: result.alreadyLinked,
+    eventId: result.eventId,
+    eventSlug: result.eventSlug,
+    eventTitle: result.eventTitle,
+  };
 }
 
 export async function removeExhibitorMember(memberId: string) {

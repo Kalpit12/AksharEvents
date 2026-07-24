@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PartnerPublic } from "@/lib/partners";
 import { partnerPath } from "@/lib/partners";
+import { PartnerContactDetails } from "@/components/partner/partner-contact-details";
 
 export function PartnerFooter({ partner }: { partner: PartnerPublic }) {
   const base = partnerPath(partner.slug);
@@ -11,14 +12,7 @@ export function PartnerFooter({ partner }: { partner: PartnerPublic }) {
         <Link href={base} className="font-semibold hover:text-[var(--partner-primary)]">
           {partner.name}
         </Link>
-        {partner.contactEmail && (
-          <a
-            href={`mailto:${partner.contactEmail}`}
-            className="text-sm text-white/75 hover:text-[var(--partner-primary)]"
-          >
-            {partner.contactEmail}
-          </a>
-        )}
+        <PartnerContactDetails partner={partner} variant="footer" />
         <p className="text-xs text-white/55">
           © {new Date().getFullYear()} {partner.name}. Events powered by AxarEvents.
         </p>

@@ -241,6 +241,36 @@ export async function verifyBoothPayment(input: {
   return { success: true as const };
 }
 
+export async function updateEventBoothFee(input: {
+  eventId: string;
+  boothFee: number | null;
+  boothFeeCurrency: string;
+}) {
+  const auth = await requireEventMaster();
+  if (auth.error) return { error: auth.error };
+
+  const currency = input.boothFeeCurrency.trim().toUpperCase() || "KES";
+  if (currency.length !== 3) {
+    return { error: "Currency must be a 3-letter code (e.g. KES, USD)." };
+  }
+
+  if (input.boothFee != null && (Number.isNaN(input.boothFee) || input.boothFee < 0)) {
+    return { error: "Booth fee must be a non-negative number." };
+  }
+
+  await prisma.event.update({
+    where: { id: input.eventId },
+    data: {
+      boothFee: input.boothFee,
+      boothFeeCurrency: currency,
+    },
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/exhibitor", "layout");
+  return { success: true as const };
+}
+
 export async function allocateBoothToExhibitor(input: {
   eventId: string;
   boothCode: string;

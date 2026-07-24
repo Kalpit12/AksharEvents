@@ -381,6 +381,38 @@ export async function sendBookingInquiryEmail(data: {
   });
 }
 
+export async function sendPartnerEnquiryEmail(data: {
+  partnerName: string;
+  partnerSlug: string;
+  to: string;
+  cc?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject: string;
+  message: string;
+}) {
+  return sendEmail({
+    to: data.to,
+    cc: data.cc,
+    replyTo: data.email,
+    subject: `Partner enquiry — ${data.partnerName}: ${data.subject}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #0D9488;">New Partner Enquiry</h1>
+        <p><strong>Partner:</strong> ${data.partnerName} (${data.partnerSlug})</p>
+        <h2 style="font-size: 16px; margin-top: 24px;">Contact</h2>
+        <p><strong>Name:</strong> ${data.name}</p>
+        <p><strong>Email:</strong> ${data.email}</p>
+        <p><strong>Phone:</strong> ${data.phone || "—"}</p>
+        <p><strong>Subject:</strong> ${data.subject}</p>
+        <h2 style="font-size: 16px; margin-top: 24px;">Message</h2>
+        <p style="white-space: pre-wrap;">${data.message}</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendFlightBookingRequestNotification({
   companyName,
   eventTitle,

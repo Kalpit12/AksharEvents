@@ -55,6 +55,8 @@ export type AdminEventMasterPageData = {
   itemMaster: EventItemMasterOption[];
   floorPlanBooths: FloorPlanBoothRecord[];
   floorPlan: EventFloorPlanConfig;
+  boothFee: number | null;
+  boothFeeCurrency: string;
   tourTravelItineraries: SerializedTourTravelItinerary[];
 };
 
@@ -105,9 +107,13 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
     }),
   ]);
 
-  const [floorPlanResult, tourTravelItineraries] = await Promise.all([
+  const [floorPlanResult, tourTravelItineraries, boothFeeRow] = await Promise.all([
     getEventFloorPlanBooths(eventId),
     loadEventTourTravelItineraries(eventId),
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { boothFee: true, boothFeeCurrency: true },
+    }),
   ]);
 
   const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => {
@@ -143,6 +149,8 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
     itemMaster: itemMasterRows.map(serializeEventItemMaster),
     floorPlanBooths: floorPlanResult.booths ?? [],
     floorPlan: floorPlanResult.floorPlan ?? defaultFloorPlan,
+    boothFee: boothFeeRow?.boothFee?.toNumber() ?? null,
+    boothFeeCurrency: boothFeeRow?.boothFeeCurrency ?? "KES",
     tourTravelItineraries,
   };
 }

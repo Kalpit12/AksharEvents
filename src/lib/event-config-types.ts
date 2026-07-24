@@ -3,6 +3,8 @@ export type EventHotelOption = {
   name: string;
   location: string | null;
   description: string | null;
+  price: number | null;
+  currency: string;
   isActive: boolean;
   sortOrder: number;
 };
@@ -45,17 +47,36 @@ export function serializeEventHotel(hotel: {
   name: string;
   location: string | null;
   description: string | null;
+  price?: { toNumber(): number } | number | null;
+  currency?: string | null;
   isActive: boolean;
   sortOrder: number;
 }): EventHotelOption {
+  const price =
+    hotel.price == null
+      ? null
+      : typeof hotel.price === "number"
+        ? hotel.price
+        : hotel.price.toNumber();
   return {
     id: hotel.id,
     name: hotel.name,
     location: hotel.location,
     description: hotel.description,
+    price,
+    currency: hotel.currency ?? "KES",
     isActive: hotel.isActive,
     sortOrder: hotel.sortOrder,
   };
+}
+
+export function formatHotelOptionLabel(hotel: EventHotelOption): string {
+  const parts = [hotel.name];
+  if (hotel.location) parts.push(hotel.location);
+  if (hotel.price != null) {
+    parts.push(`${hotel.currency} ${hotel.price.toLocaleString()}`);
+  }
+  return parts.join(" — ");
 }
 
 export function serializeEventRestaurant(restaurant: {

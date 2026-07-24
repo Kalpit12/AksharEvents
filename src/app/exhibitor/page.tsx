@@ -6,17 +6,23 @@ import ExhibitorPortalDashboard from "@/components/exhibitor-portal/exhibitor-po
 
 export const dynamic = "force-dynamic";
 
-export default async function ExhibitorDashboardPage() {
+export default async function ExhibitorDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ event?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/auth/exhibitor?mode=signin");
 
   const access = await requireExhibitorAccess(user.id);
   if (!access?.membership) redirect("/auth/exhibitor?mode=signup");
 
+  const { event: preferredEvent } = await searchParams;
   const data = await loadExhibitorDashboardPageDataWithRetry(
     access.exhibitor,
     access.membership.role,
-    user.id
+    user.id,
+    preferredEvent ?? null
   );
 
   return (
@@ -40,6 +46,7 @@ export default async function ExhibitorDashboardPage() {
       boothReservedCode={data.boothReservedCode}
       floorPlan={data.floorPlan}
       floorPlanBooths={data.floorPlanBooths}
+      paypalBoothCheckout={data.paypalBoothCheckout}
       hall={data.hall}
       expoDays={data.expoDays}
       eventActivities={data.eventActivities}
@@ -49,6 +56,9 @@ export default async function ExhibitorDashboardPage() {
       itemCatalog={data.itemCatalog}
       canManageMembers={canManageMembers(data.membershipRole)}
       openEvents={data.openEvents}
+      registeredEvents={data.registeredEvents}
+      eventId={data.eventId}
+      eventSlug={data.eventSlug}
       memberDocuments={data.memberDocuments}
       airBookingRequests={data.airBookingRequests}
       memberWorkflows={data.memberWorkflows}

@@ -104,6 +104,8 @@ export default async function AdminEventMasterPage({
           exhibitors={data.exhibitors}
           floorPlanBooths={data.floorPlanBooths}
           floorPlan={data.floorPlan}
+          boothFee={data.boothFee}
+          boothFeeCurrency={data.boothFeeCurrency}
           activities={data.activities}
           eventHotels={data.eventHotels}
           eventRestaurants={data.eventRestaurants}

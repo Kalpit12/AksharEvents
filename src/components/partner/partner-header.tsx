@@ -6,12 +6,14 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import type { PartnerPublic } from "@/lib/partners";
 import { partnerPath } from "@/lib/partners";
+import { PartnerContactDetails } from "@/components/partner/partner-contact-details";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Home", path: "" },
   { label: "Events", path: "#events" },
+  { label: "Contact", path: "/contact" },
 ];
 
 export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
@@ -47,40 +49,45 @@ export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
           )}
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {NAV.map((item) => {
-            const href = item.path.startsWith("#") ? `${base}${item.path}` : partnerPath(partner.slug, item.path);
-            const active =
-              item.path === ""
-                ? pathname === base
-                : pathname === base || pathname.startsWith(`${base}/events`);
-            return (
-              <Link
-                key={item.path}
-                href={href}
-                className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-[var(--partner-primary)]/10 text-[var(--partner-primary)]"
-                    : "text-muted-foreground hover:text-[var(--partner-primary)]"
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          <Link
-            href={organizerLoginHref}
-            className={cn(
-              "ml-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              pathname.startsWith(organizerPath)
-                ? "bg-[var(--partner-primary)] text-white"
-                : "bg-[var(--partner-primary)]/10 text-[var(--partner-primary)] hover:bg-[var(--partner-primary)]/20"
-            )}
-          >
-            Organizer Dashboard
-          </Link>
-        </nav>
+        <div className="hidden items-center gap-4 md:flex">
+          <PartnerContactDetails partner={partner} variant="inline" />
+          <nav className="flex items-center gap-1">
+            {NAV.map((item) => {
+              const href = item.path.startsWith("#") ? `${base}${item.path}` : partnerPath(partner.slug, item.path);
+              const active =
+                item.path === ""
+                  ? pathname === base
+                  : item.path === "/contact"
+                    ? pathname.startsWith(`${base}/contact`)
+                    : pathname === base || pathname.startsWith(`${base}/events`);
+              return (
+                <Link
+                  key={item.path}
+                  href={href}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-[var(--partner-primary)]/10 text-[var(--partner-primary)]"
+                      : "text-muted-foreground hover:text-[var(--partner-primary)]"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+            <Link
+              href={organizerLoginHref}
+              className={cn(
+                "ml-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname.startsWith(organizerPath)
+                  ? "bg-[var(--partner-primary)] text-white"
+                  : "bg-[var(--partner-primary)]/10 text-[var(--partner-primary)] hover:bg-[var(--partner-primary)]/20"
+              )}
+            >
+              Organizer Dashboard
+            </Link>
+          </nav>
+        </div>
 
         <button
           type="button"
@@ -108,6 +115,28 @@ export function PartnerHeader({ partner }: { partner: PartnerPublic }) {
                 </Link>
               );
             })}
+            {(partner.contactEmail?.trim() || partner.contactPhone?.trim()) && (
+              <div className="mt-2 space-y-1 border-t border-border/60 px-3 pt-3 text-sm text-muted-foreground">
+                {partner.contactEmail?.trim() && (
+                  <a
+                    href={`mailto:${partner.contactEmail.trim()}`}
+                    className="block hover:text-[var(--partner-primary)]"
+                    onClick={() => setOpen(false)}
+                  >
+                    {partner.contactEmail.trim()}
+                  </a>
+                )}
+                {partner.contactPhone?.trim() && (
+                  <a
+                    href={`tel:${partner.contactPhone.trim().replace(/\s+/g, "")}`}
+                    className="block hover:text-[var(--partner-primary)]"
+                    onClick={() => setOpen(false)}
+                  >
+                    {partner.contactPhone.trim()}
+                  </a>
+                )}
+              </div>
+            )}
             <Link
               href={organizerLoginHref}
               className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--partner-primary)]"

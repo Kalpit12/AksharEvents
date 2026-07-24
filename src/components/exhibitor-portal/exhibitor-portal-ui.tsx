@@ -4,7 +4,8 @@ import Ferrofluid from "@/components/ferrofluid/Ferrofluid";
 import { HERO_FERROFLUID } from "@/lib/hero-ferrofluid";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Check, CheckCircle2, Circle, MapPin, Sparkles, X } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, ChevronDown, Circle, MapPin, Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export type PortalHeroStatus = "not_linked" | "draft" | "submitted";
 
@@ -160,65 +161,151 @@ export function MetricCard({
   value,
   icon: Icon,
   accent,
+  hint,
 }: {
   label: string;
   value: string | number;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   accent: "teal" | "emerald" | "violet" | "amber" | "sky";
+  hint?: string;
 }) {
   const accents = {
     teal: {
-      card: "from-champagne/10 to-champagne/5 border-champagne/30 dark:border-champagne/20",
-      icon: "text-primary",
+      shell: "border-champagne/25 hover:border-champagne/45",
+      wash: "from-champagne/20 via-champagne/5 to-transparent",
+      bar: "bg-champagne-dark",
+      iconWrap: "bg-champagne/15 text-champagne-dark ring-champagne/25 dark:text-champagne-light",
     },
     emerald: {
-      card: "from-emerald-500/10 to-emerald-600/5 border-emerald-200/60 dark:border-emerald-800/40",
-      icon: "text-emerald-600",
+      shell: "border-emerald-200/70 hover:border-emerald-300 dark:border-emerald-800/50",
+      wash: "from-emerald-500/15 via-emerald-500/5 to-transparent",
+      bar: "bg-emerald-500",
+      iconWrap: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-300",
     },
     violet: {
-      card: "from-violet-500/10 to-violet-600/5 border-violet-200/60 dark:border-violet-800/40",
-      icon: "text-violet-600",
+      shell: "border-violet-200/70 hover:border-violet-300 dark:border-violet-800/50",
+      wash: "from-violet-500/15 via-violet-500/5 to-transparent",
+      bar: "bg-violet-500",
+      iconWrap: "bg-violet-500/10 text-violet-700 ring-violet-500/20 dark:text-violet-300",
     },
     amber: {
-      card: "from-amber-500/10 to-amber-600/5 border-amber-200/60 dark:border-amber-800/40",
-      icon: "text-amber-600",
+      shell: "border-amber-200/70 hover:border-amber-300 dark:border-amber-800/50",
+      wash: "from-amber-500/15 via-amber-500/5 to-transparent",
+      bar: "bg-amber-500",
+      iconWrap: "bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-300",
     },
     sky: {
-      card: "from-sky-500/10 to-sky-600/5 border-sky-200/60 dark:border-sky-800/40",
-      icon: "text-sky-600",
+      shell: "border-sky-200/70 hover:border-sky-300 dark:border-sky-800/50",
+      wash: "from-sky-500/15 via-sky-500/5 to-transparent",
+      bar: "bg-sky-500",
+      iconWrap: "bg-sky-500/10 text-sky-700 ring-sky-500/20 dark:text-sky-300",
     },
   };
 
   const style = accents[accent];
 
   return (
-    <div className={cn("group rounded-xl border bg-gradient-to-br p-4 transition-all hover:-translate-y-0.5 hover:shadow-md", style.card)}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg bg-background/80 shadow-sm", style.icon)}>
-          <Icon className="h-4 w-4" />
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all duration-200",
+        "hover:-translate-y-0.5 hover:shadow-md",
+        style.shell
+      )}
+    >
+      <div
+        aria-hidden
+        className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br", style.wash)}
+      />
+      <div
+        aria-hidden
+        className={cn("absolute inset-y-0 left-0 w-1 rounded-l-2xl", style.bar)}
+      />
+
+      <div className="relative flex items-start justify-between gap-3 pl-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+            {value}
+          </p>
+          {hint ? (
+            <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform duration-200 group-hover:scale-105",
+            style.iconWrap
+          )}
+        >
+          <Icon className="h-[1.125rem] w-[1.125rem]" strokeWidth={1.75} />
         </div>
       </div>
-      <div className="text-2xl font-bold tracking-tight text-foreground">{value}</div>
     </div>
   );
 }
 
+export type PortalNavItem<T extends string> = {
+  id: T;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  pct?: number;
+};
+
+export type PortalNavGroup<T extends string> = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: PortalNavItem<T>[];
+  pct?: number;
+};
+
 export function PortalNav<T extends string>({
   tabs,
+  groups,
   active,
   onChange,
+  footer,
 }: {
-  tabs: { id: T; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  tabs?: PortalNavItem<T>[];
+  groups?: (PortalNavItem<T> | PortalNavGroup<T>)[];
   active: T;
   onChange: (id: T) => void;
+  footer?: React.ReactNode;
 }) {
+  const flatItems: PortalNavItem<T>[] = groups
+    ? groups.flatMap((entry) => ("items" in entry ? entry.items : [entry]))
+    : tabs ?? [];
+
+  const desktopEntries = groups ?? tabs ?? [];
+  const groupIds = desktopEntries
+    .filter((entry): entry is PortalNavGroup<T> => "items" in entry)
+    .map((entry) => entry.id);
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(groupIds.map((id) => [id, true]))
+  );
+
+  useEffect(() => {
+    for (const entry of desktopEntries) {
+      if (!("items" in entry)) continue;
+      if (entry.items.some((item) => item.id === active)) {
+        setOpenGroups((prev) => (prev[entry.id] ? prev : { ...prev, [entry.id]: true }));
+      }
+    }
+  }, [active, desktopEntries]);
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
   return (
-    <div className="min-w-0">
-      {/* Mobile: horizontal scroll — full width above main grid */}
+    <div className="min-w-0 space-y-3">
+      {/* Mobile: horizontal scroll */}
       <div className="lg:hidden">
         <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-          {tabs.map(({ id, label, icon: Icon }) => (
+          {flatItems.map(({ id, label, icon: Icon, pct }) => (
             <button
               key={id}
               type="button"
@@ -232,33 +319,127 @@ export function PortalNav<T extends string>({
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span className="whitespace-nowrap">{label}</span>
+              {typeof pct === "number" && (
+                <span
+                  className={cn(
+                    "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                    active === id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {pct}%
+                </span>
+              )}
             </button>
           ))}
         </div>
+        {footer ? <div className="mt-2">{footer}</div> : null}
       </div>
 
       {/* Desktop: sidebar */}
-      <nav className="hidden lg:block lg:w-full">
-        <div className="sticky top-24 space-y-1 rounded-2xl border border-border bg-card p-2 shadow-sm">
+      <nav className="hidden min-w-0 lg:block lg:w-full">
+        <div className="sticky top-24 space-y-1 rounded-2xl border border-border bg-card p-2.5 shadow-sm">
           <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Menu
           </p>
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onChange(id)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-all",
-                active === id
-                  ? "bg-primary font-medium text-white shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="whitespace-nowrap">{label}</span>
-            </button>
-          ))}
+          {desktopEntries.map((entry) => {
+            if ("items" in entry) {
+              const groupActive = entry.items.some((item) => item.id === active);
+              const isOpen = openGroups[entry.id] ?? groupActive;
+              const GroupIcon = entry.icon;
+              return (
+                <div key={entry.id} className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(entry.id)}
+                    aria-expanded={isOpen}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors",
+                      groupActive
+                        ? "text-foreground hover:bg-muted/60"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <GroupIcon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 whitespace-nowrap">{entry.label}</span>
+                    {typeof entry.pct === "number" && (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        {entry.pct}%
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                        isOpen && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  {isOpen ? (
+                    <div className="ml-2 space-y-0.5 border-l border-border pl-2">
+                      {entry.items.map(({ id, label, icon: Icon, pct }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => onChange(id)}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition-all",
+                            active === id
+                              ? "bg-primary font-medium text-white shadow-sm"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="flex-1 whitespace-nowrap">{label}</span>
+                          {typeof pct === "number" && (
+                            <span
+                              className={cn(
+                                "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                active === id
+                                  ? "bg-white/20 text-white"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              {pct}%
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
+
+            const { id, label, icon: Icon, pct } = entry;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onChange(id)}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                  active === id
+                    ? "bg-primary font-medium text-white shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1 whitespace-nowrap">{label}</span>
+                {typeof pct === "number" && (
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                      active === id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {pct}%
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          {footer ? (
+            <div className="mt-2 border-t border-border px-1 pt-2">{footer}</div>
+          ) : null}
         </div>
       </nav>
     </div>
@@ -476,7 +657,7 @@ export function QuickAction({
   highlight,
 }: {
   label: string;
-  sub: string;
+  sub?: string;
   onClick: () => void;
   highlight?: boolean;
 }) {
@@ -491,19 +672,17 @@ export function QuickAction({
           : "border-border/80 bg-background hover:border-champagne/60 hover:bg-champagne/5 dark:hover:border-champagne/20 dark:hover:bg-champagne/10"
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "text-xs font-semibold leading-tight sm:text-[13px]",
-            highlight && "text-espresso dark:text-champagne-light"
-          )}
-        >
-          {label}
-        </div>
-        <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-          {sub}
-        </div>
+      <div
+        className={cn(
+          "min-w-0 flex-1 text-xs font-semibold leading-tight sm:text-[13px]",
+          highlight && "text-espresso dark:text-champagne-light"
+        )}
+      >
+        {label}
       </div>
+      {sub ? (
+        <span className="sr-only">{sub}</span>
+      ) : null}
       <ArrowRight
         className={cn(
           "h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5",
@@ -516,7 +695,7 @@ export function QuickAction({
 
 export function QuickActionsRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
       {children}
     </div>
   );

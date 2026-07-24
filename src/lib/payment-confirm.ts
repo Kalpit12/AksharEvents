@@ -4,11 +4,15 @@ import { getPassBadgeLabel } from "@/lib/pass-badge";
 import { generateQRCodeDataUrl, getTicketQRPayload } from "@/lib/qr";
 import { partnerPath } from "@/lib/partners";
 
-export async function confirmBookingPayment(bookingId: string, paymentUpdate: {
-  gateway: "stripe" | "hdfc";
-  stripePaymentId?: string;
-  hdfcPaymentId?: string;
-}) {
+export async function confirmBookingPayment(
+  bookingId: string,
+  paymentUpdate: {
+    gateway: "stripe" | "hdfc" | "paypal";
+    stripePaymentId?: string;
+    hdfcPaymentId?: string;
+    paypalCaptureId?: string;
+  }
+) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -37,6 +41,9 @@ export async function confirmBookingPayment(bookingId: string, paymentUpdate: {
           : {}),
         ...(paymentUpdate.hdfcPaymentId
           ? { hdfcPaymentId: paymentUpdate.hdfcPaymentId }
+          : {}),
+        ...(paymentUpdate.paypalCaptureId
+          ? { paypalCaptureId: paymentUpdate.paypalCaptureId }
           : {}),
       },
     }),
@@ -80,6 +87,54 @@ export async function confirmBookingPayment(bookingId: string, paymentUpdate: {
   });
 
   return booking;
+}
+
+export async function confirmBoothPayment(
+  eventBoothId: string,
+  paymentUpdate: {
+    gateway: "paypal";
+    paypalCaptureId?: string;
+  }
+) {
+  const booth = await prisma.eventBooth.findUnique({
+    where: { id: eventBoothId },
+    include: {
+      payment: true,
+      event: { select: { id: true, slug: true, title: true } },
+    },
+  });
+
+  if (!booth) return null;
+  if (booth.paymentVerified) return booth;
+
+  await prisma.$transaction([
+    prisma.eventBooth.update({
+      where: { id: eventBoothId },
+      data: {
+        paymentVerified: true,
+        paymentVerifiedAt: new Date(),
+        paymentVerifiedBy: paymentUpdate.gateway,
+      },
+    }),
+    prisma.payment.update({
+      where: { eventBoothId },
+      data: {
+        status: "COMPLETED",
+        gateway: paymentUpdate.gateway,
+        ...(paymentUpdate.paypalCaptureId
+          ? { paypalCaptureId: paymentUpdate.paypalCaptureId }
+          : {}),
+      },
+    }),
+  ]);
+
+  return prisma.eventBooth.findUnique({
+    where: { id: eventBoothId },
+    include: {
+      payment: true,
+      event: { select: { id: true, slug: true, title: true } },
+    },
+  });
 }
 
 export function bookingSuccessPath(bookingNumber: string, partnerSlug?: string | null) {

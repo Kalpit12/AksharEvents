@@ -29,6 +29,9 @@ export type RegistrationFormSteps = {
   travel: boolean;
   transport: boolean;
   food: boolean;
+  /** New section registration flags */
+  boothAdditional?: boolean;
+  boothBrandings?: boolean;
 };
 
 export type SavedRegistrationData = {

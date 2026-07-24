@@ -68,16 +68,38 @@ export async function linkExhibitorToEvent(exhibitorId: string, eventId: string)
     return { error: "Selected event is not open for exhibitor registration" as const };
   }
 
+  const eventMeta = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, slug: true, title: true },
+  });
+  if (!eventMeta) {
+    return { error: "Selected event is not open for exhibitor registration" as const };
+  }
+
   const existing = await prisma.eventExhibitor.findUnique({
     where: { eventId_exhibitorId: { eventId, exhibitorId } },
   });
   if (existing) {
-    return { success: true as const, eventExhibitorId: existing.id, alreadyLinked: true as const };
+    return {
+      success: true as const,
+      eventExhibitorId: existing.id,
+      alreadyLinked: true as const,
+      eventId: eventMeta.id,
+      eventSlug: eventMeta.slug,
+      eventTitle: eventMeta.title,
+    };
   }
 
   const entry = await prisma.eventExhibitor.create({
     data: { eventId, exhibitorId },
   });
 
-  return { success: true as const, eventExhibitorId: entry.id, alreadyLinked: false as const };
+  return {
+    success: true as const,
+    eventExhibitorId: entry.id,
+    alreadyLinked: false as const,
+    eventId: eventMeta.id,
+    eventSlug: eventMeta.slug,
+    eventTitle: eventMeta.title,
+  };
 }
