@@ -822,7 +822,7 @@ model EventHotel {
   name        String
   location    String?
   description String?  @db.Text
-  /// Nightly / package rate shown to exhibitors
+  /// Per-night rate shown to exhibitors
   price       Decimal? @db.Decimal(10, 2)
   currency    String   @default("KES")
   isActive    Boolean  @default(true)

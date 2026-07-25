@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
@@ -5,7 +6,13 @@ import { loadAdminEventMasterPageDataWithRetry } from "@/lib/admin-page-data";
 import { loadVisitorCheckInStatsWithRetry } from "@/lib/visitor-check-ins";
 import { loadExhibitorCheckInStatsWithRetry } from "@/lib/exhibitor-check-ins";
 import { getFlightBookingAgentEmail } from "@/lib/flight-booking-config";
-import { prisma } from "@/lib/prisma";
+import { EM_SELECTED_EVENT_COOKIE } from "@/lib/em-selected-event";
+import {
+  eventLifecycleLabel,
+  rankPublishedEvents,
+  resolvePublishedEventSelection,
+} from "@/lib/primary-event";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import EventMasterDashboard from "@/components/event-master/event-master-dashboard";
 import { EventMasterPageHero } from "@/components/event-master/event-master-ui";
 import { cn } from "@/lib/utils";
@@ -23,25 +30,33 @@ export default async function AdminEventMasterPage({
   const { tab: urlTab, eventId: urlEventId, checkinKind: urlCheckinKind } = await searchParams;
   const isFloorPlan = urlTab === "floorplan";
 
-  const publishedEvents = await prisma.event.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: [{ isFeatured: "desc" }, { startDate: "asc" }],
-    include: { venue: { select: { name: true, city: true } } },
+  const cookieStore = await cookies();
+  const cookieEventId = cookieStore.get(EM_SELECTED_EVENT_COOKIE)?.value ?? null;
+
+  const publishedEventsRaw = await withDbRetry(() =>
+    prisma.event.findMany({
+      where: { status: "PUBLISHED" },
+      include: { venue: { select: { name: true, city: true } } },
+    })
+  );
+
+  const publishedEvents = rankPublishedEvents(publishedEventsRaw);
+  const event = resolvePublishedEventSelection(publishedEvents, {
+    urlEventId,
+    cookieEventId,
   });
 
-  const event = urlEventId
-    ? (publishedEvents.find((e) => e.id === urlEventId) ?? publishedEvents[0] ?? null)
-    : (publishedEvents[0] ?? null);
-
   const eventKioskMeta = event
-    ? await prisma.event.findUnique({
-        where: { id: event.id },
-        select: {
-          slug: true,
-          boothKioskEnabled: true,
-          boothKioskPasswordHash: true,
-        },
-      })
+    ? await withDbRetry(() =>
+        prisma.event.findUnique({
+          where: { id: event.id },
+          select: {
+            slug: true,
+            boothKioskEnabled: true,
+            boothKioskPasswordHash: true,
+          },
+        })
+      )
     : null;
 
   if (!event) {
@@ -81,6 +96,7 @@ export default async function AdminEventMasterPage({
     location: e.venue?.city ?? e.venue?.name ?? "Kenya",
     startDate: e.startDate.toISOString(),
     endDate: e.endDate.toISOString(),
+    lifecycle: eventLifecycleLabel(e.startDate, e.endDate),
   }));
 
   return (

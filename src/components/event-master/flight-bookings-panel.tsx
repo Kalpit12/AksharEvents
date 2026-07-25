@@ -21,7 +21,7 @@ import type { SerializedMemberDocument } from "@/lib/member-document-types";
 import type { TeamMember } from "@/components/exhibitor-portal/types";
 import { MemberNameWithTooltip } from "@/components/member-name-with-tooltip";
 import { DEFAULT_FLIGHT_BOOKING_AGENT_EMAIL } from "@/lib/flight-booking-config";
-import { FLIGHT_BOOKING_CURRENCY_OPTIONS } from "@/lib/flight-booking-currencies";
+import { CURRENCY_OPTIONS } from "@/lib/currencies";
 import { sendCombinedAirBookingPackageToAgent } from "@/lib/air-booking-actions";
 import { MEMBER_DOCUMENT_LABELS } from "@/lib/member-document-types";
 import { Button } from "@/components/ui/Button";
@@ -937,7 +937,7 @@ export default function FlightBookingsPanel({
                 <CustomSelect
                   value={rateForm.currency}
                   onChange={(currency) => setRateForm({ ...rateForm, currency })}
-                  options={FLIGHT_BOOKING_CURRENCY_OPTIONS}
+                  options={CURRENCY_OPTIONS}
                 />
               </div>
             </div>

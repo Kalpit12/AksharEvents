@@ -38,8 +38,9 @@ export default function AdminEventsPanel({
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
-    const result = await createAdminEvent(new FormData(e.currentTarget));
+    const result = await createAdminEvent(new FormData(form));
     setLoading(false);
 
     if (result.error) {
@@ -48,7 +49,7 @@ export default function AdminEventsPanel({
     }
 
     toast.success("Event created");
-    e.currentTarget.reset();
+    form.reset();
     router.refresh();
   };
 

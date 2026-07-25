@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 
-export default function AdminEventMasterRedirect({
+export default async function AdminEventMasterRedirect({
   params,
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  redirect("/admin");
+  const { eventId } = await params;
+  redirect(`/admin?eventId=${encodeURIComponent(eventId)}`);
 }

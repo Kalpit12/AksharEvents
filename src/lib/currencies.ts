@@ -1,10 +1,10 @@
-export type FlightBookingCurrencyOption = {
+export type CurrencyOption = {
   value: string;
   label: string;
 };
 
-/** Common currencies for international flight rate quotes. */
-export const FLIGHT_BOOKING_CURRENCY_OPTIONS: FlightBookingCurrencyOption[] = [
+/** ISO codes offered wherever an amount is quoted (hotels, item master, flight rates). */
+export const CURRENCY_OPTIONS: CurrencyOption[] = [
   { value: "KES", label: "KES — Kenyan Shilling" },
   { value: "USD", label: "USD — US Dollar" },
   { value: "EUR", label: "EUR — Euro" },
@@ -20,11 +20,24 @@ export const FLIGHT_BOOKING_CURRENCY_OPTIONS: FlightBookingCurrencyOption[] = [
   { value: "TZS", label: "TZS — Tanzanian Shilling" },
   { value: "UGX", label: "UGX — Ugandan Shilling" },
   { value: "RWF", label: "RWF — Rwandan Franc" },
+  { value: "BIF", label: "BIF — Burundian Franc" },
+  { value: "SSP", label: "SSP — South Sudanese Pound" },
   { value: "ETB", label: "ETB — Ethiopian Birr" },
+  { value: "SOS", label: "SOS — Somali Shilling" },
   { value: "GHS", label: "GHS — Ghanaian Cedi" },
   { value: "NGN", label: "NGN — Nigerian Naira" },
+  { value: "XOF", label: "XOF — West African CFA Franc" },
+  { value: "XAF", label: "XAF — Central African CFA Franc" },
   { value: "EGP", label: "EGP — Egyptian Pound" },
   { value: "MAD", label: "MAD — Moroccan Dirham" },
+  { value: "TND", label: "TND — Tunisian Dinar" },
+  { value: "DZD", label: "DZD — Algerian Dinar" },
+  { value: "MUR", label: "MUR — Mauritian Rupee" },
+  { value: "ZMW", label: "ZMW — Zambian Kwacha" },
+  { value: "MWK", label: "MWK — Malawian Kwacha" },
+  { value: "MZN", label: "MZN — Mozambican Metical" },
+  { value: "BWP", label: "BWP — Botswana Pula" },
+  { value: "NAD", label: "NAD — Namibian Dollar" },
   { value: "CAD", label: "CAD — Canadian Dollar" },
   { value: "AUD", label: "AUD — Australian Dollar" },
   { value: "NZD", label: "NZD — New Zealand Dollar" },
@@ -37,16 +50,30 @@ export const FLIGHT_BOOKING_CURRENCY_OPTIONS: FlightBookingCurrencyOption[] = [
   { value: "THB", label: "THB — Thai Baht" },
   { value: "IDR", label: "IDR — Indonesian Rupiah" },
   { value: "PHP", label: "PHP — Philippine Peso" },
+  { value: "VND", label: "VND — Vietnamese Dong" },
   { value: "PKR", label: "PKR — Pakistani Rupee" },
   { value: "BDT", label: "BDT — Bangladeshi Taka" },
   { value: "LKR", label: "LKR — Sri Lankan Rupee" },
+  { value: "NPR", label: "NPR — Nepalese Rupee" },
+  { value: "ILS", label: "ILS — Israeli Shekel" },
+  { value: "JOD", label: "JOD — Jordanian Dinar" },
   { value: "BRL", label: "BRL — Brazilian Real" },
+  { value: "ARS", label: "ARS — Argentine Peso" },
+  { value: "CLP", label: "CLP — Chilean Peso" },
+  { value: "COP", label: "COP — Colombian Peso" },
   { value: "MXN", label: "MXN — Mexican Peso" },
   { value: "SEK", label: "SEK — Swedish Krona" },
   { value: "NOK", label: "NOK — Norwegian Krone" },
   { value: "DKK", label: "DKK — Danish Krone" },
+  { value: "ISK", label: "ISK — Icelandic Krona" },
   { value: "PLN", label: "PLN — Polish Zloty" },
   { value: "CZK", label: "CZK — Czech Koruna" },
+  { value: "HUF", label: "HUF — Hungarian Forint" },
+  { value: "RON", label: "RON — Romanian Leu" },
+  { value: "BGN", label: "BGN — Bulgarian Lev" },
+  { value: "UAH", label: "UAH — Ukrainian Hryvnia" },
+  { value: "RUB", label: "RUB — Russian Ruble" },
   { value: "TRY", label: "TRY — Turkish Lira" },
   { value: "KRW", label: "KRW — South Korean Won" },
+  { value: "TWD", label: "TWD — New Taiwan Dollar" },
 ];

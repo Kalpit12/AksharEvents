@@ -148,29 +148,49 @@ export async function getMobileAdminDashboard() {
     orderBy: { exhibitor: { companyName: "asc" } },
   });
 
-  const activities = await prisma.eventActivity.findMany({
-    where: { eventId: event.id, isActive: true },
-    orderBy: { startAt: "asc" },
-  });
+  const [activities, eventBooths] = await Promise.all([
+    prisma.eventActivity.findMany({
+      where: { eventId: event.id, isActive: true },
+      orderBy: { startAt: "asc" },
+    }),
+    prisma.eventBooth.findMany({
+      where: { eventId: event.id },
+      select: {
+        code: true,
+        eventExhibitorId: true,
+        paymentVerified: true,
+        paymentVerifiedAt: true,
+      },
+    }),
+  ]);
 
-  const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => ({
-    id: entry.id,
-    companyName: entry.exhibitor.companyName,
-    slug: entry.exhibitor.slug,
-    boothNumber: entry.boothNumber,
-    hall: entry.hall,
-    contactName: entry.exhibitor.contactName,
-    contactEmail: entry.exhibitor.contactEmail,
-    contactPhone: entry.exhibitor.contactPhone,
-    website: entry.exhibitor.website,
-    products: entry.exhibitor.products,
-    registrationStatus: entry.registration?.status ?? null,
-    submittedAt: entry.registration?.submittedAt?.toISOString() ?? null,
-    formData: entry.registration?.formData
-      ? (entry.registration.formData as SavedRegistrationData)
-      : null,
-    badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
-  }));
+  const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => {
+    const linkedBooth =
+      eventBooths.find((b) => b.eventExhibitorId === entry.id) ??
+      (entry.boothNumber
+        ? eventBooths.find((b) => b.code === entry.boothNumber!.trim().toUpperCase())
+        : undefined);
+    return {
+      id: entry.id,
+      companyName: entry.exhibitor.companyName,
+      slug: entry.exhibitor.slug,
+      boothNumber: entry.boothNumber ?? linkedBooth?.code ?? null,
+      hall: entry.hall,
+      boothPaymentVerified: linkedBooth?.paymentVerified ?? false,
+      boothPaymentVerifiedAt: linkedBooth?.paymentVerifiedAt?.toISOString() ?? null,
+      contactName: entry.exhibitor.contactName,
+      contactEmail: entry.exhibitor.contactEmail,
+      contactPhone: entry.exhibitor.contactPhone,
+      website: entry.exhibitor.website,
+      products: entry.exhibitor.products,
+      registrationStatus: entry.registration?.status ?? null,
+      submittedAt: entry.registration?.submittedAt?.toISOString() ?? null,
+      formData: entry.registration?.formData
+        ? (entry.registration.formData as SavedRegistrationData)
+        : null,
+      badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
+    };
+  });
 
   const serializedActivities = activities.map(serializeActivity);
   const startDate = event.startDate.toISOString();

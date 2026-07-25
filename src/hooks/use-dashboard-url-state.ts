@@ -31,7 +31,14 @@ export function useDashboardUrlState() {
   );
 
   useEffect(() => {
-    setParamsState(new URLSearchParams(nextSearchParams.toString()));
+    // Prefer the live browser URL. Tab/filter updates use replaceState, which
+    // Next's useSearchParams does not see — so a router.refresh() would otherwise
+    // wipe the current tab back to the default.
+    const fromWindow =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : null;
+    setParamsState(fromWindow ?? new URLSearchParams(nextSearchParams.toString()));
   }, [nextSearchParams]);
 
   useEffect(() => {

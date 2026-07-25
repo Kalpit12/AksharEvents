@@ -13,6 +13,7 @@ export type PublishedEventOption = {
   location: string;
   startDate: string;
   endDate: string;
+  lifecycle?: "Live" | "Upcoming" | "Completed";
 };
 
 type Props = {

@@ -15,6 +15,9 @@ export type AdminExhibitorRecord = {
   slug: string;
   boothNumber: string | null;
   hall: string | null;
+  /** Booth fee payment verified (from EventBooth.paymentVerified). */
+  boothPaymentVerified: boolean;
+  boothPaymentVerifiedAt: string | null;
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;

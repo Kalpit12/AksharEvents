@@ -18,6 +18,7 @@ import {
   Building2,
   Bus,
   Calendar,
+  CheckCircle2,
   ChevronRight,
   FileText,
   ForkKnife,
@@ -83,6 +84,45 @@ function StatusBadge({ status }: { status: AdminExhibitorRecord["registrationSta
   );
 }
 
+function BoothPaymentBadge({
+  hasBooth,
+  paid,
+  onPrimary = false,
+}: {
+  hasBooth: boolean;
+  paid: boolean;
+  onPrimary?: boolean;
+}) {
+  if (!hasBooth) return null;
+  if (paid) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          onPrimary
+            ? "bg-white/20 text-primary-foreground"
+            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+        )}
+      >
+        <CheckCircle2 className="h-3 w-3" />
+        Paid
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        onPrimary
+          ? "bg-white/15 text-primary-foreground/90"
+          : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+      )}
+    >
+      Unpaid
+    </span>
+  );
+}
+
 function ExhibitorDetail({
   record,
   eventTitle,
@@ -93,6 +133,7 @@ function ExhibitorDetail({
   activities?: EventActivityOption[];
 }) {
   const data = record.formData;
+  const hasBooth = Boolean(record.boothNumber);
 
   if (!data) {
     const profileFields: [string, string][] = [
@@ -102,7 +143,16 @@ function ExhibitorDetail({
       ["Phone", record.contactPhone ?? "—"],
       ["Website", record.website ?? "—"],
       ["Products / services", record.products.length > 0 ? record.products.join(", ") : "—"],
-      ["Booth", record.boothNumber ? `#${record.boothNumber}${record.hall ? ` · ${record.hall}` : ""}` : "TBC"],
+      [
+        "Booth",
+        record.boothNumber
+          ? `#${record.boothNumber}${record.hall ? ` · ${record.hall}` : ""}`
+          : "TBC",
+      ],
+      [
+        "Booth payment",
+        hasBooth ? (record.boothPaymentVerified ? "Paid" : "Unpaid") : "—",
+      ],
     ];
 
     return (
@@ -112,7 +162,10 @@ function ExhibitorDetail({
             <h3 className="text-lg font-semibold">{record.companyName}</h3>
             <p className="text-xs text-muted-foreground">Registration form not saved for this event yet</p>
           </div>
-          <StatusBadge status={record.registrationStatus} />
+          <div className="flex flex-wrap items-center gap-2">
+            <BoothPaymentBadge hasBooth={hasBooth} paid={record.boothPaymentVerified} />
+            <StatusBadge status={record.registrationStatus} />
+          </div>
         </div>
         <Section title="Exhibitor profile on file" icon={Building2}>
           <DetailGrid fields={profileFields} />
@@ -129,12 +182,21 @@ function ExhibitorDetail({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold">{record.companyName}</h3>
-          <p className="text-xs text-muted-foreground">
-            {record.boothNumber ? `Booth #${record.boothNumber}${record.hall ? ` · ${record.hall}` : ""}` : "Booth TBC"}
-            {record.submittedAt && ` · Submitted ${formatDate(record.submittedAt, "MMM d, yyyy h:mm a")}`}
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>
+              {record.boothNumber
+                ? `Booth #${record.boothNumber}${record.hall ? ` · ${record.hall}` : ""}`
+                : "Booth TBC"}
+            </span>
+            {record.submittedAt && (
+              <span>· Submitted {formatDate(record.submittedAt, "MMM d, yyyy h:mm a")}</span>
+            )}
           </p>
         </div>
-        <StatusBadge status={record.registrationStatus} />
+        <div className="flex flex-wrap items-center gap-2">
+          <BoothPaymentBadge hasBooth={hasBooth} paid={record.boothPaymentVerified} />
+          <StatusBadge status={record.registrationStatus} />
+        </div>
       </div>
 
       {record.products.length > 0 && (
@@ -311,8 +373,21 @@ export default function ExhibitorRegistrationsPanel({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{record.companyName}</div>
-                    <div className={cn("truncate text-[11px]", active ? "text-primary-foreground/80" : "text-muted-foreground")}>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium">{record.companyName}</span>
+                      <BoothPaymentBadge
+                        hasBooth={Boolean(record.boothNumber)}
+                        paid={record.boothPaymentVerified}
+                        onPrimary={active}
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        "truncate text-[11px]",
+                        active ? "text-primary-foreground/80" : "text-muted-foreground"
+                      )}
+                    >
+                      {record.boothNumber ? `Booth #${record.boothNumber} · ` : ""}
                       {memberCount} member{memberCount === 1 ? "" : "s"} · {progress}% complete
                     </div>
                   </div>

@@ -12,15 +12,26 @@ import {
 } from "@/components/exhibitor-portal/custom-select";
 import { toast } from "sonner";
 import { Camera, CameraOff, CheckCircle, ScanLine, XCircle } from "lucide-react";
+import { persistEmSelectedEventId } from "@/lib/em-selected-event";
 
 type EventOption = { id: string; title: string };
 
 type ScanResult = TicketVerifyResult;
 
-export function TicketScannerClient({ events }: { events: EventOption[] }) {
+export function TicketScannerClient({
+  events,
+  preferredEventId,
+}: {
+  events: EventOption[];
+  preferredEventId?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialEventId = searchParams.get("eventId") ?? events[0]?.id ?? "";
+  const initialEventId =
+    searchParams.get("eventId") ??
+    preferredEventId ??
+    events[0]?.id ??
+    "";
   const [eventId, setEventId] = useState(initialEventId);
   const [manualCode, setManualCode] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -179,6 +190,7 @@ export function TicketScannerClient({ events }: { events: EventOption[] }) {
               value={eventId}
               onChange={(value) => {
                 setEventId(value);
+                persistEmSelectedEventId(value);
                 syncEventInUrl(value);
               }}
               options={eventOptions}

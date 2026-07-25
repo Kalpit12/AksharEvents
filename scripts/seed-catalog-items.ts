@@ -1,6 +1,12 @@
-import "dotenv/config";
+import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_ADDITIONAL_CATALOG_GROUPS } from "../src/lib/item-master-catalog";
+
+// Match Next.js / prisma.config load order (later overrides).
+config({ path: ".env", override: true });
+config({ path: ".env.local", override: true });
+config({ path: ".env.development", override: true });
+config({ path: ".env.development.local", override: true });
 
 const prisma = new PrismaClient();
 
@@ -13,6 +19,7 @@ async function upsertCatalogGroup(
   for (const [index, item] of items.entries()) {
     const existing = await prisma.eventItemMaster.findFirst({
       where: { eventId, name: item.name },
+      select: { id: true },
     });
 
     const data = {
@@ -36,22 +43,33 @@ async function upsertCatalogGroup(
 }
 
 async function main() {
-  const slug = process.argv[2] ?? "kenya-career-expo-2026";
-  const event = await prisma.event.findUnique({ where: { slug } });
+  const slug = process.argv[2] ?? "test-expo";
+  const event = await prisma.event.findFirst({
+    where: { slug },
+    select: { id: true, title: true, slug: true },
+  });
   if (!event) {
+    const published = await prisma.event.findMany({
+      where: { status: "PUBLISHED" },
+      select: { slug: true },
+    });
     console.error(`Event not found: ${slug}`);
+    console.error(
+      "Published:",
+      published.map((e) => e.slug).join(", ") || "(none)"
+    );
     process.exit(1);
   }
 
-  console.log(`Seeding additional catalog for "${event.title}" (${slug})…`);
+  const host = (process.env.DATABASE_URL ?? "").match(/@([^/]+)\//)?.[1];
+  console.log(`DB: ${host}`);
+  console.log(`Seeding additional catalog for "${event.title}" (${event.slug})…`);
 
-  let sortOffset = await prisma.eventItemMaster.count({ where: { eventId: event.id } });
-
+  let sortOffset = 0;
   for (const group of DEFAULT_ADDITIONAL_CATALOG_GROUPS) {
     console.log(`\n${group.category}:`);
-    const before = sortOffset;
     await upsertCatalogGroup(event.id, group.category, group.items, sortOffset);
-    sortOffset = before + group.items.length;
+    sortOffset += group.items.length;
   }
 
   console.log("\nDone.");

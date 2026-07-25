@@ -14,12 +14,15 @@ import {
   toggleEventRestaurant,
   toggleEventScheduleItem,
 } from "@/lib/event-config-actions";
-import type {
-  EventHotelOption,
-  EventItemMasterOption,
-  EventRestaurantOption,
-  EventScheduleItemOption,
+import {
+  formatHotelNightlyRate,
+  type EventHotelOption,
+  type EventItemMasterOption,
+  type EventRestaurantOption,
+  type EventScheduleItemOption,
 } from "@/lib/event-config-types";
+import { CURRENCY_OPTIONS } from "@/lib/currencies";
+import { isBoothCategory } from "@/lib/item-master-catalog";
 import { EventScheduleTimeline } from "@/components/events/event-schedule-timeline";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -107,19 +110,26 @@ function ConfigListItem({
 
 export function EventHotelsManager({
   eventId,
-  hotels,
+  hotels: initialHotels,
 }: {
   eventId: string;
   hotels: EventHotelOption[];
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [newCurrency, setNewCurrency] = useState("KES");
+  const [hotels, setHotels] = useState(initialHotels);
+
+  useEffect(() => {
+    setHotels(initialHotels);
+  }, [initialHotels]);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     formData.set("eventId", eventId);
+    formData.set("currency", newCurrency);
     const result = await createEventHotel(formData);
     setLoading(false);
 
@@ -128,9 +138,12 @@ export function EventHotelsManager({
       return;
     }
 
+    if (result.hotel) {
+      setHotels((prev) => [...prev, result.hotel]);
+    }
     notify.success("Hotel added");
-    (e.target as HTMLFormElement).reset();
-    router.refresh();
+    form.reset();
+    setNewCurrency("KES");
   };
 
   const handleToggle = async (hotelId: string) => {
@@ -139,8 +152,12 @@ export function EventHotelsManager({
       notify.error(result.error);
       return;
     }
+    if (result.hotel) {
+      setHotels((prev) =>
+        prev.map((hotel) => (hotel.id === hotelId ? result.hotel : hotel))
+      );
+    }
     notify.success("Updated");
-    router.refresh();
   };
 
   return (
@@ -159,7 +176,7 @@ export function EventHotelsManager({
           <Input id="hotel-location" name="location" placeholder="e.g. Nairobi CBD" className="mt-1.5" />
         </div>
         <div>
-          <Label htmlFor="hotel-price">Price (optional)</Label>
+          <Label htmlFor="hotel-price">Price per night (optional)</Label>
           <Input
             id="hotel-price"
             name="price"
@@ -172,13 +189,13 @@ export function EventHotelsManager({
         </div>
         <div>
           <Label htmlFor="hotel-currency">Currency</Label>
-          <Input
+          <CustomSelect
             id="hotel-currency"
-            name="currency"
-            defaultValue="KES"
-            maxLength={3}
-            placeholder="KES"
-            className="mt-1.5 uppercase"
+            value={newCurrency}
+            onChange={setNewCurrency}
+            placeholder="Select currency"
+            className="mt-1.5"
+            options={CURRENCY_OPTIONS}
           />
         </div>
         <div className="sm:col-span-2">
@@ -202,9 +219,7 @@ export function EventHotelsManager({
               title={hotel.name}
               subtitle={[
                 hotel.location,
-                hotel.price != null
-                  ? `${hotel.currency} ${hotel.price.toLocaleString()}`
-                  : null,
+                formatHotelNightlyRate(hotel),
                 hotel.description,
               ]
                 .filter(Boolean)
@@ -221,18 +236,23 @@ export function EventHotelsManager({
 
 export function EventRestaurantsManager({
   eventId,
-  restaurants,
+  restaurants: initialRestaurants,
 }: {
   eventId: string;
   restaurants: EventRestaurantOption[];
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [restaurants, setRestaurants] = useState(initialRestaurants);
+
+  useEffect(() => {
+    setRestaurants(initialRestaurants);
+  }, [initialRestaurants]);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     formData.set("eventId", eventId);
     const result = await createEventRestaurant(formData);
     setLoading(false);
@@ -242,9 +262,11 @@ export function EventRestaurantsManager({
       return;
     }
 
+    if (result.restaurant) {
+      setRestaurants((prev) => [...prev, result.restaurant]);
+    }
     notify.success("Restaurant added");
-    (e.target as HTMLFormElement).reset();
-    router.refresh();
+    form.reset();
   };
 
   const handleToggle = async (restaurantId: string) => {
@@ -253,8 +275,14 @@ export function EventRestaurantsManager({
       notify.error(result.error);
       return;
     }
+    if (result.restaurant) {
+      setRestaurants((prev) =>
+        prev.map((restaurant) =>
+          restaurant.id === restaurantId ? result.restaurant : restaurant
+        )
+      );
+    }
     notify.success("Updated");
-    router.refresh();
   };
 
   return (
@@ -649,9 +677,8 @@ export function EventScheduleManager({
 }
 
 const ITEM_CATEGORIES = [
-  "Booth",
-  "Equipment",
-  "Tables, Chairs & Cabinets",
+  "Televisions & Displays",
+  "Tables/Stools Chairs & Cabinets",
   "Flowers & Plant",
   "Brandings",
   "Consumables",
@@ -673,8 +700,6 @@ const UNIT_OF_MEASURE_OPTIONS = [
   "roll",
 ];
 
-const CURRENCY_OPTIONS = ["KES", "USD", "EUR", "GBP", "UGX", "TZS"];
-
 export function ItemMasterManager({
   eventId,
   items,
@@ -695,23 +720,28 @@ export function ItemMasterManager({
   const [newUnitOfMeasure, setNewUnitOfMeasure] = useState("");
   const [newCurrency, setNewCurrency] = useState("KES");
 
+  const visibleItems = useMemo(
+    () => items.filter((item) => !isBoothCategory(item.category)),
+    [items]
+  );
+
   const categoryOptions = useMemo(() => {
-    const fromItems = items.map((item) => item.category);
+    const fromItems = visibleItems.map((item) => item.category);
     return [...new Set([...ITEM_CATEGORIES, ...fromItems])].sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  }, [visibleItems]);
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const item of items) {
+    for (const item of visibleItems) {
       counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
     }
     return counts;
-  }, [items]);
+  }, [visibleItems]);
 
   const filteredItems = useMemo(() => {
-    if (!categoryFilter) return items;
-    return items.filter((item) => item.category === categoryFilter);
-  }, [items, categoryFilter]);
+    if (!categoryFilter) return visibleItems;
+    return visibleItems.filter((item) => item.category === categoryFilter);
+  }, [visibleItems, categoryFilter]);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -855,7 +885,7 @@ export function ItemMasterManager({
             value={newCurrency}
             onChange={setNewCurrency}
             className="mt-1.5"
-            options={CURRENCY_OPTIONS.map((currency) => ({ value: currency, label: currency }))}
+            options={CURRENCY_OPTIONS}
           />
         </div>
         <div className="sm:col-span-2">
@@ -865,7 +895,7 @@ export function ItemMasterManager({
           </Button>
         </div>
       </form>
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">No items in the master list yet.</p>
       ) : (
         <>
@@ -878,7 +908,7 @@ export function ItemMasterManager({
                 onChange={(value) => setCategoryFilter(fromAllValue(value))}
                 className="mt-1.5"
                 options={[
-                  { value: "__all__", label: `All categories (${items.length})` },
+                  { value: "__all__", label: `All categories (${visibleItems.length})` },
                   ...categoryOptions.map((category) => ({
                     value: category,
                     label: `${category} (${categoryCounts.get(category) ?? 0})`,
@@ -887,7 +917,7 @@ export function ItemMasterManager({
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Showing {filteredItems.length} of {items.length} item{items.length === 1 ? "" : "s"}
+              Showing {filteredItems.length} of {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
             </p>
           </div>
           {filteredItems.length === 0 ? (
@@ -967,10 +997,7 @@ export function ItemMasterManager({
                             value={editCurrency}
                             onChange={setEditCurrency}
                             className="mt-1.5"
-                            options={CURRENCY_OPTIONS.map((currency) => ({
-                              value: currency,
-                              label: currency,
-                            }))}
+                            options={CURRENCY_OPTIONS}
                           />
                         </div>
                         <div className="flex flex-wrap justify-end gap-2 sm:col-span-2">

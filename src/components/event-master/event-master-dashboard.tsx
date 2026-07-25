@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AVATAR_COLORS,
   ROLE_BADGE,
@@ -21,7 +21,13 @@ import OnsiteKioskPanel from "@/components/event-master/onsite-kiosk-panel";
 import type { CheckInKind } from "@/components/event-master/event-check-ins-panel";
 import FloorPlanPanel from "@/components/event-master/floor-plan-panel";
 import ItineraryPanel from "@/components/event-master/itinerary-panel";
-import { EventMasterHero, EventMasterQuickNav } from "@/components/event-master/event-master-ui";
+import {
+  EventMasterEventSwitcher,
+  EventMasterHero,
+  EventMasterQuickNav,
+} from "@/components/event-master/event-master-ui";
+import { persistEmSelectedEventId } from "@/lib/em-selected-event";
+import { eventLifecycleLabel } from "@/lib/primary-event";
 import type { EventActivityOption } from "@/lib/event-activity-types";
 import type {
   EventHotelOption,
@@ -190,6 +196,16 @@ export default function EventMasterDashboard({
   const [bottlesPerDay, setBottlesPerDay] = useState(2);
   const [bufferPct, setBufferPct] = useState(10);
 
+  useEffect(() => {
+    persistEmSelectedEventId(eventId);
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("eventId") === eventId) return;
+    params.set("eventId", eventId);
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, "", qs ? `/admin?${qs}` : `/admin?eventId=${encodeURIComponent(eventId)}`);
+  }, [eventId]);
+
   const expoDays = expoDaysFromRange(startDate, endDate);
   const members = useMemo(() => aggregateMembers(exhibitors), [exhibitors]);
   const memberCount = members.length;
@@ -237,6 +253,7 @@ export default function EventMasterDashboard({
   }, [members, memberRoles, expoDays]);
 
   const dateRange = `${formatDate(startDate, "MMM d")}–${formatDate(endDate, "d")}`;
+  const lifecycle = eventLifecycleLabel(startDate, endDate);
 
   return (
     <div className={cn("space-y-5", tab === "floorplan" && "space-y-2")}>
@@ -250,10 +267,21 @@ export default function EventMasterDashboard({
             exhibitorCount={exhibitors.length}
             memberCount={memberCount}
             expoDays={expoDays}
+            lifecycle={lifecycle}
+            publishedEvents={publishedEvents}
           />
 
           <EventMasterQuickNav active="dashboard" eventId={eventId} />
         </>
+      )}
+
+      {tab === "floorplan" && publishedEvents.length > 1 && (
+        <div className="rounded-xl border border-border bg-card px-4 py-3">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            Floor plan for <span className="text-foreground">{eventTitle}</span>
+          </p>
+          <EventMasterEventSwitcher eventId={eventId} events={publishedEvents} />
+        </div>
       )}
 
       <div
@@ -600,7 +628,6 @@ export default function EventMasterDashboard({
           eventLocation={eventLocation}
           startDate={startDate}
           endDate={endDate}
-          publishedEvents={publishedEvents}
           checkInKind={checkInKind}
           visitorStats={
             visitorCheckIns ?? {

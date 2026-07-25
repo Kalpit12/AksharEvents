@@ -37,7 +37,7 @@ export default async function AdminEventActivitiesPage({
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
       <Button variant="ghost" size="sm" asChild className="mb-6">
-        <Link href="/admin">
+        <Link href={`/admin?eventId=${encodeURIComponent(event.id)}`}>
           <ArrowLeft className="h-4 w-4" /> Back to Event Master
         </Link>
       </Button>

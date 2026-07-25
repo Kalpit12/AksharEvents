@@ -70,12 +70,16 @@ export function serializeEventHotel(hotel: {
   };
 }
 
+export function formatHotelNightlyRate(hotel: EventHotelOption): string | null {
+  if (hotel.price == null) return null;
+  return `${hotel.currency} ${hotel.price.toLocaleString()} / night`;
+}
+
 export function formatHotelOptionLabel(hotel: EventHotelOption): string {
   const parts = [hotel.name];
   if (hotel.location) parts.push(hotel.location);
-  if (hotel.price != null) {
-    parts.push(`${hotel.currency} ${hotel.price.toLocaleString()}`);
-  }
+  const rate = formatHotelNightlyRate(hotel);
+  if (rate) parts.push(rate);
   return parts.join(" — ");
 }
 

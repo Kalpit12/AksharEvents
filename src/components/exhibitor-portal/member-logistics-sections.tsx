@@ -502,6 +502,16 @@ export function AccommodationSection({
     [hotels]
   );
 
+  /** Keep a saved choice visible even if the hotel was since edited or hidden. */
+  const hotelSelectOptions = useMemo(() => {
+    const options = hotelOptions.map(({ value, label }) => ({ value, label }));
+    const saved = logistics.hotel;
+    if (saved && !options.some((option) => option.value === saved)) {
+      options.push({ value: saved, label: saved });
+    }
+    return options;
+  }, [hotelOptions, logistics.hotel]);
+
   const setLogistics = (next: MemberAccommodationLogistics) => {
     if (!selected) return;
     onUpdateMember(selected.id, {
@@ -568,7 +578,7 @@ export function AccommodationSection({
                   <CustomSelect
                     value={logistics.hotel || ""}
                     onChange={(v) => set("hotel", v)}
-                    options={hotelOptions.map(({ value, label }) => ({ value, label }))}
+                    options={hotelSelectOptions}
                     placeholder="Select hotel…"
                   />
                 )}

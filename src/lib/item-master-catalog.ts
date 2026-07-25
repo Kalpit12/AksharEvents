@@ -38,16 +38,20 @@ export const DEFAULT_BOOTH_ITEMS: { name: string; unitCost: number }[] = [
   },
 ];
 
-export const ITEM_MASTER_CATEGORY_EQUIPMENT = "Equipment";
+export const ITEM_MASTER_CATEGORY_EQUIPMENT = "Televisions & Displays";
+/** @deprecated Legacy category name — still recognised when reading existing rows */
+export const LEGACY_EQUIPMENT_CATEGORY = "Equipment";
 
-/** Televisions & displays — Equipment category */
+/** Televisions & displays */
 export const DEFAULT_EQUIPMENT_ITEMS: { name: string; unitCost: number }[] = [
   { name: 'TV 50" + TV Stand + HDMI', unitCost: 45_000 },
   { name: 'TV 60" + TV Stand + HDMI', unitCost: 65_000 },
   { name: "Touch Screen", unitCost: 85_000 },
 ];
 
-export const ITEM_MASTER_CATEGORY_TABLES_CHAIRS = "Tables, Chairs & Cabinets";
+export const ITEM_MASTER_CATEGORY_TABLES_CHAIRS = "Tables/Stools Chairs & Cabinets";
+/** @deprecated Legacy category name — still recognised when reading existing rows */
+export const LEGACY_TABLES_CHAIRS_CATEGORY = "Tables, Chairs & Cabinets";
 
 export const DEFAULT_TABLES_CHAIRS_ITEMS: { name: string; unitCost: number }[] = [
   { name: "Dressing of Table", unitCost: 3_500 },
@@ -101,9 +105,13 @@ export const DEFAULT_ADDITIONAL_CATALOG_GROUPS: CatalogSeedGroup[] = [
 ];
 
 const CATEGORY_GUIDANCE: Record<string, string> = {
-  Equipment:
-    "AV, displays, furniture, and technical equipment for your booth and team.",
+  [ITEM_MASTER_CATEGORY_EQUIPMENT]:
+    "TVs, touch screens, and display equipment for your booth.",
+  [LEGACY_EQUIPMENT_CATEGORY]:
+    "TVs, touch screens, and display equipment for your booth.",
   [ITEM_MASTER_CATEGORY_TABLES_CHAIRS]:
+    "Tables, seating, sofas, racks, and carpets for your booth layout.",
+  [LEGACY_TABLES_CHAIRS_CATEGORY]:
     "Tables, seating, sofas, racks, and carpets for your booth layout.",
   [ITEM_MASTER_CATEGORY_FLOWERS]: "Floral arrangements and plants for booth decoration.",
   [ITEM_MASTER_CATEGORY_BRANDINGS]:

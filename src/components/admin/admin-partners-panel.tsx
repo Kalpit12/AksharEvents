@@ -37,15 +37,16 @@ export default function AdminPartnersPanel({
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
-    const result = await createAdminPartner(new FormData(e.currentTarget));
+    const result = await createAdminPartner(new FormData(form));
     setLoading(false);
     if (result.error) {
       toast.error(result.error);
       return;
     }
     toast.success(`Partner created at /p/${result.slug}`);
-    e.currentTarget.reset();
+    form.reset();
     router.refresh();
   };
 

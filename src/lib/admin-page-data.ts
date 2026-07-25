@@ -107,37 +107,56 @@ export async function loadAdminEventMasterPageData(eventId: string): Promise<Adm
     }),
   ]);
 
-  const [floorPlanResult, tourTravelItineraries, boothFeeRow] = await Promise.all([
+  const [floorPlanResult, tourTravelItineraries, boothFeeRow, eventBooths] = await Promise.all([
     getEventFloorPlanBooths(eventId),
     loadEventTourTravelItineraries(eventId),
     prisma.event.findUnique({
       where: { id: eventId },
       select: { boothFee: true, boothFeeCurrency: true },
     }),
+    prisma.eventBooth.findMany({
+      where: { eventId },
+      select: {
+        code: true,
+        eventExhibitorId: true,
+        paymentVerified: true,
+        paymentVerifiedAt: true,
+      },
+    }),
   ]);
 
   const exhibitors: AdminExhibitorRecord[] = eventExhibitors.map((entry) => {
+    const linkedBooth =
+      eventBooths.find((b) => b.eventExhibitorId === entry.id) ??
+      (entry.boothNumber
+        ? eventBooths.find(
+            (b) => b.code === entry.boothNumber!.trim().toUpperCase()
+          )
+        : undefined);
     const reservedBooth = (floorPlanResult.booths ?? []).find(
       (b) => b.eventExhibitorId === entry.id && b.status === "RESERVED"
     );
+    const boothNumber = entry.boothNumber ?? linkedBooth?.code ?? reservedBooth?.code ?? null;
     return {
-    id: entry.id,
-    companyName: entry.exhibitor.companyName,
-    slug: entry.exhibitor.slug,
-    boothNumber: entry.boothNumber ?? reservedBooth?.code ?? null,
-    hall: entry.hall,
-    contactName: entry.exhibitor.contactName,
-    contactEmail: entry.exhibitor.contactEmail,
-    contactPhone: entry.exhibitor.contactPhone,
-    website: entry.exhibitor.website,
-    products: entry.exhibitor.products,
-    registrationStatus: entry.registration?.status ?? null,
-    submittedAt: entry.registration?.submittedAt?.toISOString() ?? null,
-    formData: entry.registration?.formData
-      ? (entry.registration.formData as SavedRegistrationData)
-      : null,
-    badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
-  };
+      id: entry.id,
+      companyName: entry.exhibitor.companyName,
+      slug: entry.exhibitor.slug,
+      boothNumber,
+      hall: entry.hall,
+      boothPaymentVerified: linkedBooth?.paymentVerified ?? false,
+      boothPaymentVerifiedAt: linkedBooth?.paymentVerifiedAt?.toISOString() ?? null,
+      contactName: entry.exhibitor.contactName,
+      contactEmail: entry.exhibitor.contactEmail,
+      contactPhone: entry.exhibitor.contactPhone,
+      website: entry.exhibitor.website,
+      products: entry.exhibitor.products,
+      registrationStatus: entry.registration?.status ?? null,
+      submittedAt: entry.registration?.submittedAt?.toISOString() ?? null,
+      formData: entry.registration?.formData
+        ? (entry.registration.formData as SavedRegistrationData)
+        : null,
+      badgePhotoMemberIds: entry.memberDocuments.map((doc) => doc.memberLocalId),
+    };
   });
 
   return {

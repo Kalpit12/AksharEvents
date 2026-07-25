@@ -9,6 +9,10 @@ import {
 } from "@/lib/event-schedule-speaker-photo";
 import { prisma } from "@/lib/prisma";
 import {
+  serializeEventHotel,
+  serializeEventRestaurant,
+} from "@/lib/event-config-types";
+import {
   createEventHotelSchema,
   createEventItemMasterSchema,
   updateEventItemMasterSchema,
@@ -122,7 +126,7 @@ export async function createEventHotel(formData: FormData) {
 
   const count = await prisma.eventHotel.count({ where: { eventId: event.id } });
 
-  await prisma.eventHotel.create({
+  const hotel = await prisma.eventHotel.create({
     data: {
       eventId: event.id,
       name: parsed.data.name.trim(),
@@ -136,7 +140,7 @@ export async function createEventHotel(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
-  return { success: true };
+  return { success: true, hotel: serializeEventHotel(hotel) };
 }
 
 export async function toggleEventHotel(hotelId: string, eventId: string) {
@@ -148,14 +152,14 @@ export async function toggleEventHotel(hotelId: string, eventId: string) {
   });
   if (!hotel) return { error: "Hotel not found" };
 
-  await prisma.eventHotel.update({
+  const updated = await prisma.eventHotel.update({
     where: { id: hotelId },
     data: { isActive: !hotel.isActive },
   });
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
-  return { success: true };
+  return { success: true, hotel: serializeEventHotel(updated) };
 }
 
 export async function createEventRestaurant(formData: FormData) {
@@ -176,7 +180,7 @@ export async function createEventRestaurant(formData: FormData) {
 
   const count = await prisma.eventRestaurant.count({ where: { eventId: event.id } });
 
-  await prisma.eventRestaurant.create({
+  const restaurant = await prisma.eventRestaurant.create({
     data: {
       eventId: event.id,
       name: parsed.data.name.trim(),
@@ -189,7 +193,7 @@ export async function createEventRestaurant(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
-  return { success: true };
+  return { success: true, restaurant: serializeEventRestaurant(restaurant) };
 }
 
 export async function toggleEventRestaurant(restaurantId: string, eventId: string) {
@@ -201,14 +205,14 @@ export async function toggleEventRestaurant(restaurantId: string, eventId: strin
   });
   if (!restaurant) return { error: "Restaurant not found" };
 
-  await prisma.eventRestaurant.update({
+  const updated = await prisma.eventRestaurant.update({
     where: { id: restaurantId },
     data: { isActive: !restaurant.isActive },
   });
 
   revalidatePath("/admin");
   revalidatePath("/exhibitor");
-  return { success: true };
+  return { success: true, restaurant: serializeEventRestaurant(updated) };
 }
 
 export async function createEventScheduleItem(formData: FormData) {
