@@ -28,6 +28,10 @@ export const faqSections: FaqSection[] = [
         a: "Career fairs, university events, conferences, business and technology expos, networking events, workshops, cultural festivals, corporate events, and other published events on the platform.",
       },
       {
+        q: "What is MICE?",
+        a: "MICE stands for Meetings, Incentives, Conferences, and Exhibitions — professional business events such as AGMs, sales conferences, trade shows, dealer meetings, training seminars, and incentive trips. It does not refer to social events like weddings. AxarEvents supports MICE-style programs through event listings, venue partnerships, and Plan an Event inquiries. See About us for a full overview.",
+      },
+      {
         q: "How do I find and register for an event?",
         a: "Browse Events on the AxarEvents website (or a partner site such as a TechHub Africa page). Open the event you want, then use Get my visitor badge to fill in your details and complete registration.",
       },

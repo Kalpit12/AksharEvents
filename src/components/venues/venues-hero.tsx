@@ -31,8 +31,8 @@ export function VenuesHero() {
             </span>
           </h1>
           <p className="mt-4 max-w-2xl text-base text-alabaster/75 sm:text-lg">
-            Discover halls, centres, and landmark venues across Kenya — built for expos,
-            conferences, and unforgettable audiences.
+            Discover halls, centres, and landmark venues across Kenya — built for MICE-style
+            business events: meetings, conferences, expos, and corporate programs.
           </p>
         </Reveal>
       </div>

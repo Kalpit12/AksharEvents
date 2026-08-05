@@ -6,7 +6,8 @@ import { getMockVenueBySlug } from "@/lib/mock-data";
 import ImageSlider from "@/components/ui/ImageSlider";
 import { EventCard } from "@/components/events/event-card";
 import { Badge } from "@/components/ui/Badge";
-import { MapPin, Users, Car, Accessibility } from "lucide-react";
+import { MapPin, Users, Car, Accessibility, Briefcase } from "lucide-react";
+import { MICE_VENUE_IDEAL_FOR } from "@/lib/mice-content";
 import type { Metadata } from "next";
 
 interface VenuePageProps {
@@ -71,6 +72,22 @@ export default async function VenueDetailPage({ params }: VenuePageProps) {
             <section>
               <h2 className="text-xl font-bold mb-3">About</h2>
               <p className="text-muted-foreground">{venue.description}</p>
+            </section>
+
+            <section className="rounded-2xl border border-champagne/25 bg-champagne/5 p-5 sm:p-6">
+              <h2 className="flex items-center gap-2 text-xl font-bold mb-3">
+                <Briefcase className="h-5 w-5 text-champagne-dark" />
+                Ideal for MICE events
+              </h2>
+              <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {MICE_VENUE_IDEAL_FOR}
+              </p>
+              <Link
+                href="/booking-inquiries"
+                className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+              >
+                Plan an event at this venue →
+              </Link>
             </section>
 
             <section>

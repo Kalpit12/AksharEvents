@@ -47,6 +47,7 @@ const footerLinks = {
     { href: "/events", label: "Browse Events" },
     { href: "/categories", label: "Categories" },
     { href: "/venues", label: "Venues" },
+    { href: "/booking-inquiries", label: "Plan an Event" },
     { href: "/auth/exhibitor", label: "Exhibitor Portal" },
   ],
   Company: [

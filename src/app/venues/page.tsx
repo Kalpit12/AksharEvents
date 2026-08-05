@@ -4,6 +4,7 @@ import { getMockVenues } from "@/lib/mock-data";
 import { VenuesHero } from "@/components/venues/venues-hero";
 import { VenuesGallery } from "@/components/venues/venues-gallery";
 import { VenuesMapSection } from "@/components/venues/venues-map-section";
+import { VenuesMiceSection } from "@/components/venues/venues-mice-section";
 import type { VenueMapPoint } from "@/components/venues/venues-map";
 import type { VenueCardVenue } from "@/components/venues/venue-card";
 import type { Metadata } from "next";
@@ -54,6 +55,7 @@ export default async function VenuesPage() {
     <div>
       <VenuesHero />
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
+        <VenuesMiceSection />
         <VenuesGallery venues={venues} />
         <VenuesMapSection venues={mapVenues} />
       </div>

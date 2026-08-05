@@ -56,8 +56,8 @@ export function HomePlatformSpotlight() {
             </span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base text-alabaster/75 sm:text-lg">
-            AxarEvents is freshly launched — a modern home for discovering events and
-            running exhibitor workflows with clarity.
+            AxarEvents is freshly launched — a modern home for discovering events, MICE-style
+            business gatherings, and exhibitor workflows with clarity.
           </p>
         </Reveal>
 

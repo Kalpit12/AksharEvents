@@ -12,6 +12,7 @@ import {
   Target,
   Users,
 } from "lucide-react";
+import { MICE_EXAMPLES, MICE_LETTERS, MICE_TAGLINE } from "@/lib/mice-content";
 import { BRAND } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 
@@ -136,9 +137,9 @@ export function AboutPageContent() {
               meticulous coordination, and creative flair.
             </p>
             <p>
-              Our comprehensive event planning and management services cover high-profile corporate
-              galas, product launches, cultural festivals, and private celebrations — handling every
-              detail from conceptual design and vendor logistics to flawless on-site execution.
+              Our planning and management services focus on corporate and industry events — product
+              launches, conferences, expos, and training programs — with full coordination from
+              concept through on-site execution.
             </p>
           </div>
         </div>
@@ -156,6 +157,49 @@ export function AboutPageContent() {
               scalable platform where organisers can deliver world-class events and attendees can
               discover, register, and experience them seamlessly.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-12 overflow-hidden rounded-2xl border border-border/80 bg-card/80 shadow-lg backdrop-blur-sm">
+        <div className="border-b border-border/60 bg-gradient-to-br from-champagne/15 via-champagne/5 to-transparent p-8 sm:p-10">
+          <p className="text-xs font-semibold uppercase tracking-wider text-champagne-dark">
+            Business events
+          </p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            MICE — Meetings, Incentives, Conferences &amp; Exhibitions
+          </h2>
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            {MICE_TAGLINE} AxarEvents helps organisers and venues deliver these formats with
+            registration, exhibitor operations, and end-to-end coordination.
+          </p>
+        </div>
+        <div className="grid gap-6 p-8 sm:p-10 lg:grid-cols-2">
+          <ul className="space-y-3">
+            {MICE_LETTERS.map((item) => (
+              <li key={item.letter} className="flex gap-3 text-sm sm:text-base">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-champagne/20 text-sm font-bold text-champagne-dark">
+                  {item.letter}
+                </span>
+                <div>
+                  <span className="font-semibold text-foreground">{item.term}</span>
+                  <span className="text-muted-foreground"> — {item.detail}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <p className="text-sm font-semibold text-foreground sm:text-base">Examples we support</p>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground sm:text-base">
+              {MICE_EXAMPLES.map((example) => (
+                <li key={example} className="flex gap-2">
+                  <span className="text-champagne-dark" aria-hidden>
+                    ·
+                  </span>
+                  {example}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
@@ -233,6 +277,9 @@ export function AboutPageContent() {
               Browse events
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/booking-inquiries">Plan an event</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/contact">Contact us</Link>
