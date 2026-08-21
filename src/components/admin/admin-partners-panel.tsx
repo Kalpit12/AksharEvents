@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createAdminPartner, updateAdminPartner, assignEventPartner } from "@/lib/admin-partners";
 import { partnerPath } from "@/lib/partners";
+import { DEFAULT_PALETTE, normalizeHexColor, type LogoPalette } from "@/lib/logo-palette";
+import { PartnerLogoField } from "@/components/admin/partner-logo-field";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -16,7 +18,12 @@ type PartnerRow = {
   name: string;
   slug: string;
   tagline: string | null;
+  logoUrl: string | null;
   primaryColor: string;
+  secondaryColor: string | null;
+  accentColor: string | null;
+  backgroundColor: string | null;
+  foregroundColor: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
   isActive: boolean;
@@ -24,6 +31,16 @@ type PartnerRow = {
 };
 
 type EventRow = { id: string; title: string; partnerId: string | null };
+
+function paletteFromPartner(partner: PartnerRow): LogoPalette {
+  return {
+    primary: normalizeHexColor(partner.primaryColor, DEFAULT_PALETTE.primary),
+    secondary: normalizeHexColor(partner.secondaryColor ?? "", DEFAULT_PALETTE.secondary),
+    accent: normalizeHexColor(partner.accentColor ?? "", DEFAULT_PALETTE.accent),
+    background: normalizeHexColor(partner.backgroundColor ?? "", DEFAULT_PALETTE.background),
+    foreground: normalizeHexColor(partner.foregroundColor ?? "", DEFAULT_PALETTE.foreground),
+  };
+}
 
 export default function AdminPartnersPanel({
   partners,
@@ -34,6 +51,8 @@ export default function AdminPartnersPanel({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [createKey, setCreateKey] = useState(0);
+  const [createColors, setCreateColors] = useState<LogoPalette>(DEFAULT_PALETTE);
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -47,6 +66,8 @@ export default function AdminPartnersPanel({
     }
     toast.success(`Partner created at /p/${result.slug}`);
     form.reset();
+    setCreateColors(DEFAULT_PALETTE);
+    setCreateKey((key) => key + 1);
     router.refresh();
   };
 
@@ -67,14 +88,12 @@ export default function AdminPartnersPanel({
             <Label htmlFor="tagline">Tagline</Label>
             <Input id="tagline" name="tagline" className="mt-1.5" />
           </div>
-          <div>
-            <Label htmlFor="primaryColor">Primary color</Label>
-            <Input id="primaryColor" name="primaryColor" type="color" defaultValue="#0D9488" className="mt-1.5 h-10" />
-          </div>
-          <div>
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input id="logoUrl" name="logoUrl" className="mt-1.5" />
-          </div>
+          <PartnerLogoField
+            key={createKey}
+            idPrefix="create"
+            colors={createColors}
+            onColorsChange={setCreateColors}
+          />
           <div>
             <Label htmlFor="contactEmail">Contact email</Label>
             <Input id="contactEmail" name="contactEmail" type="email" className="mt-1.5" />
@@ -95,53 +114,7 @@ export default function AdminPartnersPanel({
 
       <section className="space-y-4">
         {partners.map((partner) => (
-          <div key={partner.id} className="rounded-2xl border border-border bg-card p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="font-semibold">{partner.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  /p/{partner.slug} · {partner._count.events} partner event(s)
-                </p>
-              </div>
-              <Button asChild variant="outline" size="sm">
-                <Link href={partnerPath(partner.slug)} target="_blank">View site</Link>
-              </Button>
-            </div>
-
-            <form
-              className="mt-4 grid gap-3 sm:grid-cols-2"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const result = await updateAdminPartner(partner.id, new FormData(e.currentTarget));
-                if (result.error) toast.error(result.error);
-                else {
-                  toast.success("Partner updated");
-                  router.refresh();
-                }
-              }}
-            >
-              <Input name="name" defaultValue={partner.name} />
-              <Input name="tagline" defaultValue={partner.tagline ?? ""} placeholder="Tagline" />
-              <Input
-                name="contactEmail"
-                type="email"
-                defaultValue={partner.contactEmail ?? ""}
-                placeholder="Contact email"
-              />
-              <Input
-                name="contactPhone"
-                type="tel"
-                defaultValue={partner.contactPhone ?? ""}
-                placeholder="Contact number"
-              />
-              <Input name="primaryColor" type="color" defaultValue={partner.primaryColor} />
-              <select name="isActive" defaultValue={partner.isActive ? "true" : "false"} className="h-10 rounded-lg border px-3 text-sm">
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
-              <Button type="submit" size="sm" className="sm:col-span-2">Save partner</Button>
-            </form>
-          </div>
+          <PartnerEditCard key={partner.id} partner={partner} />
         ))}
 
         <div className="rounded-2xl border border-border bg-card p-5">
@@ -175,6 +148,75 @@ export default function AdminPartnersPanel({
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function PartnerEditCard({ partner }: { partner: PartnerRow }) {
+  const router = useRouter();
+  const [colors, setColors] = useState<LogoPalette>(() => paletteFromPartner(partner));
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold">{partner.name}</h3>
+          <p className="text-sm text-muted-foreground">
+            /p/{partner.slug} · {partner._count.events} partner event(s)
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href={partnerPath(partner.slug)} target="_blank">View site</Link>
+        </Button>
+      </div>
+
+      <form
+        className="mt-4 space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setSaving(true);
+          const result = await updateAdminPartner(partner.id, new FormData(e.currentTarget));
+          setSaving(false);
+          if (result.error) toast.error(result.error);
+          else {
+            toast.success("Partner updated");
+            router.refresh();
+          }
+        }}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input name="name" defaultValue={partner.name} />
+          <Input name="tagline" defaultValue={partner.tagline ?? ""} placeholder="Tagline" />
+          <Input
+            name="contactEmail"
+            type="email"
+            defaultValue={partner.contactEmail ?? ""}
+            placeholder="Contact email"
+          />
+          <Input
+            name="contactPhone"
+            type="tel"
+            defaultValue={partner.contactPhone ?? ""}
+            placeholder="Contact number"
+          />
+        </div>
+        <PartnerLogoField
+          idPrefix={`partner-${partner.id}`}
+          currentLogoUrl={partner.logoUrl}
+          colors={colors}
+          onColorsChange={setColors}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <select name="isActive" defaultValue={partner.isActive ? "true" : "false"} className="h-10 rounded-lg border px-3 text-sm">
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+          <Button type="submit" size="sm" disabled={saving}>
+            {saving ? "Saving…" : "Save partner"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "2mb",
+    },
+  },
   turbopack: {
     // Parent folder has pnpm-lock.yaml; pin root to this app so routes resolve correctly.
     root: path.resolve(__dirname),

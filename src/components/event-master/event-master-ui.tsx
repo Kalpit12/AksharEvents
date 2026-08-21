@@ -212,13 +212,14 @@ export function EventMasterQuickNav({
   active,
   eventId,
 }: {
-  active: "dashboard" | "events" | "schedule";
+  active: "dashboard" | "events" | "schedule" | "partners";
   eventId?: string;
 }) {
   const dashboardHref = eventId ? `/admin?eventId=${encodeURIComponent(eventId)}` : "/admin";
   const links = [
     { id: "dashboard" as const, href: dashboardHref, label: "Dashboard" },
     { id: "events" as const, href: "/admin/events", label: "Events" },
+    { id: "partners" as const, href: "/admin/partners", label: "Partners" },
     ...(eventId
       ? [{ id: "schedule" as const, href: `/admin/events/${eventId}/activities`, label: "Schedule" }]
       : []),

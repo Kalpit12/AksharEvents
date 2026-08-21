@@ -5,6 +5,7 @@ const BRANDING_ARTWORK_FOLDER = "axar-events/branding-artwork";
 const FLOOR_PLAN_FOLDER = "axar-events/floor-plans";
 const EVENT_SCHEDULE_FOLDER = "axar-events/event-schedules";
 const TOUR_TRAVEL_FOLDER = "axar-events/tour-travel";
+const PARTNER_LOGO_FOLDER = "axar-events/partner-logos";
 
 function readEnv(name: string): string | undefined {
   const raw = process.env[name];
@@ -54,6 +55,10 @@ export function eventScheduleSpeakerFolder(eventId: string) {
 
 export function eventTourTravelPlaceFolder(eventId: string) {
   return `${TOUR_TRAVEL_FOLDER}/${eventId}/places`;
+}
+
+export function partnerLogoFolder(slug: string) {
+  return `${PARTNER_LOGO_FOLDER}/${slug}`;
 }
 
 type PublicUploadResult = {
