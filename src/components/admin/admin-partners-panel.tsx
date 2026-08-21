@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { createAdminPartner, updateAdminPartner, assignEventPartner } from "@/lib/admin-partners";
 import { partnerPath } from "@/lib/partners";
 import { DEFAULT_PALETTE, normalizeHexColor, type LogoPalette } from "@/lib/logo-palette";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 type PartnerRow = {
   id: string;
@@ -156,67 +158,123 @@ function PartnerEditCard({ partner }: { partner: PartnerRow }) {
   const router = useRouter();
   const [colors, setColors] = useState<LogoPalette>(() => paletteFromPartner(partner));
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = `partner-details-${partner.id}`;
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">{partner.name}</h3>
-          <p className="text-sm text-muted-foreground">
-            /p/{partner.slug} · {partner._count.events} partner event(s)
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href={partnerPath(partner.slug)} target="_blank">View site</Link>
-        </Button>
-      </div>
-
-      <form
-        className="mt-4 space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setSaving(true);
-          const result = await updateAdminPartner(partner.id, new FormData(e.currentTarget));
-          setSaving(false);
-          if (result.error) toast.error(result.error);
-          else {
-            toast.success("Partner updated");
-            router.refresh();
-          }
-        }}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input name="name" defaultValue={partner.name} />
-          <Input name="tagline" defaultValue={partner.tagline ?? ""} placeholder="Tagline" />
-          <Input
-            name="contactEmail"
-            type="email"
-            defaultValue={partner.contactEmail ?? ""}
-            placeholder="Contact email"
-          />
-          <Input
-            name="contactPhone"
-            type="tel"
-            defaultValue={partner.contactPhone ?? ""}
-            placeholder="Contact number"
-          />
-        </div>
-        <PartnerLogoField
-          idPrefix={`partner-${partner.id}`}
-          currentLogoUrl={partner.logoUrl}
-          colors={colors}
-          onColorsChange={setColors}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <select name="isActive" defaultValue={partner.isActive ? "true" : "false"} className="h-10 rounded-lg border px-3 text-sm">
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-          <Button type="submit" size="sm" disabled={saving}>
-            {saving ? "Saving…" : "Save partner"}
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left hover:opacity-90"
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          {partner.logoUrl ? (
+            <span
+              className="relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-white"
+              style={{ backgroundColor: colors.background }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={partner.logoUrl} alt="" className="h-full w-full object-contain p-0.5" />
+            </span>
+          ) : (
+            <span
+              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
+              style={{ backgroundColor: colors.primary }}
+            >
+              {partner.name.charAt(0)}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">{partner.name}</span>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                  partner.isActive ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"
+                )}
+              >
+                {partner.isActive ? "Active" : "Inactive"}
+              </span>
+            </span>
+            <span className="mt-0.5 block text-sm text-muted-foreground">
+              /p/{partner.slug} · {partner._count.events} partner event(s)
+            </span>
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={partnerPath(partner.slug)} target="_blank">
+              <ExternalLink className="h-3.5 w-3.5" />
+              View site
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            aria-expanded={expanded}
+            aria-controls={detailsId}
+            aria-label={expanded ? `Minimize ${partner.name}` : `Expand ${partner.name}`}
+            onClick={() => setExpanded((open) => !open)}
+          >
+            {expanded ? <ChevronUp /> : <ChevronDown />}
           </Button>
         </div>
-      </form>
+      </div>
+
+      {expanded ? (
+        <form
+          id={detailsId}
+          className="mt-4 space-y-4 border-t border-border pt-4"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSaving(true);
+            const result = await updateAdminPartner(partner.id, new FormData(e.currentTarget));
+            setSaving(false);
+            if (result.error) toast.error(result.error);
+            else {
+              toast.success("Partner updated");
+              router.refresh();
+            }
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input name="name" defaultValue={partner.name} />
+            <Input name="tagline" defaultValue={partner.tagline ?? ""} placeholder="Tagline" />
+            <Input
+              name="contactEmail"
+              type="email"
+              defaultValue={partner.contactEmail ?? ""}
+              placeholder="Contact email"
+            />
+            <Input
+              name="contactPhone"
+              type="tel"
+              defaultValue={partner.contactPhone ?? ""}
+              placeholder="Contact number"
+            />
+          </div>
+          <PartnerLogoField
+            idPrefix={`partner-${partner.id}`}
+            currentLogoUrl={partner.logoUrl}
+            colors={colors}
+            onColorsChange={setColors}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <select name="isActive" defaultValue={partner.isActive ? "true" : "false"} className="h-10 rounded-lg border px-3 text-sm">
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "Saving…" : "Save partner"}
+            </Button>
+          </div>
+        </form>
+      ) : null}
     </div>
   );
 }
