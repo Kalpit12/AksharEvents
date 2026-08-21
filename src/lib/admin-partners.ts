@@ -24,10 +24,8 @@ function getLogoFile(formData: FormData) {
   return null;
 }
 
-function resolvePalette(formData: FormData, uploaded?: LogoPalette | null): LogoPalette {
-  const clientApplied = formData.get("logoPaletteApplied") === "1";
-  if (uploaded && !clientApplied) return uploaded;
-  return paletteFromForm(formData, uploaded);
+function resolvePalette(formData: FormData): LogoPalette {
+  return paletteFromForm(formData);
 }
 
 function revalidatePartner(slug: string) {
@@ -47,15 +45,13 @@ export async function createAdminPartner(formData: FormData) {
   const logoFile = getLogoFile(formData);
 
   let logoUrl: string | null = null;
-  let uploadedPalette: LogoPalette | null = null;
   if (logoFile) {
     const upload = await uploadPartnerLogo(slug, logoFile);
     if ("error" in upload) return { error: upload.error };
     logoUrl = upload.url;
-    uploadedPalette = upload.palette;
   }
 
-  const palette = resolvePalette(formData, uploadedPalette);
+  const palette = resolvePalette(formData);
 
   await prisma.partner.create({
     data: {
@@ -94,15 +90,13 @@ export async function updateAdminPartner(partnerId: string, formData: FormData) 
 
   const logoFile = getLogoFile(formData);
   let logoUrl = existing.logoUrl;
-  let uploadedPalette: LogoPalette | null = null;
   if (logoFile) {
     const upload = await uploadPartnerLogo(existing.slug, logoFile);
     if ("error" in upload) return { error: upload.error };
     logoUrl = upload.url;
-    uploadedPalette = upload.palette;
   }
 
-  const palette = resolvePalette(formData, uploadedPalette);
+  const palette = resolvePalette(formData);
 
   await prisma.partner.update({
     where: { id: partnerId },

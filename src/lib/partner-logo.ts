@@ -1,28 +1,10 @@
-import sharp from "sharp";
 import { nanoid } from "nanoid";
 import { partnerLogoFolder, uploadPublicAsset } from "@/lib/cloudinary-server";
-import {
-  extractPaletteFromRgba,
-  isHexColor,
-  type LogoPalette,
-} from "@/lib/logo-palette";
+import { isHexColor, type LogoPalette } from "@/lib/logo-palette";
 import {
   MAX_PARTNER_LOGO_BYTES,
   isAllowedPartnerLogo,
 } from "@/lib/partner-logo-constants";
-
-export async function extractPaletteFromImageBuffer(buffer: Buffer): Promise<LogoPalette | null> {
-  try {
-    const { data, info } = await sharp(buffer)
-      .resize(96, 96, { fit: "inside", withoutEnlargement: true })
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    return extractPaletteFromRgba(data, info.width, info.height);
-  } catch {
-    return null;
-  }
-}
 
 export async function uploadPartnerLogo(slug: string, file: File) {
   if (file.size > MAX_PARTNER_LOGO_BYTES) {
@@ -38,12 +20,10 @@ export async function uploadPartnerLogo(slug: string, file: File) {
     publicId: `logo-${nanoid(8)}`,
     resourceType: "image",
   });
-  const palette = await extractPaletteFromImageBuffer(buffer);
 
   return {
     url: upload.url,
     publicId: upload.publicId,
-    palette,
   };
 }
 
