@@ -207,6 +207,7 @@ model User {
   brandingArtworkUploaded BrandingArtworkSubmission[] @relation("BrandingArtworkUploadedBy")
   brandingArtworkStatusUpdates BrandingArtworkSubmission[] @relation("BrandingArtworkStatusUpdatedBy")
   brandingArtworkStatusHistory BrandingArtworkStatusHistory[] @relation("BrandingArtworkHistoryChangedBy")
+  apiKeysCreated ApiKey[] @relation("ApiKeyCreatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -376,6 +377,8 @@ model Event {
   boothFee                Decimal?  @db.Decimal(10, 2)
   boothFeeCurrency        String    @default("KES")
 
+  apiKeys         ApiKey[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -516,7 +519,7 @@ model Payment {
   hdfcPaymentId   String?       @unique
   paypalOrderId   String?       @unique
   paypalCaptureId String?       @unique
-  gateway         String?       // stripe | hdfc | paypal
+  gateway         String?       // hdfc | paypal
   invoiceNumber   String?       @unique
   metadata        Json?
 
@@ -1163,4 +1166,50 @@ model SiteContent {
   value Json
 
   updatedAt DateTime @updatedAt
+}
+
+// ─── Developer API Gateway ───────────────────────────────────────────────────
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  name         String
+  /// Visible prefix only, e.g. axr_live_ab12
+  keyPrefix    String
+  /// SHA-256 hash of the full secret key
+  keyHash      String    @unique
+  /// When set, key is scoped to this event; null = all events (admin/platform)
+  eventId      String?
+  event        Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdById  String?
+  createdBy    User?     @relation("ApiKeyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Max requests per minute
+  rateLimit    Int       @default(60)
+  /// e.g. events:read, bookings:read, stats:read, checkin:write
+  scopes       String[]
+  isActive     Boolean   @default(true)
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+  expiresAt    DateTime?
+
+  usageLogs ApiKeyUsageLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([keyPrefix])
+  @@index([eventId])
+  @@index([isActive])
+}
+
+model ApiKeyUsageLog {
+  id        String   @id @default(cuid())
+  apiKeyId  String
+  apiKey    ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  path      String
+  method    String
+  status    Int
+  createdAt DateTime @default(now())
+
+  @@index([apiKeyId, createdAt])
+  @@index([createdAt])
 }

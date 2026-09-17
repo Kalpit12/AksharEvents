@@ -11,7 +11,7 @@ Kenya's premier event discovery and booking platform for career fairs, universit
 - **Tailwind CSS v4**
 - **Prisma ORM** + PostgreSQL
 - **NextAuth v5** (RBAC authentication)
-- **Stripe** (payments)
+- **PayPal** (payments)
 - **Cloudinary** (image uploads)
 - **Resend** (email notifications)
 - **React Hook Form** + Zod validation
@@ -23,7 +23,7 @@ Kenya's premier event discovery and booking platform for career fairs, universit
 
 - Multi-role authentication (Attendee, Organizer, Admin)
 - Event discovery with search, filters, and AI recommendations
-- Ticket booking (Free, Paid, VIP, Group) with Stripe checkout
+- Ticket booking (Free, Paid, VIP, Group) with PayPal checkout
 - QR code ticket generation and verification
 - Organizer dashboard with analytics
 - Admin dashboard with event approval
@@ -61,7 +61,6 @@ Required variables:
 - `NEXT_PUBLIC_APP_URL` — `http://localhost:5001`
 
 Optional:
-- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`
 - `PAYPAL_ENABLED`, `PAYPAL_ENV`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` (main-site tickets + booth fees; keep `PAYPAL_ENABLED=false` until ready)
 - `RESEND_API_KEY`, `EMAIL_FROM`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
@@ -94,7 +93,7 @@ Open [http://localhost:5001](http://localhost:5001)
 ```
 src/
 ├── app/
-│   ├── api/              # API routes (auth, search, stripe webhook)
+│   ├── api/              # API routes (auth, search, paypal webhook)
 │   ├── admin/            # Admin dashboard
 │   ├── auth/             # Login & registration
 │   ├── booking/          # Booking success page
@@ -117,7 +116,7 @@ src/
     ├── events.ts         # Event queries & search
     ├── prisma.ts         # Database client
     ├── qr.ts             # QR code generation
-    ├── stripe.ts         # Stripe integration
+    ├── paypal.ts         # PayPal integration
     └── validations.ts    # Zod schemas
 prisma/
 ├── schema.prisma         # Full database schema
@@ -154,7 +153,6 @@ Set `DATABASE_URL` in Vercel environment variables.
 
 Add all variables from `.env.example` in the Vercel dashboard:
 - `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`
-- `STRIPE_*` keys
 - `PAYPAL_*` keys (leave `PAYPAL_ENABLED=false` until go-live)
 - `RESEND_API_KEY`
 - `CLOUDINARY_*` keys
@@ -168,13 +166,7 @@ npx prisma db seed
 
 Or add a build command: `prisma generate && prisma db push && next build`
 
-### 6. Configure Stripe webhook
-
-Point Stripe webhook to: `https://your-domain.com/api/webhooks/stripe`
-
-Events: `checkout.session.completed`
-
-### 7. Configure PayPal (when enabling)
+### 6. Configure PayPal (when enabling)
 
 1. Set `PAYPAL_ENABLED=true`, `PAYPAL_ENV=sandbox` (then `live`), client ID/secret, and `PAYPAL_WEBHOOK_ID`
 2. Return URL: `https://your-domain.com/api/payments/paypal/return`
@@ -187,9 +179,38 @@ Events: `checkout.session.completed`
 |--------|-------|------|-------------|
 | GET/POST | `/api/auth/[...nextauth]` | — | NextAuth handlers |
 | GET | `/api/search?q=` | Public | Global search |
-| POST | `/api/webhooks/stripe` | Stripe | Payment webhooks |
 | GET | `/api/payments/paypal/return` | PayPal | Capture order after approval |
 | POST | `/api/webhooks/paypal` | PayPal | Capture-completed backup |
+
+## Developer API Gateway
+
+Interactive Swagger docs (share with partners):
+
+- **Docs:** [http://localhost:5001/docs](http://localhost:5001/docs)
+- **OpenAPI:** [http://localhost:5001/openapi.json](http://localhost:5001/openapi.json)
+- **Health:** `GET /api/v1` → `{ "status": "online", "gateway": "AxarEvents Developer Gateway" }`
+
+Authenticate with header `API-Key: <your-key>`.
+
+| Method | Route | Auth | Description |
+|--------|-------|------|-------------|
+| GET | `/api/v1` | Public | Gateway health |
+| GET | `/api/v1/events` | API-Key | List published events |
+| GET | `/api/v1/events/{slug}` | API-Key | Event detail + ticket types |
+| GET | `/api/v1/events/{slug}/bookings` | API-Key | Live bookings |
+| GET | `/api/v1/events/{slug}/stats` | API-Key | Sold / check-in / revenue |
+| POST | `/api/v1/events/{slug}/check-in` | API-Key | Check in by booking number |
+| POST | `/api/v1/admin/generate-key` | Admin key | Create a client API key |
+| GET | `/api/v1/admin/usage-report` | Admin key | Usage per key |
+
+Set `AXAR_API_ADMIN_KEY` in `.env`, then create a client key:
+
+```bash
+curl -X POST http://localhost:5001/api/v1/admin/generate-key \
+  -H "API-Key: $AXAR_API_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Partner Scanner\",\"eventId\":\"<optional-event-id>\"}"
+```
 
 ## License
 
